@@ -12,6 +12,35 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // Check if we've already run today (prevent duplicate runs)
+  const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD
+  
+  const { data: lastRun } = await supabase
+    .from('cron_runs')
+    .select('run_date, completed_at')
+    .eq('run_date', today)
+    .eq('status', 'completed')
+    .single()
+
+  if (lastRun) {
+    return NextResponse.json({ 
+      message: 'Already ran today',
+      lastRun: lastRun.completed_at,
+      skipped: true
+    })
+  }
+
+  // Create run record
+  const { data: runRecord } = await supabase
+    .from('cron_runs')
+    .insert({
+      run_date: today,
+      started_at: new Date().toISOString(),
+      status: 'running'
+    })
+    .select()
+    .single()
+
   type SportResult = { games: number; odds: number; props: number };
   type Results = {
     NFL: SportResult;
@@ -27,21 +56,48 @@ export async function GET(request: Request) {
     errors: []
   }
 
-  // Collect data for each sport
-  for (const sport of ['NFL', 'NBA', 'CFB']) {
-    try {
-      const result = await collectSportData(sport)
-      results[sport as keyof Omit<Results, 'errors'>] = result
-    } catch (error) {
-      results.errors.push(`${sport}: ${error}`)
+  try {
+    // Collect data for each sport
+    for (const sport of ['NFL', 'NBA', 'CFB']) {
+      try {
+        const result = await collectSportData(sport)
+        results[sport as keyof Omit<Results, 'errors'>] = result
+      } catch (error) {
+        results.errors.push(`${sport}: ${error}`)
+      }
     }
-  }
 
-  return NextResponse.json({ 
-    success: true, 
-    timestamp: new Date().toISOString(),
-    results 
-  })
+    // Mark run as completed
+    await supabase
+      .from('cron_runs')
+      .update({
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        results: results
+      })
+      .eq('id', runRecord?.id)
+
+    return NextResponse.json({ 
+      success: true, 
+      timestamp: new Date().toISOString(),
+      results 
+    })
+  } catch (error) {
+    // Mark run as failed
+    await supabase
+      .from('cron_runs')
+      .update({
+        status: 'failed',
+        completed_at: new Date().toISOString(),
+        error: String(error)
+      })
+      .eq('id', runRecord?.id)
+
+    return NextResponse.json({ 
+      success: false, 
+      error: String(error)
+    }, { status: 500 })
+  }
 }
 
 async function collectSportData(sport: string) {
