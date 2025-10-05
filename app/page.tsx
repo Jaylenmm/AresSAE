@@ -1,103 +1,190 @@
-import Image from "next/image";
+'use client'
+
+import { useState, useEffect } from 'react'
+
+import GameCard from '@/components/GameCard'
+import PropCard from '@/components/PropCard'
+import { Game, OddsData, PlayerProp } from '@/lib/types'
+import { supabase } from '@/lib/supabase'
+
+const SPORTS = [
+  { key: 'NFL', label: 'NFL' },
+  { key: 'NBA', label: 'NBA' },
+  { key: 'MLB', label: 'MLB' },
+  { key: 'CFB', label: 'CFB' }
+]
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [selectedSport, setSelectedSport] = useState('NFL')
+  const [games, setGames] = useState<Game[]>([])
+  const [oddsData, setOddsData] = useState<Record<string, OddsData[]>>({})
+  const [playerProps, setPlayerProps] = useState<PlayerProp[]>([])
+  // const [news, setNews] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [news, setNews] = useState<any[]>([])
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  useEffect(() => {
+    loadData()
+  }, [selectedSport])
+
+async function loadData() {
+  setLoading(true)
+  try {
+    // Fetch games
+    const response = await fetch(`/api/games?sport=${selectedSport}`)
+    const data = await response.json()
+    
+    // Remove duplicate games based on game ID
+    const uniqueGames = data.games ? Array.from(
+      new Map(data.games.map((game: Game) => [game.id, game])).values()
+    ) as Game[] : []
+    
+    setGames(uniqueGames)
+    setOddsData(data.odds || {})
+
+    // Fetch player props directly from Supabase
+    if (uniqueGames.length > 0) {
+      const gameIds = uniqueGames.map((g: Game) => g.id)
+      
+      console.log('Fetching props for game IDs:', gameIds)
+      
+      const { data: props, error } = await supabase
+        .from('player_props')
+        .select('*')
+        .in('game_id', gameIds)
+        .order('updated_at', { ascending: false })
+
+      console.log('Props fetched:', props?.length, 'Error:', error)
+      
+      if (error) {
+        console.error('Error fetching props:', error)
+      } else {
+        const uniqueProps = props ? Array.from(
+          new Map(props.map(prop => [prop.id, prop])).values()
+        ).slice(0, 20) : []
+        
+        console.log('Unique props after dedup:', uniqueProps.length)
+        setPlayerProps(uniqueProps)
+      }
+    }
+
+    // Fetch news
+    try {
+      const newsResponse = await fetch(`/api/news?sport=${selectedSport}`)
+      const newsData = await newsResponse.json()
+      setNews(newsData.articles || [])
+    } catch (error) {
+      console.error('Error loading news:', error)
+    }
+  } catch (error) {
+    console.error('Error loading data:', error)
+  } finally {
+    setLoading(false)
+  }
+}
+
+  return (
+    <main className="max-w-lg mx-auto p-4">
+      <div className="mb-6 flex items-center">
+        <img src="/ares-logo.svg" alt="Ares Logo" style={{ height: 40 }} className="mr-2" />
+        <span className="sr-only">Ares - Smart betting analysis</span>
+      </div>
+
+      {/* Sport Tabs */}
+      <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+        {SPORTS.map((sport) => (
+          <button
+            key={sport.key}
+            onClick={() => setSelectedSport(sport.key)}
+            className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition-colors ${
+              selectedSport === sport.key
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+            }`}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+            {sport.label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="text-center py-8 text-gray-500">Loading...</div>
+      ) : (
+        <>
+          {/* Featured Games */}
+          <section className="mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Featured Games</h2>
+            {games.length === 0 ? (
+              <div className="bg-white rounded-lg shadow-md p-6 text-center">
+                <p className="text-gray-600 mb-2">No games available</p>
+                <p className="text-sm text-gray-500">
+                  Go to <a href="/admin" className="text-blue-600 underline">/admin</a> to collect data
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {games.slice(0, 6).map((game) => (
+                  <GameCard key={game.id} game={game} odds={oddsData[game.id]} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Featured Player Props */}
+          <section className="mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Featured Props</h2>
+            {playerProps.length === 0 ? (
+              <div className="bg-white rounded-lg shadow-md p-6 text-center">
+                <p className="text-gray-600 mb-2">No player props available</p>
+                <p className="text-sm text-gray-500">
+                  Collect data from /admin to see player props
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {playerProps.slice(0, 8).map((prop) => (
+                  <PropCard key={prop.id} prop={prop} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* News Section Placeholder */}
+          <section className="mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Latest News</h2>
+            {news.length === 0 ? (
+              <div className="bg-white rounded-lg shadow-md p-4 text-center text-gray-500">
+                Loading news...
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {news.map((article, index) => (
+                  <a
+                    key={index}
+                    href={article.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow"
+                  >
+                    <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">
+                      {article.title}
+                    </h3>
+                    <p className="text-sm text-gray-600 line-clamp-2 mb-2">
+                      {article.description}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {new Date(article.pubDate).toLocaleDateString()}
+                    </p>
+                  </a>
+                ))}
+                <p className="text-xs text-gray-400 text-center pt-2">
+                  Powered by ESPN
+                </p>
+              </div>
+            )}
+          </section>
+        </>
+      )}
+    </main>
+  )
 }

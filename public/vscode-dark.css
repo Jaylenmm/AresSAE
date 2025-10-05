@@ -1,0 +1,47 @@
+/* VS Code Dark Theme for Ares App */
+:root {
+  --vs-bg: #1e1e1e;
+  --vs-surface: #252526;
+  --vs-border: #333333;
+  --vs-text: #ffffff;
+  --vs-accent: #007acc;
+  --vs-muted: #858585;
+  --vs-card: #2d2d2d;
+}
+
+body {
+  background: var(--vs-bg);
+  color: var(--vs-text);
+}
+
+main, .min-h-screen {
+  background: var(--vs-bg) !important;
+  color: var(--vs-text) !important;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--vs-text);
+}
+
+button, .btn {
+  background: var(--vs-surface);
+  color: #fff;
+  border: 1px solid var(--vs-border);
+}
+
+button.active, .btn.active {
+  background: var(--vs-accent);
+  color: #fff;
+}
+
+input, select, textarea {
+  background: var(--vs-card);
+  color: var(--vs-text);
+  border: 1px solid var(--vs-border);
+}
+
+hr {
+  border-color: var(--vs-border);
+}
+
+/* Add more as needed for your components */
