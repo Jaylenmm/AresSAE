@@ -137,7 +137,7 @@ async function loadData() {
               <div className="bg-white rounded-lg shadow-md p-6 text-center">
                 <p className="text-gray-600 mb-2">No player props available</p>
                 <p className="text-sm text-gray-500">
-                  Collect data from /admin to see player props
+                  Hang tight for updates!
                 </p>
               </div>
             ) : (
@@ -149,12 +149,22 @@ async function loadData() {
             )}
           </section>
 
-          {/* News Section Placeholder */}
+          {/* News Section */}
           <section className="mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Latest News</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Latest {selectedSport} News</h2>
+              <a 
+                href={`https://www.espn.com/${selectedSport.toLowerCase()}/`} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-xs text-gray-500 hover:text-gray-700 underline"
+              >
+                More on ESPN
+              </a>
+            </div>
             {news.length === 0 ? (
               <div className="bg-white rounded-lg shadow-md p-4 text-center text-gray-500">
-                Loading news...
+                No news available.
               </div>
             ) : (
               <div className="space-y-3">
@@ -164,22 +174,26 @@ async function loadData() {
                     href={article.link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-shadow"
+                    className="block bg-white rounded-lg shadow-sm p-4 hover:bg-gray-50 transition-colors border border-gray-200"
                   >
-                    <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">
+                    <div className="font-semibold text-gray-900 mb-2">
                       {article.title}
-                    </h3>
-                    <p className="text-sm text-gray-600 line-clamp-2 mb-2">
-                      {article.description}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {new Date(article.pubDate).toLocaleDateString()}
-                    </p>
+                    </div>
+                    {article.description && (
+                      <div className="text-sm text-gray-700 mb-2">
+                        {article.description}
+                      </div>
+                    )}
+                    <div className="text-xs text-gray-600">
+                      {new Date(article.pubDate).toLocaleDateString('en-US', { 
+                        weekday: 'short', 
+                        day: 'numeric', 
+                        month: 'short', 
+                        year: 'numeric' 
+                      })} · Source: ESPN
+                    </div>
                   </a>
                 ))}
-                <p className="text-xs text-gray-400 text-center pt-2">
-                  Powered by ESPN
-                </p>
               </div>
             )}
           </section>

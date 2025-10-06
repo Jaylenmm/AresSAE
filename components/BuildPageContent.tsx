@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
@@ -7,6 +8,7 @@ import BettingOptions from '@/components/BettingOptions'
 import { Game, OddsData, PlayerProp } from '@/lib/types'
 import { Search } from 'lucide-react'
 import { analyzeGameBet, analyzePlayerProp } from '@/lib/betAnalysis'
+import BetConfirmationModal from '@/components/BetConfirmationModal'
 
 export default function BuildPageContent() {
   const router = useRouter()
@@ -25,6 +27,8 @@ export default function BuildPageContent() {
   const [availableSportsbooks, setAvailableSportsbooks] = useState<string[]>([])
   const [selectedPropType, setSelectedPropType] = useState<string>('all')
   const [openPlayers, setOpenPlayers] = useState<Record<string, boolean>>({})
+  const [showModal, setShowModal] = useState(false)
+  const [modalData, setModalData] = useState<any>(null)
 
   useEffect(() => {
     const gameId = searchParams.get('game_id')
@@ -77,23 +81,26 @@ export default function BuildPageContent() {
     }
   }
 
-  function extractSportsbooks(odds: OddsData[]) {
-    const books = new Set<string>(['best_odds'])
-    
-    odds.forEach(odd => {
-      if (odd.sportsbook) {
-        books.add(odd.sportsbook.toLowerCase())
-      }
-    })
-    
-    setAvailableSportsbooks(Array.from(books))
-    
-    if (books.size > 1) {
-      const firstBook = Array.from(books).find(b => b !== 'best_odds')
-      if (firstBook) setSelectedSportsbook(firstBook)
+function extractSportsbooks(odds: OddsData[]) {
+  const books = new Set<string>(['best_odds'])
+  
+  odds.forEach(odd => {
+    if (odd.sportsbook) {
+      books.add(odd.sportsbook.toLowerCase())
     }
+  })
+  
+  setAvailableSportsbooks(Array.from(books))
+  
+  // Preset to FanDuel if available, otherwise first available book
+  const booksList = Array.from(books)
+  if (booksList.includes('fanduel')) {
+    setSelectedSportsbook('fanduel')
+  } else if (books.size > 1) {
+    const firstBook = booksList.find(b => b !== 'best_odds')
+    if (firstBook) setSelectedSportsbook(firstBook)
   }
-
+}
   function getOddsForSportsbook(allOdds: OddsData[]) {
     if (selectedSportsbook === 'best_odds') {
       return getBestOdds(allOdds)
@@ -171,6 +178,7 @@ export default function BuildPageContent() {
     try {
       const query = searchQuery.toLowerCase()
 
+      // Search games
       const { data: games } = await supabase
         .from('games')
         .select('*')
@@ -182,14 +190,22 @@ export default function BuildPageContent() {
         new Map(games.map(game => [game.id, game])).values()
       ).slice(0, 5) : []
 
+      // Search player props by player name - get ALL matching props
       const { data: props } = await supabase
         .from('player_props')
         .select('*')
         .ilike('player_name', `%${query}%`)
+        .order('updated_at', { ascending: false })
 
-      const uniqueProps = props ? Array.from(
-        new Map(props.map(prop => [prop.id, prop])).values()
+      // Group by player name and take only unique players
+      const uniquePlayerNames = props ? Array.from(
+        new Set(props.map(p => p.player_name))
       ).slice(0, 10) : []
+
+      // Get one prop per player for the search results
+      const uniqueProps = uniquePlayerNames.map(playerName => 
+        props?.find(p => p.player_name === playerName)
+      ).filter(Boolean) as PlayerProp[]
 
       setSearchResults({
         games: uniqueGames,
@@ -223,77 +239,78 @@ export default function BuildPageContent() {
     setSearchResults({ games: [], playerProps: [] })
   }
 
-    async function handleSelectBet(bet: any) {
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-        alert('Please sign in to save bets')
-        return
-    }
+async function handleSelectBet(bet: any) {
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    alert('Please sign in to save bets')
+    return
+  }
 
-    let analysis
-    
-    try {
-        if (bet.type === 'player_prop') {
-        analysis = analyzePlayerProp(bet as any, playerProps)
-        } else {
-        analysis = analyzeGameBet(bet as any, gameOdds)
-        }
-    } catch (e) {
-        alert('Analysis failed: ' + e)
-        return
-    }
-
-    const pickData = {
-        user_id: user.id,
-        pick_type: 'straight',
-        picks: {
-        bet_type: bet.type,
-        selection: bet.selection,
-        team: bet.team,
-        player: bet.player,
-        prop_type: bet.propType,
-        line: bet.line,
-        odds: bet.odds,
-        sportsbook: bet.sportsbook,
-        game_id: selectedGame?.id
-        },
-        analysis_snapshot: {
-        selection: bet.type === 'player_prop' 
-            ? `${bet.player} ${bet.selection} ${bet.line} ${bet.propType}`
-            : `${bet.team || bet.selection} ${bet.line || ''}`,
-        ev_percentage: analysis.ev_percentage,
-        has_edge: analysis.has_edge,
-        hit_probability: analysis.hit_probability,
-        recommendation_score: analysis.recommendation_score,
-        reasoning: analysis.reasoning,
-        best_book: analysis.best_book,
-        best_odds: analysis.best_odds,
-        comparison_odds: analysis.comparison_odds
-        },
-        total_odds: bet.odds,
-        status: 'pending'
-    }
-
-    const { error } = await supabase
-        .from('user_picks')
-        .insert([pickData])
-
-    if (error) {
-        alert(`Error saving bet: ${error.message}`)
+  let analysis
+  
+  try {
+    if (bet.type === 'player_prop') {
+      analysis = analyzePlayerProp(bet, playerProps)
     } else {
-        const emoji = analysis.recommendation_score >= 70 ? '🔥' : 
-                    analysis.recommendation_score >= 50 ? '✅' : 
-                    analysis.recommendation_score >= 30 ? '⚠️' : '❌'
-        
-        alert(`${emoji} Bet Saved!\n\nEV: ${analysis.ev_percentage}%\nHit Probability: ${analysis.hit_probability}%\nScore: ${analysis.recommendation_score}/100\n\n${analysis.reasoning}`)
+      analysis = analyzeGameBet(bet, gameOdds)
     }
-    }
+  } catch (e) {
+    alert('Analysis failed: ' + e)
+    return
+  }
+
+  const pickData = {
+    user_id: user.id,
+    pick_type: 'straight',
+    picks: {
+      bet_type: bet.type,
+      selection: bet.selection,
+      team: bet.team,
+      player: bet.player,
+      prop_type: bet.propType,
+      line: bet.line,
+      odds: bet.odds,
+      sportsbook: bet.sportsbook,
+      game_id: selectedGame?.id
+    },
+    analysis_snapshot: {
+      selection: bet.type === 'player_prop' 
+        ? `${bet.player} ${bet.selection} ${bet.line} ${bet.propType}`
+        : `${bet.team || bet.selection} ${bet.line || ''}`,
+      ev_percentage: analysis.ev_percentage,
+      has_edge: analysis.has_edge,
+      hit_probability: analysis.hit_probability,
+      recommendation_score: analysis.recommendation_score,
+      reasoning: analysis.reasoning,
+      best_book: analysis.best_book,
+      best_odds: analysis.best_odds,
+      comparison_odds: analysis.comparison_odds
+    },
+    total_odds: bet.odds,
+    status: 'pending'
+  }
+
+  const { error } = await supabase
+    .from('user_picks')
+    .insert([pickData])
+
+  if (error) {
+    alert(`Error saving bet: ${error.message}`)
+  } else {
+    // Show modal instead of alert
+    setModalData({ analysis, betDetails: bet })
+    setShowModal(true)
+  }
+}
 
   const displayOdds = gameOdds.length > 0 ? [getOddsForSportsbook(gameOdds)] : []
-  const filteredPlayerProps = selectedPropType === 'all' 
-    ? playerProps 
-    : playerProps.filter(p => p.prop_type === selectedPropType)
+  
+  // Filter player props by selected sportsbook only
+  const filteredPlayerProps = playerProps.filter(p => {
+    if (selectedSportsbook === 'best_odds') return true
+    return p.sportsbook?.toLowerCase() === selectedSportsbook.toLowerCase()
+  })
 
   const togglePlayer = (playerName: string) => {
     setOpenPlayers(prev => ({
@@ -337,7 +354,7 @@ export default function BuildPageContent() {
           placeholder="Search teams or players..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
         />
       </div>
 
@@ -350,9 +367,9 @@ export default function BuildPageContent() {
                 <button
                   key={game.id}
                   onClick={() => selectGame(game)}
-                  className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded transition-colors"
+                  className="w-full text-left px-3 py-2 hover:bg-gray-200 rounded transition-colors"
                 >
-                  <p className="font-semibold text-sm text-gray-900">
+                  <p className="font-semibold text-sm text-white">
                     {game.away_team} @ {game.home_team}
                   </p>
                   <p className="text-xs text-gray-500 pb-2">
@@ -362,12 +379,34 @@ export default function BuildPageContent() {
               ))}
             </div>
           )}
+          {searchResults.playerProps.length > 0 && (
+            <div className="p-2 border-t border-gray-200">
+              <p className="text-xs font-semibold text-gray-400 px-3 py-2">PLAYERS</p>
+              {searchResults.playerProps.map((prop) => (
+                <button
+                  key={prop.id}
+                  onClick={async () => {
+                    const { data: game } = await supabase
+                      .from('games')
+                      .select('*')
+                      .eq('id', prop.game_id)
+                      .single()
+                    if (game) await selectGame(game)
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded transition-colors"
+                >
+                  <p className="font-semibold text-sm text-white">{prop.player_name}</p>
+                  <p className="text-xs text-gray-500">{prop.prop_type}</p>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {selectedGame && (
         <div className="space-y-4">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg p-4 text-white">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-900 rounded-lg p-4 text-white">
             <div className="flex justify-between items-center mb-2">
               <span className="text-xs font-semibold bg-white/20 px-2 py-1 rounded">
                 {selectedGame.sport}
@@ -401,54 +440,54 @@ export default function BuildPageContent() {
             </div>
           </div>
 
-          <div className="text-black bg-white rounded-lg shadow-md p-4">
-            <BettingOptions
-              odds={displayOdds}
-              homeTeam={selectedGame.home_team}
-              awayTeam={selectedGame.away_team}
-              onSelectBet={handleSelectBet}
-            />
+          <div className="text-black bg-white rounded-lg shadow-md p-4"> 
+            <h3 className="!text-gray-600 font-semibold text-lg mb-3">Available Bets</h3>
+                <BettingOptions
+                odds={displayOdds}
+                homeTeam={selectedGame.home_team}
+                awayTeam={selectedGame.away_team}
+                onSelectBet={handleSelectBet}
+                />
           </div>
 
           {filteredPlayerProps.length > 0 && (
             <div className="bg-white rounded-lg shadow-md p-4">
-              <h3 className="text-black font-semibold mb-3">Player Props</h3>
-              <div className="space-y-2">
-                {Array.from(new Set(filteredPlayerProps.map(p => p.player_name))).slice(0, 10).map(playerName => {
-                  const playerPropsForName = filteredPlayerProps.filter(p => p.player_name === playerName)
-                  const isOpen = openPlayers[playerName] || false
-                  
-                  return (
-                    <div key={playerName} className="border border-gray-200 rounded-lg overflow-hidden">
-                      <button
+                <h3 className="!text-gray-600 font-semibold text-lg mb-3">Player Props</h3>
+                <div className="space-y-2">
+                {Array.from(new Set(filteredPlayerProps.map(p => p.player_name))).map(playerName => {
+                    const playerPropsForName = filteredPlayerProps.filter(p => p.player_name === playerName)
+                    const isOpen = openPlayers[playerName]
+                    
+                    return (
+                    <div key={playerName} className="text-gray-700 border border-gray-200 rounded-lg overflow-hidden">
+                        <button
                         onClick={() => togglePlayer(playerName)}
                         className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
-                      >
+                        >
                         <div className="text-left">
-                          <p className="font-medium text-sm text-gray-900">{playerName}</p>
-                          <p className="text-xs text-gray-500">{playerPropsForName.length} props available</p>
+                            <p className="text-white">{playerName}</p>
+                            <p className="text-xs text-gray-500">{playerPropsForName.length} props available</p>
                         </div>
                         <svg
-                          className={`w-5 h-5 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-                          fill="none"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
+                            className={`w-5 h-5 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                            fill="none"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
                         >
-                          <path d="M19 9l-7 7-7-7"></path>
+                            <path d="M19 9l-7 7-7-7"></path>
                         </svg>
-                      </button>
+                        </button>
 
-                      {isOpen && (
-                        <div className="p-3 space-y-2 bg-white">
-                          {playerPropsForName.map(prop => (
-                            <div key={prop.id} className="bg-gray-50 rounded p-2 border border-gray-200">
-                              <p className="text-xs text-gray-600 mb-2 font-medium">{prop.prop_type}</p>
-                              <div className="grid grid-cols-2 gap-2">
+                        {isOpen && (
+                        <div className="p-3 bg-white">
+                            <div className="grid grid-cols-2 gap-2">
+                            {playerPropsForName.map(prop => (
+                                <React.Fragment key={prop.id}>
                                 <button
-                                  onClick={() => handleSelectBet({
+                                    onClick={() => handleSelectBet({
                                     type: 'player_prop',
                                     player: prop.player_name,
                                     propType: prop.prop_type,
@@ -456,18 +495,23 @@ export default function BuildPageContent() {
                                     line: prop.line,
                                     odds: prop.over_odds ?? 0,
                                     sportsbook: prop.sportsbook
-                                  })}
-                                  className="bg-green-50 hover:bg-green-100 border border-green-200 rounded p-2 transition-colors"
+                                    })}
+                                    className="bg-gray-400 border-2 border-gray-200 rounded-lg p-3 hover:border-blue-500 hover:bg-blue-50 transition-all text-left active:scale-[0.98]"
                                 >
-                                  <div className="text-xs text-green-700 font-medium">Over</div>
-                                  <div className="text-sm font-bold text-green-900">{prop.line}</div>
-                                  {prop.over_odds && (
-                                    <div className="text-xs text-green-600">{prop.over_odds}</div>
-                                  )}
+                                    <div className="flex justify-between items-start mb-1">
+                                    <span className="text-xs font-semibold text-blue-600 uppercase tracking-wide">
+                                        {prop.prop_type}
+                                    </span>
+                                    <span className="text-base font-bold text-white">
+                                        {prop.over_odds ? `${prop.over_odds > 0 ? '+' : ''}${prop.over_odds}` : '--'}
+                                    </span>
+                                    </div>
+                                    <p className="text-sm font-semibold text-white leading-tight">Over {prop.line}</p>
+                                    <p className="text-xs text-gray-300 mt-1">Over the line</p>
                                 </button>
                                 
                                 <button
-                                  onClick={() => handleSelectBet({
+                                    onClick={() => handleSelectBet({
                                     type: 'player_prop',
                                     player: prop.player_name,
                                     propType: prop.prop_type,
@@ -475,27 +519,41 @@ export default function BuildPageContent() {
                                     line: prop.line,
                                     odds: prop.under_odds ?? 0,
                                     sportsbook: prop.sportsbook
-                                  })}
-                                  className="bg-red-50 hover:bg-red-100 border border-red-200 rounded p-2 transition-colors"
+                                    })}
+                                    className="bg-gray-50 border-2 border-gray-200 rounded-lg p-3 hover:border-blue-500 hover:bg-blue-50 transition-all text-left active:scale-[0.98]"
                                 >
-                                  <div className="text-xs text-red-700 font-medium">Under</div>
-                                  <div className="text-sm font-bold text-red-900">{prop.line}</div>
-                                  {prop.under_odds && (
-                                    <div className="text-xs text-red-600">{prop.under_odds}</div>
-                                  )}
+                                    <div className="flex justify-between items-start mb-1">
+                                    <span className="text-xs font-semibold text-blue-600 uppercase tracking-wide">
+                                        {prop.prop_type}
+                                    </span>
+                                    <span className="text-base font-bold text-white">
+                                        {prop.under_odds ? `${prop.under_odds > 0 ? '+' : ''}${prop.under_odds}` : '--'}
+                                    </span>
+                                    </div>
+                                    <p className="text-sm font-semibold text-white leading-tight">Under {prop.line}</p>
+                                    <p className="text-xs text-gray-300 mt-1">Under the line</p>
                                 </button>
-                              </div>
+                                </React.Fragment>
+                            ))}
                             </div>
-                          ))}
                         </div>
-                      )}
+                        )}
                     </div>
-                  )
+                    )
                 })}
-              </div>
+                </div>
             </div>
-          )}
+            )}
         </div>
+      )}
+      {/* Bet Confirmation Modal */}
+      {modalData && (
+        <BetConfirmationModal
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+          analysis={modalData.analysis}
+          betDetails={modalData.betDetails}
+        />
       )}
     </main>
   )

@@ -34,26 +34,34 @@ export async function GET(request: Request) {
 function parseRSS(xml: string) {
   const articles: any[] = []
   
-  // Simple regex parsing (production should use proper XML parser)
   const itemRegex = /<item>([\s\S]*?)<\/item>/g
-  const titleRegex = /<title><!\[CDATA\[(.*?)\]\]><\/title>/
-  const linkRegex = /<link>(.*?)<\/link>/
-  const descRegex = /<description><!\[CDATA\[(.*?)\]\]><\/description>/
-  const pubDateRegex = /<pubDate>(.*?)<\/pubDate>/
-
   const items = xml.match(itemRegex) || []
 
   for (const item of items) {
-    const title = item.match(titleRegex)?.[1] || ''
-    const link = item.match(linkRegex)?.[1] || ''
-    const description = item.match(descRegex)?.[1] || ''
-    const pubDate = item.match(pubDateRegex)?.[1] || ''
+    // Extract title - remove CDATA wrapper if present
+    const titleMatch = item.match(/<title>([\s\S]*?)<\/title>/)
+    let title = titleMatch?.[1] || ''
+    title = title.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, '$1').trim()
+
+    // Extract link - remove CDATA wrapper if present
+    const linkMatch = item.match(/<link>([\s\S]*?)<\/link>/)
+    let link = linkMatch?.[1] || ''
+    link = link.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, '$1').trim()
+
+    // Extract description - remove CDATA wrapper if present
+    const descMatch = item.match(/<description>([\s\S]*?)<\/description>/)
+    let description = descMatch?.[1] || ''
+    description = description.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/, '$1').trim()
+
+    // Extract pubDate
+    const pubDateMatch = item.match(/<pubDate>(.*?)<\/pubDate>/)
+    const pubDate = pubDateMatch?.[1] || ''
 
     if (title && link) {
       articles.push({
-        title: title.trim(),
-        link: link.trim(),
-        description: description.trim(),
+        title,
+        link,
+        description,
         pubDate: pubDate.trim()
       })
     }
