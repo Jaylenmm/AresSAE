@@ -5,9 +5,9 @@ interface ConfidenceBarProps {
 
 export default function ConfidenceBar({ confidence, label = 'Hit Probability' }: ConfidenceBarProps) {
   const getColor = (conf: number) => {
-    if (conf >= 70) return 'bg-green-500'
-    if (conf >= 55) return 'bg-yellow-500'
-    return 'bg-red-500'
+    if (conf >= 70) return 'bg-gradient-to-r from-blue-600 to-blue-900'
+    if (conf >= 55) return 'bg-gradient-to-r from-blue-600 to-blue-900'
+    return 'bg-gradient-to-r from-blue-600 to-blue-900'
   }
 
   return (

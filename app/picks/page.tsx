@@ -105,7 +105,7 @@ export default function PicksPage() {
             </div>
             {strongPicks > 0 && (
               <p className="text-sm text-center mt-3 bg-white/10 rounded py-2">
-                🔥 {strongPicks} Strong Play{strongPicks > 1 ? 's' : ''} (70+ Score)
+                 {strongPicks} Strong Play{strongPicks > 1 ? 's' : ''} (70+ Score)
               </p>
             )}
           </div>
@@ -115,15 +115,9 @@ export default function PicksPage() {
             {picks.map((pick) => {
               const analysis = pick.analysis_snapshot
               const score = analysis?.recommendation_score || 0
-              const scoreColor = score >= 70 ? 'text-green-600' : 
-                               score >= 50 ? 'text-blue-600' : 
-                               score >= 30 ? 'text-yellow-600' : 'text-red-600'
-              const scoreBg = score >= 70 ? 'bg-green-50 border-green-200' : 
-                            score >= 50 ? 'bg-blue-50 border-blue-200' : 
-                            score >= 30 ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'
               
               return (
-                <div key={pick.id} className={`bg-white rounded-lg shadow-md border-2 ${scoreBg} overflow-hidden`}>
+                <div key={pick.id} className={`bg-white rounded-lg shadow-md border-2 overflow-hidden`}>
                   <div className="p-4 pb-3">
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex-1">
@@ -131,16 +125,16 @@ export default function PicksPage() {
                           {analysis?.selection || 'Bet'}
                         </p>
                         <div className="flex gap-2 text-xs">
-                          <span className="bg-gray-100 px-2 py-1 rounded">
+                          <span className="text-white bg-gradient-to-r from-blue-600 to-blue-900 px-2 py-1 rounded">
                             {pick.picks?.sportsbook || 'N/A'}
                           </span>
-                          <span className="bg-gray-100 px-2 py-1 rounded">
+                          <span className="text-white bg-gradient-to-r from-blue-600 to-blue-900 px-2 py-1 rounded">
                             {pick.picks?.odds > 0 ? '+' : ''}{pick.picks?.odds}
                           </span>
                         </div>
                       </div>
                       <div className="flex flex-col items-end gap-2">
-                        <span className={`text-2xl font-bold ${scoreColor}`}>
+                        <span className={`text-2xl font-bold`}>
                           {score}
                         </span>
                         <button

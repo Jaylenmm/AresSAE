@@ -93,7 +93,6 @@ export default function BettingOptions({ odds, homeTeam, awayTeam, onSelectBet }
 
   return (
     <div className="space-y-2">
-      <h3 className="font-semibold text-[var(--vs-text)] mb-3">Available Bets</h3>
       <div className="grid grid-cols-2 gap-2">
         {bettingOptions.map((option, index) => (
           <button

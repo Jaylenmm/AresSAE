@@ -96,11 +96,7 @@ async function loadData() {
           <button
             key={sport.key}
             onClick={() => setSelectedSport(sport.key)}
-            className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition-colors ${
-              selectedSport === sport.key
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-            }`}
+            className={`bg-gradient-to-r from-blue-600 to-blue-900 px-4 py-2 rounded-lg font-semibold whitespace-nowrap`}
           >
             {sport.label}
           </button>
@@ -117,9 +113,6 @@ async function loadData() {
             {games.length === 0 ? (
               <div className="bg-white rounded-lg shadow-md p-6 text-center">
                 <p className="text-gray-600 mb-2">No games available</p>
-                <p className="text-sm text-gray-500">
-                  Go to <a href="/admin" className="text-blue-600 underline">/admin</a> to collect data
-                </p>
               </div>
             ) : (
               <div className="space-y-3">

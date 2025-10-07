@@ -250,12 +250,14 @@ async function handleSelectBet(bet: any) {
   let analysis
   
   try {
+    // Use the updated analysis functions
     if (bet.type === 'player_prop') {
-      analysis = analyzePlayerProp(bet, playerProps)
+      analysis = await analyzePlayerProp(bet, playerProps)
     } else {
-      analysis = analyzeGameBet(bet, gameOdds)
+      analysis = await analyzeGameBet(bet, gameOdds)
     }
   } catch (e) {
+    console.error('Analysis error:', e)
     alert('Analysis failed: ' + e)
     return
   }
@@ -284,8 +286,7 @@ async function handleSelectBet(bet: any) {
       recommendation_score: analysis.recommendation_score,
       reasoning: analysis.reasoning,
       best_book: analysis.best_book,
-      best_odds: analysis.best_odds,
-      comparison_odds: analysis.comparison_odds
+      best_odds: analysis.best_odds
     },
     total_odds: bet.odds,
     status: 'pending'
@@ -298,7 +299,7 @@ async function handleSelectBet(bet: any) {
   if (error) {
     alert(`Error saving bet: ${error.message}`)
   } else {
-    // Show modal instead of alert
+    // Show modal
     setModalData({ analysis, betDetails: bet })
     setShowModal(true)
   }
@@ -423,19 +424,9 @@ async function handleSelectBet(bet: any) {
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="font-bold text-lg">{selectedGame.away_team}</span>
-                {displayOdds[0]?.spread_away && (
-                  <span className="text-sm">
-                    {displayOdds[0].spread_away > 0 ? '+' : ''}{displayOdds[0].spread_away}
-                  </span>
-                )}
               </div>
               <div className="flex justify-between items-center">
                 <span className="font-bold text-lg">{selectedGame.home_team}</span>
-                {displayOdds[0]?.spread_home && (
-                  <span className="text-sm">
-                    {displayOdds[0].spread_home > 0 ? '+' : ''}{displayOdds[0].spread_home}
-                  </span>
-                )}
               </div>
             </div>
           </div>

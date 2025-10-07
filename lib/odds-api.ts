@@ -1,5 +1,3 @@
-import axios from 'axios'
-
 const API_KEY = process.env.THE_ODDS_API_KEY
 const BASE_URL = 'https://api.the-odds-api.com/v4'
 

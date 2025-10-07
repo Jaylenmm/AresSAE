@@ -195,39 +195,53 @@ export async function POST(request: Request) {
 
           console.log(`Found ${market.outcomes.length} outcomes in ${market.key}`)
 
+          // Group outcomes by player (description field)
+          const playerOutcomes = new Map<string, { over: any, under: any }>()
+          
           for (const outcome of market.outcomes) {
-            try {
-              // Player name is in the description field
-              const playerName = outcome.description || outcome.name
-              
-              console.log('👤 Processing outcome:', {
-                name: outcome.name,
-                description: outcome.description,
-                point: outcome.point,
-                price: outcome.price
-              })
+            const playerName = outcome.description
+            
+            if (!playerName) {
+              console.log('⚠️ Skipping - no description field')
+              continue
+            }
+            
+            if (!playerOutcomes.has(playerName)) {
+              playerOutcomes.set(playerName, { over: null, under: null })
+            }
+            
+            const player = playerOutcomes.get(playerName)!
+            
+            if (outcome.name === 'Over') {
+              player.over = outcome
+            } else if (outcome.name === 'Under') {
+              player.under = outcome
+            }
+          }
 
-              // Skip if no description (not a player prop)
-              if (!outcome.description) {
-                console.log('⚠️ Skipping - no description field')
+          // Now save each player with BOTH over and under odds
+          for (const [playerName, outcomes] of playerOutcomes) {
+            try {
+              // Use the line from either over or under (they should be the same)
+              const line = outcomes.over?.point || outcomes.under?.point
+              
+              if (!line) {
+                console.log(`⚠️ No line found for ${playerName}`)
                 continue
               }
 
-              // Determine over/under odds
-              const isOver = outcome.name === 'Over'
-              
               const propData = {
                 game_id: gameId,
                 player_name: playerName,
                 prop_type: propType,
-                line: outcome.point,
-                over_odds: isOver ? outcome.price : null,
-                under_odds: !isOver ? outcome.price : null,
+                line: line,
+                over_odds: outcomes.over?.price || null,
+                under_odds: outcomes.under?.price || null,
                 sportsbook: bookmaker.key,
                 updated_at: new Date().toISOString()
               }
 
-              console.log('💾 Attempting to save prop:', propData)
+              console.log('💾 Saving prop with BOTH sides:', propData)
 
               const { data, error } = await supabase
                 .from('player_props')
@@ -240,7 +254,7 @@ export async function POST(request: Request) {
                 console.error('❌ Error saving prop:', error)
                 propErrors++
               } else {
-                console.log('✅ Prop saved successfully')
+                console.log('✅ Prop saved successfully with both odds')
                 propsCreated++
               }
             } catch (propError) {
