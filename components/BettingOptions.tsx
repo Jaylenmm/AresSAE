@@ -93,25 +93,25 @@ export default function BettingOptions({ odds, homeTeam, awayTeam, onSelectBet }
 
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-2 gap-2">
+      <div className="text-black grid grid-cols-2 gap-2">
         {bettingOptions.map((option, index) => (
           <button
             key={index}
             onClick={() => onSelectBet(option)}
-            className="bg-white border-2 border-gray-200 rounded-lg p-3 hover:border-blue-500 hover:bg-blue-50 transition-all text-left"
+            className="!bg-white border-2 border-gray-200 rounded-lg p-3 hover:border-blue-500 hover:bg-blue-50 transition-all text-left"
           >
             <div className="flex justify-between items-start mb-1">
-              <span className="text-xs font-medium text-[var(--vs-accent)] capitalize">
+              <span className="text-xs font-bold text-blue-600 capitalize">
                 {option.type}
               </span>
-              <span className="text-sm font-bold text-[var(--vs-text)]">
+              <span className="text-sm font-bold text-blue-900">
                 {option.odds !== null && option.odds !== undefined
                   ? `${option.odds > 0 ? '+' : ''}${option.odds}`
                   : '--'}
               </span>
             </div>
-            <p className="text-sm font-semibold text-[var(--vs-text)]">{option.display}</p>
-            <p className="text-xs text-[var(--vs-muted)] mt-1">{option.description}</p>
+            <p className="text-sm font-semibold text-black">{option.display}</p>
+            <p className="text-xs text-black mt-1">{option.description}</p>
           </button>
         ))}
       </div>

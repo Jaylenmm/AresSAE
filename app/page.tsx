@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 
 import GameCard from '@/components/GameCard'
 import PropCard from '@/components/PropCard'
+import FeaturedPicks from '@/components/FeaturedPicks'
 import { Game, OddsData, PlayerProp } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
 
@@ -102,6 +103,8 @@ async function loadData() {
           </button>
         ))}
       </div>
+
+      <FeaturedPicks sport={selectedSport} />
 
       {loading ? (
         <div className="text-center py-8 text-gray-500">Loading...</div>

@@ -65,7 +65,7 @@ export default function BetConfirmationModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className={`bg-black p-6 border-b border-gray-200`}>
+        <div className={`bg-gradient-to-br from-blue-600 to-blue-900 p-6 border-b border-gray-200`}>
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-2xl font-bold text-gray-900">Bet Saved!</h2>
             <button 
@@ -106,7 +106,7 @@ export default function BetConfirmationModal({
 
           {/* Reasoning */}
           <div className="bg-gray-50 rounded-lg p-4 mb-4">
-            <h3 className="font-semibold text-gray-900 mb-3">Analysis Breakdown</h3>
+            <h3 className="font-semibold text-black mb-3">Analysis Breakdown</h3>
             <div className="space-y-2">
               {reasoningPoints.map((point, idx) => (
                 <div key={idx} className="text-sm text-gray-700 leading-relaxed">

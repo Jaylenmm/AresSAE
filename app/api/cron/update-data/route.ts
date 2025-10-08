@@ -195,7 +195,7 @@ async function collectSportData(sport: string) {
     }
   }
 
-  // Fetch player props
+// Fetch player props
   const propsData = await fetchPlayerProps(sportKey)
   
   for (const eventData of propsData) {
@@ -213,20 +213,39 @@ async function collectSportData(sport: string) {
           .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
           .join(' ')
 
+        // Group outcomes by player 
+        const playerOutcomes = new Map<string, { over: any, under: any }>()
+        
         for (const outcome of market.outcomes || []) {
-          if (!outcome.description) continue
-
-          const isOver = outcome.name === 'Over'
+          const playerName = outcome.description
+          if (!playerName) continue
           
+          if (!playerOutcomes.has(playerName)) {
+            playerOutcomes.set(playerName, { over: null, under: null })
+          }
+          
+          const player = playerOutcomes.get(playerName)!
+          if (outcome.name === 'Over') {
+            player.over = outcome
+          } else if (outcome.name === 'Under') {
+            player.under = outcome
+          }
+        }
+
+        // Now save each player with BOTH over and under odds
+        for (const [playerName, outcomes] of playerOutcomes) {
+          const line = outcomes.over?.point || outcomes.under?.point
+          if (!line) continue
+
           await supabase
             .from('player_props')
             .upsert({
               game_id: gameId,
-              player_name: outcome.description,
+              player_name: playerName,
               prop_type: propType,
-              line: outcome.point,
-              over_odds: isOver ? outcome.price : null,
-              under_odds: !isOver ? outcome.price : null,
+              line: line,
+              over_odds: outcomes.over?.price || null,
+              under_odds: outcomes.under?.price || null,
               sportsbook: bookmaker.key,
               updated_at: new Date().toISOString()
             }, {

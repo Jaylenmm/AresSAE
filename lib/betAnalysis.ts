@@ -3,7 +3,6 @@
 import { OddsData, PlayerProp } from './types'
 import { analyzeGameBet as comprehensiveGameAnalysis, analyzePlayerProp as comprehensivePlayerAnalysis } from './analysis-engine'
 import type { ComprehensiveBetAnalysis } from './analysis-engine'
-import { fetchNBAPlayerStats, fetchNFLPlayerStats, fetchMLBPlayerStats, fetchPlayerGameLog, mapPropTypeToStatName, extractStatValues } from './espn-api'
 
 /**
  * Legacy interface for backwards compatibility
@@ -61,7 +60,7 @@ export async function analyzeGameBet(
 }
 
 /**
- * MAIN EXPORT: Analyze player props with ESPN stats
+ * MAIN EXPORT: Analyze player props with ESPN stats (graceful fallback to odds-only)
  */
 export async function analyzePlayerProp(
   bet: BetSelection,
@@ -82,70 +81,16 @@ export async function analyzePlayerProp(
   
   const selection = bet.selection.toLowerCase().includes('over') ? 'over' : 'under'
   
-  // Try to fetch ESPN stats for enhanced analysis
+  // ESPN stats disabled for now - using odds-only analysis
   let historicalData: { seasonStats: number[]; last5Games: number[] } | undefined
   
-  try {
-    console.log(`Fetching ESPN stats for ${bet.player}...`)
-    
-    // Try NBA first, then NFL, then MLB (postseason priority!)
-    let playerStats = await fetchNBAPlayerStats(bet.player)
-    let sport: 'basketball' | 'football' | 'baseball' = 'basketball'
-    let season = 2025
-    
-    if (!playerStats) {
-      playerStats = await fetchNFLPlayerStats(bet.player)
-      sport = 'football'
-      season = 2024
-    }
-    
-    if (!playerStats) {
-      playerStats = await fetchMLBPlayerStats(bet.player)
-      sport = 'baseball'
-      season = 2024
-    }
-    
-    if (playerStats && playerStats.playerId) {
-      console.log(`✅ Found ${sport.toUpperCase()} stats for ${playerStats.playerName}`)
-      
-      // Get the stat name that matches the prop type
-      const statName = mapPropTypeToStatName(bet.propType)
-      
-      // Get recent game log
-      const gameLogs = await fetchPlayerGameLog(
-        playerStats.playerId,
-        sport,
-        season,
-        10 // Last 10 games for season stats
-      )
-      
-      if (gameLogs.length > 0) {
-        const allValues = extractStatValues(gameLogs, statName)
-        const last5Values = allValues.slice(0, 5)
-        
-        if (allValues.length > 0) {
-          historicalData = {
-            seasonStats: allValues,
-            last5Games: last5Values
-          }
-          console.log(`📊 Using ${allValues.length} games of historical data for ${sport}`)
-        }
-      }
-    } else {
-      console.log(`⚠️ No ESPN stats found for ${bet.player}, using odds-only analysis`)
-    }
-  } catch (error) {
-    console.error('Error fetching ESPN stats:', error)
-    // Continue with analysis even if stats fetch fails
-  }
-  
-  // Run comprehensive analysis with historical data if available
+  // ALWAYS run comprehensive analysis with odds data
   const analysis = await comprehensivePlayerAnalysis(
     playerProps,
     bet.player,
     bet.propType,
     selection,
-    historicalData
+    historicalData // undefined = odds-only analysis
   )
   
   // Convert to legacy format

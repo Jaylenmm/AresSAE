@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import BettingOptions from '@/components/BettingOptions'
@@ -29,6 +29,9 @@ export default function BuildPageContent() {
   const [openPlayers, setOpenPlayers] = useState<Record<string, boolean>>({})
   const [showModal, setShowModal] = useState(false)
   const [modalData, setModalData] = useState<any>(null)
+  
+  // Ref for scrolling to player section
+  const playerSectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   useEffect(() => {
     const gameId = searchParams.get('game_id')
@@ -74,6 +77,33 @@ export default function BuildPageContent() {
 
         if (game) {
           await selectGame(game)
+          
+          // Set the sportsbook to match the prop that was clicked
+          if (prop.sportsbook) {
+            setSelectedSportsbook(prop.sportsbook.toLowerCase())
+          }
+          
+          // After game loads, scroll to and open the player's section
+          setTimeout(() => {
+            if (prop.player_name) {
+              // Open the player section
+              setOpenPlayers(prev => ({
+                ...prev,
+                [prop.player_name]: true
+              }))
+              
+              // Scroll to player section after a brief delay for rendering
+              setTimeout(() => {
+                const element = playerSectionRefs.current[prop.player_name]
+                if (element) {
+                  element.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'center' 
+                  })
+                }
+              }, 300)
+            }
+          }, 100)
         }
       }
     } catch (error) {
@@ -431,8 +461,8 @@ async function handleSelectBet(bet: any) {
             </div>
           </div>
 
-          <div className="text-black bg-white rounded-lg shadow-md p-4"> 
-            <h3 className="!text-gray-600 font-semibold text-lg mb-3">Available Bets</h3>
+          <div className="text-black p-4"> 
+            <h3 className="!text-white font-semibold text-lg mb-3">Available Bets</h3>
                 <BettingOptions
                 odds={displayOdds}
                 homeTeam={selectedGame.home_team}
@@ -442,22 +472,26 @@ async function handleSelectBet(bet: any) {
           </div>
 
           {filteredPlayerProps.length > 0 && (
-            <div className="bg-white rounded-lg shadow-md p-4">
-                <h3 className="!text-gray-600 font-semibold text-lg mb-3">Player Props</h3>
+            <div className="p-4">
+                <h3 className="!text-white font-semibold text-lg mb-3">Player Props</h3>
                 <div className="space-y-2">
                 {Array.from(new Set(filteredPlayerProps.map(p => p.player_name))).map(playerName => {
                     const playerPropsForName = filteredPlayerProps.filter(p => p.player_name === playerName)
                     const isOpen = openPlayers[playerName]
                     
                     return (
-                    <div key={playerName} className="text-gray-700 border border-gray-200 rounded-lg overflow-hidden">
+                    <div 
+                      key={playerName} 
+                      className="text-gray-700 overflow-hidden"
+                      ref={(el) => { playerSectionRefs.current[playerName] = el }}
+                    >
                         <button
                         onClick={() => togglePlayer(playerName)}
-                        className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                        className="!bg-white border-2 border-gray-200 rounded-lg w-full flex items-center justify-between p-3"
                         >
                         <div className="text-left">
-                            <p className="text-white">{playerName}</p>
-                            <p className="text-xs text-gray-500">{playerPropsForName.length} props available</p>
+                            <p className="text-black">{playerName}</p>
+                            <p className="text-xs text-blue-700">{playerPropsForName.length} props available</p>
                         </div>
                         <svg
                             className={`w-5 h-5 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
@@ -473,7 +507,7 @@ async function handleSelectBet(bet: any) {
                         </button>
 
                         {isOpen && (
-                        <div className="p-3 bg-white">
+                        <div className="p-3">
                             <div className="grid grid-cols-2 gap-2">
                             {playerPropsForName.map(prop => (
                                 <React.Fragment key={prop.id}>
@@ -487,18 +521,18 @@ async function handleSelectBet(bet: any) {
                                     odds: prop.over_odds ?? 0,
                                     sportsbook: prop.sportsbook
                                     })}
-                                    className="bg-gray-400 border-2 border-gray-200 rounded-lg p-3 hover:border-blue-500 hover:bg-blue-50 transition-all text-left active:scale-[0.98]"
+                                    className="!bg-white border-2 border-gray-200 rounded-lg p-3 hover:border-blue-500 hover:bg-blue-50 transition-all text-left active:scale-[0.98]"
                                 >
                                     <div className="flex justify-between items-start mb-1">
                                     <span className="text-xs font-semibold text-blue-600 uppercase tracking-wide">
                                         {prop.prop_type}
                                     </span>
-                                    <span className="text-base font-bold text-white">
+                                    <span className="text-base font-bold text-black">
                                         {prop.over_odds ? `${prop.over_odds > 0 ? '+' : ''}${prop.over_odds}` : '--'}
                                     </span>
                                     </div>
-                                    <p className="text-sm font-semibold text-white leading-tight">Over {prop.line}</p>
-                                    <p className="text-xs text-gray-300 mt-1">Over the line</p>
+                                    <p className="text-sm font-semibold text-black leading-tight">Over {prop.line}</p>
+                                    <p className="text-xs text-black mt-1">Over the line</p>
                                 </button>
                                 
                                 <button
@@ -511,18 +545,18 @@ async function handleSelectBet(bet: any) {
                                     odds: prop.under_odds ?? 0,
                                     sportsbook: prop.sportsbook
                                     })}
-                                    className="bg-gray-50 border-2 border-gray-200 rounded-lg p-3 hover:border-blue-500 hover:bg-blue-50 transition-all text-left active:scale-[0.98]"
+                                    className="!bg-white border-2 border-gray-200 rounded-lg p-3 hover:border-blue-500 hover:bg-blue-50 transition-all text-left active:scale-[0.98]"
                                 >
                                     <div className="flex justify-between items-start mb-1">
                                     <span className="text-xs font-semibold text-blue-600 uppercase tracking-wide">
                                         {prop.prop_type}
                                     </span>
-                                    <span className="text-base font-bold text-white">
+                                    <span className="text-base font-bold text-black">
                                         {prop.under_odds ? `${prop.under_odds > 0 ? '+' : ''}${prop.under_odds}` : '--'}
                                     </span>
                                     </div>
-                                    <p className="text-sm font-semibold text-white leading-tight">Under {prop.line}</p>
-                                    <p className="text-xs text-gray-300 mt-1">Under the line</p>
+                                    <p className="text-sm font-semibold text-black leading-tight">Under {prop.line}</p>
+                                    <p className="text-xs text-black mt-1">Under the line</p>
                                 </button>
                                 </React.Fragment>
                             ))}
