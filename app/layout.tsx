@@ -7,8 +7,12 @@ import BottomNav from '@/components/BottomNav'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Ares - Smart Sports Betting Analysis',
-  description: 'AI-powered sports betting analysis',
+  title: 'Ares - Smart Analytics Engine',
+  description: 'Powerful sports analytics engine',
+  icons: {
+    icon: '/icon.svg',
+    apple: '/icon.svg',
+  },
 }
 
 export default function RootLayout({
