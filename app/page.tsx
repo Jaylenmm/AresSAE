@@ -97,7 +97,7 @@ async function loadData() {
           <button
             key={sport.key}
             onClick={() => setSelectedSport(sport.key)}
-            className={`bg-gradient-to-r from-blue-600 to-blue-900 px-4 py-2 rounded-lg font-semibold whitespace-nowrap`}
+            className={`!bg-gradient-to-r from-blue-600 to-blue-900 px-4 py-2 rounded-lg font-semibold whitespace-nowrap`}
           >
             {sport.label}
           </button>

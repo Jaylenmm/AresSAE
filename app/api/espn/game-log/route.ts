@@ -1,78 +1,61 @@
 // app/api/espn/game-log/route.ts
 
 import { NextRequest, NextResponse } from 'next/server'
-import axios from 'axios'
-
-const ESPN_CORE_URL = 'http://sports.core.api.espn.com/v2/sports'
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const playerId = searchParams.get('playerId')
     const sport = searchParams.get('sport') || 'basketball'
-    const season = parseInt(searchParams.get('season') || '2025')
-    const limit = parseInt(searchParams.get('limit') || '10')
 
     if (!playerId) {
       return NextResponse.json({ error: 'Player ID required' }, { status: 400 })
     }
 
-    const league = sport === 'basketball' ? 'nba' : sport === 'football' ? 'nfl' : 'mlb'
-    const sportPath = sport === 'basketball' ? 'basketball' : sport === 'football' ? 'football' : 'baseball'
-    const eventLogUrl = `${ESPN_CORE_URL}/${sportPath}/leagues/${league}/seasons/${season}/athletes/${playerId}/eventlog`
+    const sportPath = sport === 'basketball' ? 'basketball/nba' : 
+                     sport === 'football' ? 'football/nfl' : 'baseball/mlb'
     
-    const response = await axios.get(eventLogUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Accept': 'application/json'
-      }
+    const url = `https://site.api.espn.com/apis/site/v2/sports/${sportPath}/athletes/${playerId}/gamelog`
+    
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0' }
     })
     
-    const events = response.data.events || []
-    const gameLogs = []
-    
-    for (const event of events.slice(0, limit)) {
-      try {
-        const eventUrl = event.$ref
-        const eventResponse = await axios.get(eventUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0',
-            'Accept': 'application/json'
-          }
-        })
-        const eventData = eventResponse.data
-        
-        const stats: { [key: string]: number } = {}
-        
-        if (eventData.statistics?.categories) {
-          eventData.statistics.categories.forEach((category: any) => {
-            category.stats?.forEach((stat: any) => {
-              const statName = stat.name?.toLowerCase().replace(/\s+/g, '_')
-              if (statName && typeof stat.value === 'number') {
-                stats[statName] = stat.value
-              }
-            })
-          })
-        }
-        
-        gameLogs.push({
-          date: eventData.date || '',
-          opponent: eventData.opponent?.displayName || 'Unknown',
-          result: eventData.didWin ? 'W' : 'L',
-          stats
-        })
-      } catch (err) {
-        console.error('Error fetching individual game:', err)
-        continue
-      }
+    if (!res.ok) {
+      console.log(`Game log fetch failed: ${res.status}`)
+      return NextResponse.json([])
     }
     
-    return NextResponse.json(gameLogs)
+    const data = await res.json()
+    const events = data.events || []
+    const games: any[] = []
+    
+    for (const event of events.slice(0, 10)) {
+      const stats: { [key: string]: number } = {};
+      
+      (event.statistics || []).forEach((category: any) => {
+        (category.stats || []).forEach((stat: any) => {
+          const name = (stat.name || '').toLowerCase().replace(/\s+/g, '_')
+          const value = parseFloat(stat.value)
+          if (name && !isNaN(value)) {
+            stats[name] = value
+          }
+        })
+      })
+      
+      games.push({
+        date: event.gameDate || event.date || '',
+        opponent: event.competition?.opponent?.displayName || 'Unknown',
+        result: event.competition?.result || '',
+        stats
+      })
+    }
+    
+    console.log(`Retrieved ${games.length} game logs for player ${playerId}`)
+    return NextResponse.json(games)
+    
   } catch (error: any) {
-    console.error('ESPN Game Log API error:', error.message)
-    return NextResponse.json(
-      { error: 'Failed to fetch game log', details: error.message },
-      { status: 500 }
-    )
+    console.error('Game log error:', error.message)
+    return NextResponse.json([])
   }
 }

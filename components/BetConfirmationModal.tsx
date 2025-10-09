@@ -10,6 +10,7 @@ interface BetConfirmationModalProps {
     reasoning: string
     best_book?: string
     best_odds?: number
+    has_edge?: boolean
   }
   betDetails: {
     player?: string
@@ -28,14 +29,6 @@ export default function BetConfirmationModal({
   betDetails 
 }: BetConfirmationModalProps) {
   if (!isOpen) return null
-
-  const scoreColor = analysis.recommendation_score >= 70 ? 'text-green-600' : 
-                     analysis.recommendation_score >= 50 ? 'text-blue-600' : 
-                     analysis.recommendation_score >= 30 ? 'text-yellow-600' : 'text-red-600'
-
-  const bgColor = analysis.recommendation_score >= 70 ? 'bg-green-50' : 
-                  analysis.recommendation_score >= 50 ? 'bg-blue-50' : 
-                  analysis.recommendation_score >= 30 ? 'bg-yellow-50' : 'bg-red-50'
 
   // Clean reasoning: remove emojis and format professionally
   const cleanReasoning = (text: string) => {
@@ -65,19 +58,19 @@ export default function BetConfirmationModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className={`bg-gradient-to-br from-blue-600 to-blue-900 p-6 border-b border-gray-200`}>
+        <div className="bg-gradient-to-br from-blue-600 to-blue-900 p-6 border-b border-gray-200">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-2xl font-bold text-gray-900">Bet Saved!</h2>
+            <h2 className="text-2xl font-bold text-white">Bet Saved!</h2>
             <button 
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700"
+              className="text-white hover:text-gray-200"
             >
               <svg className="w-6 h-6" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
                 <path d="M6 18L18 6M6 6l12 12"></path>
               </svg>
             </button>
           </div>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-white">
             {betDetails.player 
               ? `${betDetails.player} ${betDetails.selection} ${betDetails.line} ${betDetails.propType}`
               : `${betDetails.team || betDetails.selection} ${betDetails.line || ''}`
@@ -99,13 +92,15 @@ export default function BetConfirmationModal({
               <div className="text-xs text-gray-500 mt-1">Hit Probability</div>
             </div>
             <div className="text-center">
-              <div className={`text-black text-2xl font-bold`}>{Math.round(analysis.recommendation_score)}/100</div>
-              <div className="text-xs text-gray-500 mt-1">Confidence</div>
+              <div className={`text-2xl font-bold ${analysis.has_edge ? 'text-green-600' : 'text-gray-400'}`}>
+                {analysis.has_edge ? '✓ Edge' : 'No Edge'}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">Edge Detected</div>
             </div>
           </div>
 
           {/* Reasoning */}
-          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+          <div className="bg-white p-4 mb-4">
             <h3 className="font-semibold text-black mb-3">Analysis Breakdown</h3>
             <div className="space-y-2">
               {reasoningPoints.map((point, idx) => (
@@ -134,7 +129,7 @@ export default function BetConfirmationModal({
           {/* Action Button */}
           <button
             onClick={onClose}
-            className="w-full bg-black text-white font-semibold py-3 rounded-lg transition-colors"
+            className="w-full bg-black text-white font-semibold py-3 rounded-lg hover:bg-gray-800 transition-colors"
           >
             Close
           </button>
