@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 import BettingOptions from '@/components/BettingOptions'
 import { Game, OddsData, PlayerProp } from '@/lib/types'
 import { Search } from 'lucide-react'
-import { analyzeGameBet, analyzePlayerProp } from '@/lib/betAnalysis'
+import { analyzeGameBet, analyzePlayerProp } from '@/lib/betAnalysisTEST'
 import BetConfirmationModal from '@/components/BetConfirmationModal'
 
 export default function BuildPageContent() {

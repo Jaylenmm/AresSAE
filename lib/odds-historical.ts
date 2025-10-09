@@ -1,6 +1,6 @@
 // ===== CREATE: lib/odds-historicalTEST.ts =====
 
-import { getFromCache, cacheHistoricalData, generateHistoricalOddsCacheKey } from './cache-managerTEST'
+import { getFromCache, cacheHistoricalData, generateHistoricalOddsCacheKey } from './cache-manager'
 
 const API_KEY = process.env.THE_ODDS_API_KEY
 const BASE_URL = 'https://api.the-odds-api.com/v4'

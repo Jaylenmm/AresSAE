@@ -1,46 +1,7 @@
+// ===== CLEAN: lib/espn-api.ts =====
+
 import axios from 'axios'
-
-const ESPN_BASE_URL = 'https://site.api.espn.com/apis/site/v2'
-
-// ===== CFB Rankings (existing code - unchanged) =====
-
-export async function getTop25CFBTeams() {
-  try {
-    const response = await axios.get(
-      `${ESPN_BASE_URL}/sports/football/college-football/rankings`
-    )
-    
-    const apPoll = response.data.rankings.find(
-      (r: any) => r.name === 'AP Top 25' || r.shortName === 'AP'
-    )
-    
-    if (!apPoll || !apPoll.ranks) {
-      console.error('AP Poll not found in rankings')
-      return []
-    }
-
-    const top25Teams = apPoll.ranks.map((rank: any) => {
-      return rank.team?.displayName || rank.team?.name || ''
-    }).filter(Boolean)
-
-    console.log('📊 Top 25 CFB Teams:', top25Teams)
-    return top25Teams
-  } catch (error) {
-    console.error('Error fetching CFB rankings:', error)
-    return []
-  }
-}
-
-export function isTop25Team(teamName: string, top25List: string[]): boolean {
-  const normalizedTeam = teamName.toLowerCase().trim()
-  
-  return top25List.some(ranked => {
-    const normalizedRanked = ranked.toLowerCase().trim()
-    return normalizedRanked.includes(normalizedTeam) || normalizedTeam.includes(normalizedRanked)
-  })
-}
-
-// ===== Player Stats Functions (UPDATED TO USE API ROUTES) =====
+import { getFromCache, cacheHistoricalData, generatePlayerPropCacheKey } from './cache-manager'
 
 export interface PlayerSeasonStats {
   playerId: string
@@ -70,18 +31,38 @@ export async function fetchNBAPlayerStats(
   season: number = 2025
 ): Promise<PlayerSeasonStats | null> {
   try {
+    const cacheKey = generatePlayerPropCacheKey(playerName, 'season_stats_nba', season, 'season')
+    const cached = await getFromCache(cacheKey)
+    
+    if (cached) {
+      console.log(`Using cached NBA stats for ${playerName}`)
+      return cached
+    }
+    
+    console.log(`Fetching NBA stats for ${playerName}...`)
+    
     const response = await axios.get('/api/espn/player-stats', {
       params: {
         player: playerName,
         sport: 'basketball',
         season
-      }
+      },
+      timeout: 10000
     })
     
-    return response.data
+    const stats = response.data
+    
+    if (stats && stats.playerId) {
+      await cacheHistoricalData(cacheKey, stats, 1)
+      console.log(`Fetched NBA stats for ${stats.playerName}`)
+      return stats
+    }
+    
+    return null
+    
   } catch (error: any) {
     if (error.response?.status === 404) {
-      console.log(`❌ NBA player not found: ${playerName}`)
+      console.log(`NBA player not found: ${playerName}`)
     } else {
       console.error(`Error fetching NBA stats for ${playerName}:`, error.message)
     }
@@ -97,18 +78,38 @@ export async function fetchNFLPlayerStats(
   season: number = 2024
 ): Promise<PlayerSeasonStats | null> {
   try {
+    const cacheKey = generatePlayerPropCacheKey(playerName, 'season_stats_nfl', season, 'season')
+    const cached = await getFromCache(cacheKey)
+    
+    if (cached) {
+      console.log(`Using cached NFL stats for ${playerName}`)
+      return cached
+    }
+    
+    console.log(`Fetching NFL stats for ${playerName}...`)
+    
     const response = await axios.get('/api/espn/player-stats', {
       params: {
         player: playerName,
         sport: 'football',
         season
-      }
+      },
+      timeout: 10000
     })
     
-    return response.data
+    const stats = response.data
+    
+    if (stats && stats.playerId) {
+      await cacheHistoricalData(cacheKey, stats, 1)
+      console.log(`Fetched NFL stats for ${stats.playerName}`)
+      return stats
+    }
+    
+    return null
+    
   } catch (error: any) {
     if (error.response?.status === 404) {
-      console.log(`❌ NFL player not found: ${playerName}`)
+      console.log(`NFL player not found: ${playerName}`)
     } else {
       console.error(`Error fetching NFL stats for ${playerName}:`, error.message)
     }
@@ -124,18 +125,38 @@ export async function fetchMLBPlayerStats(
   season: number = 2024
 ): Promise<PlayerSeasonStats | null> {
   try {
+    const cacheKey = generatePlayerPropCacheKey(playerName, 'season_stats_mlb', season, 'season')
+    const cached = await getFromCache(cacheKey)
+    
+    if (cached) {
+      console.log(`Using cached MLB stats for ${playerName}`)
+      return cached
+    }
+    
+    console.log(`Fetching MLB stats for ${playerName}...`)
+    
     const response = await axios.get('/api/espn/player-stats', {
       params: {
         player: playerName,
         sport: 'baseball',
         season
-      }
+      },
+      timeout: 10000
     })
     
-    return response.data
+    const stats = response.data
+    
+    if (stats && stats.playerId) {
+      await cacheHistoricalData(cacheKey, stats, 1)
+      console.log(`Fetched MLB stats for ${stats.playerName}`)
+      return stats
+    }
+    
+    return null
+    
   } catch (error: any) {
     if (error.response?.status === 404) {
-      console.log(`❌ MLB player not found: ${playerName}`)
+      console.log(`MLB player not found: ${playerName}`)
     } else {
       console.error(`Error fetching MLB stats for ${playerName}:`, error.message)
     }
@@ -144,7 +165,7 @@ export async function fetchMLBPlayerStats(
 }
 
 /**
- * Fetch player's recent game log via API route
+ * Fetch player game log via API route
  */
 export async function fetchPlayerGameLog(
   playerId: string,
@@ -153,16 +174,33 @@ export async function fetchPlayerGameLog(
   limit: number = 10
 ): Promise<PlayerGameLog[]> {
   try {
+    const cacheKey = `game_log_${playerId}_${sport}_${season}_${limit}`
+    const cached = await getFromCache(cacheKey)
+    
+    if (cached) {
+      console.log(`Using cached game log for player ${playerId}`)
+      return cached
+    }
+    
+    console.log(`Fetching game log for player ${playerId}...`)
+    
     const response = await axios.get('/api/espn/game-log', {
       params: {
         playerId,
         sport,
         season,
         limit
-      }
+      },
+      timeout: 10000
     })
     
-    return response.data
+    const gameLogs = response.data
+    
+    await cacheHistoricalData(cacheKey, gameLogs, 0.25)
+    
+    console.log(`Fetched ${gameLogs.length} game logs`)
+    return gameLogs
+    
   } catch (error: any) {
     console.error('Error fetching game log:', error.message)
     return []
@@ -170,11 +208,10 @@ export async function fetchPlayerGameLog(
 }
 
 /**
- * Helper: Map prop type to ESPN stat name
+ * Map prop type to ESPN stat name
  */
 export function mapPropTypeToStatName(propType: string): string {
   const mapping: { [key: string]: string } = {
-    // NBA
     'player_points': 'points',
     'Points': 'points',
     'player_rebounds': 'rebounds',
@@ -187,8 +224,6 @@ export function mapPropTypeToStatName(propType: string): string {
     'Blocks': 'blocks',
     'player_steals': 'steals',
     'Steals': 'steals',
-    
-    // NFL
     'player_pass_yds': 'passing_yards',
     'Pass Yds': 'passing_yards',
     'player_pass_tds': 'passing_touchdowns',
@@ -200,14 +235,16 @@ export function mapPropTypeToStatName(propType: string): string {
     'player_receptions': 'receptions',
     'Receptions': 'receptions',
     'player_reception_yds': 'receiving_yards',
-    'Reception Yds': 'receiving_yards'
+    'Reception Yds': 'receiving_yards',
+    'batter_home_runs': 'home_runs',
+    'pitcher_strikeouts': 'strikeouts'
   }
   
   return mapping[propType] || propType.toLowerCase().replace(/\s+/g, '_')
 }
 
 /**
- * Extract stat values from game logs for analysis
+ * Extract stat values from game logs
  */
 export function extractStatValues(
   gameLogs: PlayerGameLog[],

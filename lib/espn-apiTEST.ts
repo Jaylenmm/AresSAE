@@ -1,7 +1,7 @@
 // ===== CLEAN: lib/espn-apiTEST.ts =====
 
 import axios from 'axios'
-import { getFromCache, cacheHistoricalData, generatePlayerPropCacheKey } from './cache-managerTEST'
+import { getFromCache, cacheHistoricalData, generatePlayerPropCacheKey } from './cache-manager'
 
 export interface PlayerSeasonStats {
   playerId: string

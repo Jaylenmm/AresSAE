@@ -1,8 +1,16 @@
-// ===== COMPLETE: lib/betAnalysis.ts =====
+// ===== FIXED: lib/betAnalysisTEST.ts =====
 
 import { OddsData, PlayerProp } from './types'
 import { analyzeGameBet as comprehensiveGameAnalysis, analyzePlayerProp as comprehensivePlayerAnalysis } from './analysis-engine'
 import type { ComprehensiveBetAnalysis } from './analysis-engine'
+import { 
+  fetchNBAPlayerStats, 
+  fetchNFLPlayerStats, 
+  fetchMLBPlayerStats, 
+  fetchPlayerGameLog,
+  mapPropTypeToStatName,
+  extractStatValues
+} from './espn-apiTEST'
 
 /**
  * Legacy interface for backwards compatibility
@@ -30,6 +38,41 @@ interface LegacyAnalysisResult {
 }
 
 /**
+ * Determine sport from prop type
+ */
+function getSportFromPropType(propType: string): 'basketball' | 'football' | 'baseball' | null {
+  const lowerProp = propType.toLowerCase().replace(/\s+/g, '_')
+  
+  // NFL/CFB props
+  if (lowerProp.includes('pass') || lowerProp.includes('rush') || 
+      lowerProp.includes('reception') || lowerProp.includes('tackle') ||
+      lowerProp.includes('sack') || lowerProp.includes('interception') ||
+      lowerProp.includes('yds') || lowerProp.includes('yards') ||
+      lowerProp.includes('td') || lowerProp.includes('touchdown')) {
+    return 'football'
+  }
+  
+  // NBA props
+  if (lowerProp.includes('point') || lowerProp.includes('rebound') || 
+      lowerProp.includes('assist') || lowerProp.includes('three') ||
+      lowerProp.includes('block') || lowerProp.includes('steal')) {
+    return 'basketball'
+  }
+  
+  // MLB props - FIXED
+  if (lowerProp.includes('batter') || lowerProp.includes('pitcher') ||
+      lowerProp.includes('home_run') || lowerProp.includes('homerun') ||
+      lowerProp.includes('strikeout') || lowerProp.includes('hit') || 
+      lowerProp.includes('rbi') || lowerProp.includes('run') ||
+      lowerProp.includes('bases') || lowerProp.includes('earned') ||
+      lowerProp.includes('walk')) {
+    return 'baseball'
+  }
+  
+  return null
+}
+
+/**
  * MAIN EXPORT: Analyze game bets (spread, moneyline, total)
  */
 export async function analyzeGameBet(
@@ -37,7 +80,6 @@ export async function analyzeGameBet(
   allOdds: OddsData[]
 ): Promise<LegacyAnalysisResult> {
   
-  // Determine bet type and selection
   let betType: 'spread' | 'moneyline' | 'total'
   let selection: 'home' | 'away' | 'over' | 'under'
   
@@ -52,15 +94,13 @@ export async function analyzeGameBet(
     selection = bet.selection.toLowerCase().includes('over') ? 'over' : 'under'
   }
   
-  // Run comprehensive analysis
   const analysis = await comprehensiveGameAnalysis(allOdds, betType, selection)
-  
-  // Convert to legacy format
   return convertToLegacyFormat(analysis)
 }
 
 /**
- * MAIN EXPORT: Analyze player props with ESPN stats (graceful fallback to odds-only)
+ * MAIN EXPORT: Analyze player props WITH ESPN stats
+ * PRODUCTION-READY with proper error handling
  */
 export async function analyzePlayerProp(
   bet: BetSelection,
@@ -81,20 +121,123 @@ export async function analyzePlayerProp(
   
   const selection = bet.selection.toLowerCase().includes('over') ? 'over' : 'under'
   
-  // ESPN stats disabled for now - using odds-only analysis
+  console.log(`\n🎯 Analyzing ${bet.player} ${bet.propType} ${selection}`)
+  
+  // ===== STEP 1: Determine Sport from Prop Type =====
+  const sport = getSportFromPropType(bet.propType)
+  
+  if (!sport) {
+    console.warn(`⚠️ Could not determine sport from prop type: ${bet.propType}`)
+    console.log(`📊 Falling back to odds-only analysis`)
+    
+    const analysis = await comprehensivePlayerAnalysis(
+      playerProps,
+      bet.player,
+      bet.propType,
+      selection,
+      undefined
+    )
+    
+    const result = convertToLegacyFormat(analysis)
+    result.reasoning = `[Data: Market odds only - Unknown sport] ${result.reasoning}`
+    return result
+  }
+  
+  console.log(`🏈 Detected sport: ${sport.toUpperCase()}`)
+  
+  // ===== STEP 2: Try ESPN Stats (FREE) =====
   let historicalData: { seasonStats: number[]; last5Games: number[] } | undefined
   
-  // ALWAYS run comprehensive analysis with odds data
+  try {
+    console.log(`📊 Fetching ESPN stats for ${bet.player}...`)
+    
+    let playerStats = null
+    let season = 2025
+    
+    // Fetch stats for the correct sport
+    if (sport === 'basketball') {
+      playerStats = await fetchNBAPlayerStats(bet.player, 2025)
+    } else if (sport === 'football') {
+      playerStats = await fetchNFLPlayerStats(bet.player, 2024)
+      season = 2024
+    } else if (sport === 'baseball') {
+      playerStats = await fetchMLBPlayerStats(bet.player, 2024)
+      season = 2024
+    }
+    
+    if (playerStats && playerStats.playerId) {
+      console.log(`✅ Found ${sport.toUpperCase()} stats for ${playerStats.playerName}`)
+      
+      const statName = mapPropTypeToStatName(bet.propType)
+      
+      // Try to get game logs, but don't fail if unavailable
+      let gameLogs: any[] = []
+      try {
+        gameLogs = await fetchPlayerGameLog(playerStats.playerId, sport, season, 10)
+      } catch (error) {
+        console.log(`Game logs unavailable, using season stats only`)
+      }
+      
+      if (gameLogs.length > 0) {
+        const allValues = extractStatValues(gameLogs, statName)
+        const last5Values = allValues.slice(0, 5)
+        
+        if (allValues.length > 0) {
+          historicalData = {
+            seasonStats: allValues,
+            last5Games: last5Values
+          }
+          console.log(`📈 Using ${allValues.length} games of ESPN data`)
+        } else {
+          console.warn(`⚠️ ESPN stats found but no values for ${statName}`)
+        }
+      } else {
+        // Use season average as fallback
+        const seasonValue = playerStats.stats[statName]
+        if (seasonValue && !isNaN(seasonValue)) {
+          historicalData = {
+            seasonStats: [seasonValue],
+            last5Games: [seasonValue]
+          }
+          console.log(`📊 Using season average: ${seasonValue} ${statName}`)
+        } else {
+          console.warn(`⚠️ No game logs available for ${playerStats.playerName}`)
+        }
+      }
+    } else {
+      console.log(`⚠️ No ESPN stats found for ${bet.player} in ${sport}`)
+    }
+  } catch (error) {
+    console.error('ESPN stats fetch failed:', error)
+  }
+  
+  // ===== STEP 3: Run Analysis =====
+  console.log(`🔬 Running comprehensive analysis...`)
+  
   const analysis = await comprehensivePlayerAnalysis(
     playerProps,
     bet.player,
     bet.propType,
     selection,
-    historicalData // undefined = odds-only analysis
+    historicalData
   )
   
-  // Convert to legacy format
-  return convertToLegacyFormat(analysis)
+  // Add data source info to reasoning
+  let dataSource = 'Market odds only'
+  if (historicalData) {
+    if (historicalData.seasonStats.length >= 5) {
+      dataSource = `ESPN ${sport} stats (${historicalData.seasonStats.length} games)`
+    } else if (historicalData.seasonStats.length > 0) {
+      dataSource = `ESPN ${sport} stats (${historicalData.seasonStats.length} games - limited data)`
+    }
+  }
+  
+  console.log(`✅ Analysis complete using: ${dataSource}\n`)
+  
+  const result = convertToLegacyFormat(analysis)
+  result.reasoning = `[Data: ${dataSource}] ${result.reasoning}`
+  
+  return result
 }
 
 /**
@@ -108,11 +251,53 @@ export async function getComprehensiveAnalysis(
   
   if (bet.type === 'player_prop' && playerProps) {
     const selection = bet.selection.toLowerCase().includes('over') ? 'over' : 'under'
+    
+    // Determine sport and fetch stats
+    const sport = getSportFromPropType(bet.propType || '')
+    let historicalData: { seasonStats: number[]; last5Games: number[] } | undefined
+    
+    if (sport) {
+      try {
+        let playerStats = null
+        let season = 2025
+        
+        if (sport === 'basketball') {
+          playerStats = await fetchNBAPlayerStats(bet.player || '', 2025)
+        } else if (sport === 'football') {
+          playerStats = await fetchNFLPlayerStats(bet.player || '', 2024)
+          season = 2024
+        } else if (sport === 'baseball') {
+          playerStats = await fetchMLBPlayerStats(bet.player || '', 2024)
+          season = 2024
+        }
+        
+        if (playerStats && playerStats.playerId) {
+          const statName = mapPropTypeToStatName(bet.propType || '')
+          const gameLogs = await fetchPlayerGameLog(playerStats.playerId, sport, season, 10)
+          
+          if (gameLogs.length > 0) {
+            const allValues = extractStatValues(gameLogs, statName)
+            const last5Values = allValues.slice(0, 5)
+            
+            if (allValues.length > 0) {
+              historicalData = {
+                seasonStats: allValues,
+                last5Games: last5Values
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching stats for comprehensive analysis:', error)
+      }
+    }
+    
     return comprehensivePlayerAnalysis(
       playerProps,
       bet.player || '',
       bet.propType || '',
-      selection
+      selection,
+      historicalData
     )
   } else if (allOdds) {
     let betType: 'spread' | 'moneyline' | 'total'
@@ -165,7 +350,6 @@ export async function getComprehensiveAnalysis(
  * Helper: Convert comprehensive analysis to legacy format
  */
 function convertToLegacyFormat(analysis: ComprehensiveBetAnalysis): LegacyAnalysisResult {
-  // Convert recommendation to score (0-100)
   let score = 0
   if (analysis.recommendation === 'strong_bet') {
     score = 85
@@ -177,10 +361,9 @@ function convertToLegacyFormat(analysis: ComprehensiveBetAnalysis): LegacyAnalys
     score = 30
   }
   
-  // Combine reasoning into single string
   const reasoning = [
-    ...analysis.reasoning,
-    ...analysis.warnings
+    ...analysis.reasoning.map(r => r.replace(/[^\w\s\-+%.,:;()?!]/g, '')),
+    ...analysis.warnings.map(w => w.replace(/[^\w\s\-+%.,:;()?!]/g, ''))
   ].join(' | ')
   
   return {
@@ -194,9 +377,6 @@ function convertToLegacyFormat(analysis: ComprehensiveBetAnalysis): LegacyAnalys
   }
 }
 
-/**
- * Helper: Calculate American odds to decimal
- */
 export function americanToDecimal(americanOdds: number): number {
   if (americanOdds > 0) {
     return (americanOdds / 100) + 1
@@ -205,9 +385,6 @@ export function americanToDecimal(americanOdds: number): number {
   }
 }
 
-/**
- * Helper: Calculate implied probability from American odds
- */
 export function getImpliedProbability(americanOdds: number): number {
   if (americanOdds > 0) {
     return (100 / (americanOdds + 100)) * 100
