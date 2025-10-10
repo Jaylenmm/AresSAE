@@ -43,7 +43,7 @@ interface LegacyAnalysisResult {
 function getSportFromPropType(propType: string): 'basketball' | 'football' | 'baseball' | null {
   const lowerProp = propType.toLowerCase().replace(/\s+/g, '_')
   
-  // NFL/CFB props
+  // NFL/NCAAF props
   if (lowerProp.includes('pass') || lowerProp.includes('rush') || 
       lowerProp.includes('reception') || lowerProp.includes('tackle') ||
       lowerProp.includes('sack') || lowerProp.includes('interception') ||

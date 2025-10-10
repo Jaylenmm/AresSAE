@@ -11,7 +11,7 @@ const SPORTS = [
   { key: 'NFL', label: 'NFL' },
   { key: 'NBA', label: 'NBA' },
   { key: 'MLB', label: 'MLB' },
-  { key: 'CFB', label: 'CFB' }
+  { key: 'NCAAF', label: 'NCAAF' }
 ]
 
 export default function Home() {

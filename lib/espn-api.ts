@@ -208,19 +208,19 @@ export async function fetchPlayerGameLog(
 }
 
 /**
- * Fetch CFB Top 25 teams from ESPN API
+ * Fetch NCAAF Top 25 teams from ESPN API
  */
-export async function getTop25CFBTeams(): Promise<string[]> {
+export async function getTop25NCAAFTeams(): Promise<string[]> {
   try {
-    const cacheKey = 'cfb_top25_teams'
+    const cacheKey = 'ncaaf_top25_teams'
     const cached = await getFromCache(cacheKey)
     
     if (cached) {
-      console.log('Using cached CFB Top 25')
+      console.log('Using cached NCAAF Top 25')
       return cached
     }
     
-    console.log('Fetching CFB Top 25 rankings...')
+    console.log('Fetching NCAAF Top 25 rankings...')
     
     const response = await axios.get(
       'https://site.api.espn.com/apis/site/v2/sports/football/college-football/rankings',
@@ -240,11 +240,11 @@ export async function getTop25CFBTeams(): Promise<string[]> {
     // Cache for 6 hours (rankings don't change often)
     await cacheHistoricalData(cacheKey, top25Teams, 6)
     
-    console.log(`Fetched ${top25Teams.length} CFB Top 25 teams`)
+    console.log(`Fetched ${top25Teams.length} NCAAF Top 25 teams`)
     return top25Teams
     
   } catch (error: any) {
-    console.error('Error fetching CFB Top 25:', error.message)
+    console.error('Error fetching NCAAF Top 25:', error.message)
     return []
   }
 }

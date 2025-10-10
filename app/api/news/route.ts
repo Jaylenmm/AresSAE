@@ -5,7 +5,7 @@ const RSS_FEEDS: Record<string, string> = {
   NFL: 'https://www.espn.com/espn/rss/nfl/news',
   NBA: 'https://www.espn.com/espn/rss/nba/news',
   MLB: 'https://www.espn.com/espn/rss/mlb/news',
-  CFB: 'https://www.espn.com/espn/rss/ncf/news'
+  NCAAF: 'https://www.espn.com/espn/rss/ncf/news'
 }
 
 export async function GET(request: Request) {

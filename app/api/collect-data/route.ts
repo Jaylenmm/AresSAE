@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { fetchOdds, fetchPlayerProps, SPORT_KEYS } from '@/lib/odds-api'
-import { getTop25CFBTeams, isTop25Team } from '@/lib/espn-api'
+import { getTop25NCAAFTeams, isTop25Team } from '@/lib/espn-api'
 
 export async function POST(request: Request) {
   const { sport } = await request.json()
@@ -13,11 +13,11 @@ export async function POST(request: Request) {
   try {
     const sportKey = SPORT_KEYS[sport as keyof typeof SPORT_KEYS]
 
-    // Fetch Top 25 CFB teams if needed
+    // Fetch Top 25 NCAAF teams if needed
     let top25Teams: string[] = []
-    if (sport === 'CFB') {
-      console.log('Fetching Top 25 rankings for CFB filtering...')
-      top25Teams = await getTop25CFBTeams()
+    if (sport === 'NCAAF') {
+      console.log('Fetching Top 25 rankings for NCAAF filtering...')
+      top25Teams = await getTop25NCAAFTeams()
       console.log(`Found ${top25Teams.length} ranked teams`)
     }
 
@@ -32,8 +32,8 @@ export async function POST(request: Request) {
 
     // Process games and odds
     for (const event of oddsData) {
-      // CFB filtering BEFORE upsert
-      if (sport === 'CFB') {
+      // NCAAF filtering BEFORE upsert
+      if (sport === 'NCAAF') {
         const homeIsTop25 = isTop25Team(event.home_team, top25Teams)
         const awayIsTop25 = isTop25Team(event.away_team, top25Teams)
         

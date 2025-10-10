@@ -544,12 +544,34 @@ async function analyzePlayerProps(
 
 /**
  * Check if bet meets qualification criteria
- * Priority: hit_probability >= 40%, ev_percentage > 0, best odds
+ * Priority: hit_probability >= 40% (REQUIRED), ev_percentage and has_edge are bonuses
  */
 function meetsQualificationCriteria(analysis: any): boolean {
-  return (
-    analysis.hit_probability >= 40 &&
-    analysis.ev_percentage > 0 &&
-    analysis.has_edge
-  )
+  // Only requirement: hit probability >= 40%
+  if (analysis.hit_probability < 40) {
+    return false
+  }
+  
+  // Passed minimum requirement
+  return true
+}
+
+/**
+ * Calculate priority score for sorting picks
+ * Higher score = better pick
+ */
+function calculatePriorityScore(analysis: any): number {
+  let score = analysis.hit_probability // Base score from hit probability
+  
+  // Bonus points for positive EV (up to +20)
+  if (analysis.ev_percentage > 0) {
+    score += Math.min(analysis.ev_percentage * 2, 20)
+  }
+  
+  // Bonus points for having edge (+10)
+  if (analysis.has_edge) {
+    score += 10
+  }
+  
+  return score
 }

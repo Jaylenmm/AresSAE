@@ -94,11 +94,11 @@ export default function AdminPage() {
         </button>
         
         <button
-          onClick={() => collectData('CFB')}
+          onClick={() => collectData('NCAAF')}
           disabled={loading}
           className="w-full bg-purple-600 text-white font-semibold py-3 rounded-lg hover:bg-purple-700 disabled:bg-gray-400"
         >
-          Collect CFB Data
+          Collect NCAAF Data
         </button>
       </div>
 

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { fetchOdds, fetchPlayerProps, SPORT_KEYS } from '@/lib/odds-api'
-import { getTop25CFBTeams, isTop25Team } from '@/lib/espn-api'
+import { getTop25NCAAFTeams, isTop25Team } from '@/lib/espn-api'
 
 
 export const maxDuration = 300 // 5 minutes max execution
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
   type Results = {
     NFL: SportResult;
     NBA: SportResult;
-    CFB: SportResult;
+    NCAAF: SportResult;
     featuredPicks?: { success: boolean; generated: number; error?: string };
     errors: string[];
   };
@@ -54,16 +54,16 @@ export async function GET(request: Request) {
   const results: Results = {
     NFL: { games: 0, odds: 0, props: 0 },
     NBA: { games: 0, odds: 0, props: 0 },
-    CFB: { games: 0, odds: 0, props: 0 },
+    NCAAF: { games: 0, odds: 0, props: 0 },
     errors: []
   }
 
   try {
     // Collect data for each sport
-    for (const sport of ['NFL', 'NBA', 'CFB']) {
+    for (const sport of ['NFL', 'NBA', 'NCAAF']) {
       try {
         const result = await collectSportData(sport)
-        if (sport === 'NFL' || sport === 'NBA' || sport === 'CFB') {
+        if (sport === 'NFL' || sport === 'NBA' || sport === 'NCAAF') {
         results[sport] = result
         }
       } catch (error) {
@@ -127,10 +127,10 @@ async function collectSportData(sport: string) {
   let oddsCreated = 0
   let propsCreated = 0
 
-  // Get Top 25 for CFB
+  // Get Top 25 for NCAAF
   let top25Teams: string[] = []
-  if (sport === 'CFB') {
-    top25Teams = await getTop25CFBTeams()
+  if (sport === 'NCAAF') {
+    top25Teams = await getTop25NCAAFTeams()
   }
 
   // Fetch odds
@@ -138,8 +138,8 @@ async function collectSportData(sport: string) {
   const gameIdMap = new Map<string, string>()
 
   for (const event of oddsData) {
-    // CFB filtering
-    if (sport === 'CFB') {
+    // NCAAF filtering
+    if (sport === 'NCAAF') {
       const homeIsTop25 = isTop25Team(event.home_team, top25Teams)
       const awayIsTop25 = isTop25Team(event.away_team, top25Teams)
       if (!homeIsTop25 && !awayIsTop25) continue

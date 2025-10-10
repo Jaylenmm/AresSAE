@@ -7,7 +7,7 @@ export const SPORT_KEYS = {
   'NFL': 'americanfootball_nfl',
   'NBA': 'basketball_nba',
   'MLB': 'baseball_mlb',
-  'CFB': 'americanfootball_ncaaf'
+  'NCAAF': 'americanfootball_ncaaf'
 }
 
 /**
