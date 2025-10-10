@@ -208,6 +208,72 @@ export async function fetchPlayerGameLog(
 }
 
 /**
+ * Fetch CFB Top 25 teams from ESPN API
+ */
+export async function getTop25CFBTeams(): Promise<string[]> {
+  try {
+    const cacheKey = 'cfb_top25_teams'
+    const cached = await getFromCache(cacheKey)
+    
+    if (cached) {
+      console.log('Using cached CFB Top 25')
+      return cached
+    }
+    
+    console.log('Fetching CFB Top 25 rankings...')
+    
+    const response = await axios.get(
+      'https://site.api.espn.com/apis/site/v2/sports/football/college-football/rankings',
+      { timeout: 10000 }
+    )
+    
+    const rankings = response.data?.rankings || []
+    const apPoll = rankings.find((r: any) => r.name === 'AP Top 25' || r.type === 'AP')
+    
+    if (!apPoll || !apPoll.ranks) {
+      console.warn('AP Poll not found in rankings')
+      return []
+    }
+    
+    const top25Teams = apPoll.ranks.map((rank: any) => rank.team?.displayName || rank.team?.name).filter(Boolean)
+    
+    // Cache for 6 hours (rankings don't change often)
+    await cacheHistoricalData(cacheKey, top25Teams, 6)
+    
+    console.log(`Fetched ${top25Teams.length} CFB Top 25 teams`)
+    return top25Teams
+    
+  } catch (error: any) {
+    console.error('Error fetching CFB Top 25:', error.message)
+    return []
+  }
+}
+
+/**
+ * Check if a team is in the Top 25
+ */
+export function isTop25Team(teamName: string, top25List: string[]): boolean {
+  if (!teamName || top25List.length === 0) return false
+  
+  // Normalize team name for comparison
+  const normalizedTeam = teamName.toLowerCase().trim()
+  
+  return top25List.some(top25Team => {
+    const normalizedTop25 = top25Team.toLowerCase().trim()
+    
+    // Exact match
+    if (normalizedTop25 === normalizedTeam) return true
+    
+    // Partial match (handles cases like "Ohio State" vs "Ohio State Buckeyes")
+    if (normalizedTop25.includes(normalizedTeam) || normalizedTeam.includes(normalizedTop25)) {
+      return true
+    }
+    
+    return false
+  })
+}
+
+/**
  * Map prop type to ESPN stat name
  */
 export function mapPropTypeToStatName(propType: string): string {

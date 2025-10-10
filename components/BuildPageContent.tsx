@@ -5,6 +5,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import BettingOptions from '@/components/BettingOptions'
+import BuildFeaturedPicks from '@/components/BuildFeaturedPicks'
+
 import { Game, OddsData, PlayerProp } from '@/lib/types'
 import { Search } from 'lucide-react'
 import { analyzeGameBet, analyzePlayerProp } from '@/lib/betAnalysisTEST'
@@ -30,7 +32,6 @@ export default function BuildPageContent() {
   const [showModal, setShowModal] = useState(false)
   const [modalData, setModalData] = useState<any>(null)
   
-  // Ref for scrolling to player section
   const playerSectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   useEffect(() => {
@@ -78,21 +79,17 @@ export default function BuildPageContent() {
         if (game) {
           await selectGame(game)
           
-          // Set the sportsbook to match the prop that was clicked
           if (prop.sportsbook) {
             setSelectedSportsbook(prop.sportsbook.toLowerCase())
           }
           
-          // After game loads, scroll to and open the player's section
           setTimeout(() => {
             if (prop.player_name) {
-              // Open the player section
               setOpenPlayers(prev => ({
                 ...prev,
                 [prop.player_name]: true
               }))
               
-              // Scroll to player section after a brief delay for rendering
               setTimeout(() => {
                 const element = playerSectionRefs.current[prop.player_name]
                 if (element) {
@@ -111,26 +108,26 @@ export default function BuildPageContent() {
     }
   }
 
-function extractSportsbooks(odds: OddsData[]) {
-  const books = new Set<string>(['best_odds'])
-  
-  odds.forEach(odd => {
-    if (odd.sportsbook) {
-      books.add(odd.sportsbook.toLowerCase())
+  function extractSportsbooks(odds: OddsData[]) {
+    const books = new Set<string>(['best_odds'])
+    
+    odds.forEach(odd => {
+      if (odd.sportsbook) {
+        books.add(odd.sportsbook.toLowerCase())
+      }
+    })
+    
+    setAvailableSportsbooks(Array.from(books))
+    
+    const booksList = Array.from(books)
+    if (booksList.includes('fanduel')) {
+      setSelectedSportsbook('fanduel')
+    } else if (books.size > 1) {
+      const firstBook = booksList.find(b => b !== 'best_odds')
+      if (firstBook) setSelectedSportsbook(firstBook)
     }
-  })
-  
-  setAvailableSportsbooks(Array.from(books))
-  
-  // Preset to FanDuel if available, otherwise first available book
-  const booksList = Array.from(books)
-  if (booksList.includes('fanduel')) {
-    setSelectedSportsbook('fanduel')
-  } else if (books.size > 1) {
-    const firstBook = booksList.find(b => b !== 'best_odds')
-    if (firstBook) setSelectedSportsbook(firstBook)
   }
-}
+
   function getOddsForSportsbook(allOdds: OddsData[]) {
     if (selectedSportsbook === 'best_odds') {
       return getBestOdds(allOdds)
@@ -208,7 +205,6 @@ function extractSportsbooks(odds: OddsData[]) {
     try {
       const query = searchQuery.toLowerCase()
 
-      // Search games
       const { data: games } = await supabase
         .from('games')
         .select('*')
@@ -220,19 +216,16 @@ function extractSportsbooks(odds: OddsData[]) {
         new Map(games.map(game => [game.id, game])).values()
       ).slice(0, 5) : []
 
-      // Search player props by player name - get ALL matching props
       const { data: props } = await supabase
         .from('player_props')
         .select('*')
         .ilike('player_name', `%${query}%`)
         .order('updated_at', { ascending: false })
 
-      // Group by player name and take only unique players
       const uniquePlayerNames = props ? Array.from(
         new Set(props.map(p => p.player_name))
       ).slice(0, 10) : []
 
-      // Get one prop per player for the search results
       const uniqueProps = uniquePlayerNames.map(playerName => 
         props?.find(p => p.player_name === playerName)
       ).filter(Boolean) as PlayerProp[]
@@ -269,75 +262,72 @@ function extractSportsbooks(odds: OddsData[]) {
     setSearchResults({ games: [], playerProps: [] })
   }
 
-async function handleSelectBet(bet: any) {
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  if (!user) {
-    alert('Please sign in to save bets')
-    return
-  }
-
-  let analysis
-  
-  try {
-    // Use the updated analysis functions
-    if (bet.type === 'player_prop') {
-      analysis = await analyzePlayerProp(bet, playerProps)
-    } else {
-      analysis = await analyzeGameBet(bet, gameOdds)
+  async function handleSelectBet(bet: any) {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      alert('Please sign in to save bets')
+      return
     }
-  } catch (e) {
-    console.error('Analysis error:', e)
-    alert('Analysis failed: ' + e)
-    return
-  }
 
-  const pickData = {
-    user_id: user.id,
-    pick_type: 'straight',
-    picks: {
-      bet_type: bet.type,
-      selection: bet.selection,
-      team: bet.team,
-      player: bet.player,
-      prop_type: bet.propType,
-      line: bet.line,
-      odds: bet.odds,
-      sportsbook: bet.sportsbook,
-      game_id: selectedGame?.id
-    },
-    analysis_snapshot: {
-      selection: bet.type === 'player_prop' 
-        ? `${bet.player} ${bet.selection} ${bet.line} ${bet.propType}`
-        : `${bet.team || bet.selection} ${bet.line || ''}`,
-      ev_percentage: analysis.ev_percentage,
-      has_edge: analysis.has_edge,
-      hit_probability: analysis.hit_probability,
-      recommendation_score: analysis.recommendation_score,
-      reasoning: analysis.reasoning,
-      best_book: analysis.best_book,
-      best_odds: analysis.best_odds
-    },
-    total_odds: bet.odds,
-    status: 'pending'
-  }
+    let analysis
+    
+    try {
+      if (bet.type === 'player_prop') {
+        analysis = await analyzePlayerProp(bet, playerProps)
+      } else {
+        analysis = await analyzeGameBet(bet, gameOdds)
+      }
+    } catch (e) {
+      console.error('Analysis error:', e)
+      alert('Analysis failed: ' + e)
+      return
+    }
 
-  const { error } = await supabase
-    .from('user_picks')
-    .insert([pickData])
+    const pickData = {
+      user_id: user.id,
+      pick_type: 'straight',
+      picks: {
+        bet_type: bet.type,
+        selection: bet.selection,
+        team: bet.team,
+        player: bet.player,
+        prop_type: bet.propType,
+        line: bet.line,
+        odds: bet.odds,
+        sportsbook: bet.sportsbook,
+        game_id: selectedGame?.id
+      },
+      analysis_snapshot: {
+        selection: bet.type === 'player_prop' 
+          ? `${bet.player} ${bet.selection} ${bet.line} ${bet.propType}`
+          : `${bet.team || bet.selection} ${bet.line || ''}`,
+        ev_percentage: analysis.ev_percentage,
+        has_edge: analysis.has_edge,
+        hit_probability: analysis.hit_probability,
+        recommendation_score: analysis.recommendation_score,
+        reasoning: analysis.reasoning,
+        best_book: analysis.best_book,
+        best_odds: analysis.best_odds
+      },
+      total_odds: bet.odds,
+      status: 'pending'
+    }
 
-  if (error) {
-    alert(`Error saving bet: ${error.message}`)
-  } else {
-    // Show modal
-    setModalData({ analysis, betDetails: bet })
-    setShowModal(true)
+    const { error } = await supabase
+      .from('user_picks')
+      .insert([pickData])
+
+    if (error) {
+      alert(`Error saving bet: ${error.message}`)
+    } else {
+      setModalData({ analysis, betDetails: bet })
+      setShowModal(true)
+    }
   }
-}
 
   const displayOdds = gameOdds.length > 0 ? [getOddsForSportsbook(gameOdds)] : []
   
-  // Filter player props by selected sportsbook only
   const filteredPlayerProps = playerProps.filter(p => {
     if (selectedSportsbook === 'best_odds') return true
     return p.sportsbook?.toLowerCase() === selectedSportsbook.toLowerCase()
@@ -350,6 +340,8 @@ async function handleSelectBet(bet: any) {
     }))
   }
 
+  const currentSport = selectedGame?.sport || 'NFL'
+
   return (
     <main className="max-w-lg mx-auto p-4">
       <div className="flex items-center justify-between mb-6">
@@ -357,26 +349,9 @@ async function handleSelectBet(bet: any) {
         <div className="w-16"></div>
       </div>
 
-      {selectedGame && availableSportsbooks.length > 0 && (
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Select Sportsbook
-          </label>
-          <select
-            value={selectedSportsbook}
-            onChange={(e) => setSelectedSportsbook(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            {availableSportsbooks.map(book => (
-              <option key={book} value={book}>
-                {book === 'best_odds' 
-                  ? 'Best Odds' 
-                  : book.charAt(0).toUpperCase() + book.slice(1).replace(/_/g, ' ')}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      <div className="mb-6">
+        <BuildFeaturedPicks />
+      </div>
 
       <div className="relative mb-6">
         <Search className="absolute left-3 top-3 text-gray-400" size={20} />
@@ -435,6 +410,27 @@ async function handleSelectBet(bet: any) {
         </div>
       )}
 
+      {selectedGame && availableSportsbooks.length > 0 && (
+        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Select Sportsbook
+          </label>
+          <select
+            value={selectedSportsbook}
+            onChange={(e) => setSelectedSportsbook(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            {availableSportsbooks.map(book => (
+              <option key={book} value={book}>
+                {book === 'best_odds' 
+                  ? 'Best Odds' 
+                  : book.charAt(0).toUpperCase() + book.slice(1).replace(/_/g, ' ')}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {selectedGame && (
         <div className="space-y-4">
           <div className="bg-gradient-to-r from-blue-600 to-blue-900 rounded-lg p-4 text-white">
@@ -442,14 +438,21 @@ async function handleSelectBet(bet: any) {
               <span className="text-xs font-semibold bg-white/20 px-2 py-1 rounded">
                 {selectedGame.sport}
               </span>
-              <span className="text-xs">
-                {new Date(selectedGame.game_date).toLocaleString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit'
-                })}
-              </span>
+              <div className="text-right">
+                <div className="text-xs">
+                  {new Date(selectedGame.game_date).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric'
+                  })}
+                </div>
+                <div className="text-xs opacity-90">
+                  {new Date(selectedGame.game_date).toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    timeZoneName: 'short'
+                  })}
+                </div>
+              </div>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
@@ -462,57 +465,57 @@ async function handleSelectBet(bet: any) {
           </div>
 
           <div className="text-black p-4"> 
-            <h3 className="!text-white font-semibold text-lg mb-3">Available Bets</h3>
-                <BettingOptions
-                odds={displayOdds}
-                homeTeam={selectedGame.home_team}
-                awayTeam={selectedGame.away_team}
-                onSelectBet={handleSelectBet}
-                />
+            <h3 className="!text-white font-semibold text-lg mb-3">Game Lines</h3>
+            <BettingOptions
+              odds={displayOdds}
+              homeTeam={selectedGame.home_team}
+              awayTeam={selectedGame.away_team}
+              onSelectBet={handleSelectBet}
+            />
           </div>
 
           {filteredPlayerProps.length > 0 && (
             <div className="p-4">
-                <h3 className="!text-white font-semibold text-lg mb-3">Player Props</h3>
-                <div className="space-y-2">
+              <h3 className="!text-white font-semibold text-lg mb-3">Player Props</h3>
+              <div className="space-y-2">
                 {Array.from(new Set(filteredPlayerProps.map(p => p.player_name))).map(playerName => {
-                    const playerPropsForName = filteredPlayerProps.filter(p => p.player_name === playerName)
-                    const isOpen = openPlayers[playerName]
-                    
-                    return (
+                  const playerPropsForName = filteredPlayerProps.filter(p => p.player_name === playerName)
+                  const isOpen = openPlayers[playerName]
+                  
+                  return (
                     <div 
                       key={playerName} 
                       className="text-gray-700 overflow-hidden"
                       ref={(el) => { playerSectionRefs.current[playerName] = el }}
                     >
-                        <button
+                      <button
                         onClick={() => togglePlayer(playerName)}
                         className="!bg-white border-2 border-gray-200 rounded-lg w-full flex items-center justify-between p-3"
-                        >
+                      >
                         <div className="text-left">
-                            <p className="text-black">{playerName}</p>
-                            <p className="text-xs text-blue-700">{playerPropsForName.length} props available</p>
+                          <p className="text-black">{playerName}</p>
+                          <p className="text-xs text-blue-700">{playerPropsForName.length} props available</p>
                         </div>
                         <svg
-                            className={`w-5 h-5 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-                            fill="none"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
+                          className={`w-5 h-5 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                          fill="none"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
                         >
-                            <path d="M19 9l-7 7-7-7"></path>
+                          <path d="M19 9l-7 7-7-7"></path>
                         </svg>
-                        </button>
+                      </button>
 
-                        {isOpen && (
+                      {isOpen && (
                         <div className="p-3">
-                            <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-2 gap-2">
                             {playerPropsForName.map(prop => (
-                                <React.Fragment key={prop.id}>
+                              <React.Fragment key={prop.id}>
                                 <button
-                                    onClick={() => handleSelectBet({
+                                  onClick={() => handleSelectBet({
                                     type: 'player_prop',
                                     player: prop.player_name,
                                     propType: prop.prop_type,
@@ -520,23 +523,23 @@ async function handleSelectBet(bet: any) {
                                     line: prop.line,
                                     odds: prop.over_odds ?? 0,
                                     sportsbook: prop.sportsbook
-                                    })}
-                                    className="!bg-white border-2 border-gray-200 rounded-lg p-3 hover:border-blue-500 hover:bg-blue-50 transition-all text-left active:scale-[0.98]"
+                                  })}
+                                  className="!bg-white border-2 border-gray-200 rounded-lg p-3 hover:border-blue-500 hover:bg-blue-50 transition-all text-left active:scale-[0.98]"
                                 >
-                                    <div className="flex justify-between items-start mb-1">
+                                  <div className="flex justify-between items-start mb-1">
                                     <span className="text-xs font-semibold text-blue-600 uppercase tracking-wide">
-                                        {prop.prop_type}
+                                      {prop.prop_type}
                                     </span>
                                     <span className="text-base font-bold text-black">
-                                        {prop.over_odds ? `${prop.over_odds > 0 ? '+' : ''}${prop.over_odds}` : '--'}
+                                      {prop.over_odds ? `${prop.over_odds > 0 ? '+' : ''}${prop.over_odds}` : '--'}
                                     </span>
-                                    </div>
-                                    <p className="text-sm font-semibold text-black leading-tight">Over {prop.line}</p>
-                                    <p className="text-xs text-black mt-1">Over the line</p>
+                                  </div>
+                                  <p className="text-sm font-semibold text-black leading-tight">Over {prop.line}</p>
+                                  <p className="text-xs text-black mt-1">Over the line</p>
                                 </button>
                                 
                                 <button
-                                    onClick={() => handleSelectBet({
+                                  onClick={() => handleSelectBet({
                                     type: 'player_prop',
                                     player: prop.player_name,
                                     propType: prop.prop_type,
@@ -544,34 +547,34 @@ async function handleSelectBet(bet: any) {
                                     line: prop.line,
                                     odds: prop.under_odds ?? 0,
                                     sportsbook: prop.sportsbook
-                                    })}
-                                    className="!bg-white border-2 border-gray-200 rounded-lg p-3 hover:border-blue-500 hover:bg-blue-50 transition-all text-left active:scale-[0.98]"
+                                  })}
+                                  className="!bg-white border-2 border-gray-200 rounded-lg p-3 hover:border-blue-500 hover:bg-blue-50 transition-all text-left active:scale-[0.98]"
                                 >
-                                    <div className="flex justify-between items-start mb-1">
+                                  <div className="flex justify-between items-start mb-1">
                                     <span className="text-xs font-semibold text-blue-600 uppercase tracking-wide">
-                                        {prop.prop_type}
+                                      {prop.prop_type}
                                     </span>
                                     <span className="text-base font-bold text-black">
-                                        {prop.under_odds ? `${prop.under_odds > 0 ? '+' : ''}${prop.under_odds}` : '--'}
+                                      {prop.under_odds ? `${prop.under_odds > 0 ? '+' : ''}${prop.under_odds}` : '--'}
                                     </span>
-                                    </div>
-                                    <p className="text-sm font-semibold text-black leading-tight">Under {prop.line}</p>
-                                    <p className="text-xs text-black mt-1">Under the line</p>
+                                  </div>
+                                  <p className="text-sm font-semibold text-black leading-tight">Under {prop.line}</p>
+                                  <p className="text-xs text-black mt-1">Under the line</p>
                                 </button>
-                                </React.Fragment>
+                              </React.Fragment>
                             ))}
-                            </div>
+                          </div>
                         </div>
-                        )}
+                      )}
                     </div>
-                    )
+                  )
                 })}
-                </div>
+              </div>
             </div>
-            )}
+          )}
         </div>
       )}
-      {/* Bet Confirmation Modal */}
+
       {modalData && (
         <BetConfirmationModal
           isOpen={showModal}

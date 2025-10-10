@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-
 import GameCard from '@/components/GameCard'
 import PropCard from '@/components/PropCard'
 import FeaturedPicks from '@/components/FeaturedPicks'
@@ -20,7 +19,6 @@ export default function Home() {
   const [games, setGames] = useState<Game[]>([])
   const [oddsData, setOddsData] = useState<Record<string, OddsData[]>>({})
   const [playerProps, setPlayerProps] = useState<PlayerProp[]>([])
-  // const [news, setNews] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [news, setNews] = useState<any[]>([])
 
@@ -28,61 +26,61 @@ export default function Home() {
     loadData()
   }, [selectedSport])
 
-async function loadData() {
-  setLoading(true)
-  try {
-    // Fetch games
-    const response = await fetch(`/api/games?sport=${selectedSport}`)
-    const data = await response.json()
-    
-    // Remove duplicate games based on game ID
-    const uniqueGames = data.games ? Array.from(
-      new Map(data.games.map((game: Game) => [game.id, game])).values()
-    ) as Game[] : []
-    
-    setGames(uniqueGames)
-    setOddsData(data.odds || {})
-
-    // Fetch player props directly from Supabase
-    if (uniqueGames.length > 0) {
-      const gameIds = uniqueGames.map((g: Game) => g.id)
-      
-      console.log('Fetching props for game IDs:', gameIds)
-      
-      const { data: props, error } = await supabase
-        .from('player_props')
-        .select('*')
-        .in('game_id', gameIds)
-        .order('updated_at', { ascending: false })
-
-      console.log('Props fetched:', props?.length, 'Error:', error)
-      
-      if (error) {
-        console.error('Error fetching props:', error)
-      } else {
-        const uniqueProps = props ? Array.from(
-          new Map(props.map(prop => [prop.id, prop])).values()
-        ).slice(0, 20) : []
-        
-        console.log('Unique props after dedup:', uniqueProps.length)
-        setPlayerProps(uniqueProps)
-      }
-    }
-
-    // Fetch news
+  async function loadData() {
+    setLoading(true)
     try {
-      const newsResponse = await fetch(`/api/news?sport=${selectedSport}`)
-      const newsData = await newsResponse.json()
-      setNews(newsData.articles || [])
+      // Fetch games
+      const response = await fetch(`/api/games?sport=${selectedSport}`)
+      const data = await response.json()
+      
+      // Remove duplicate games based on game ID
+      const uniqueGames = data.games ? Array.from(
+        new Map(data.games.map((game: Game) => [game.id, game])).values()
+      ) as Game[] : []
+      
+      setGames(uniqueGames)
+      setOddsData(data.odds || {})
+
+      // Fetch player props directly from Supabase
+      if (uniqueGames.length > 0) {
+        const gameIds = uniqueGames.map((g: Game) => g.id)
+        
+        console.log('Fetching props for game IDs:', gameIds)
+        
+        const { data: props, error } = await supabase
+          .from('player_props')
+          .select('*')
+          .in('game_id', gameIds)
+          .order('updated_at', { ascending: false })
+
+        console.log('Props fetched:', props?.length, 'Error:', error)
+        
+        if (error) {
+          console.error('Error fetching props:', error)
+        } else {
+          const uniqueProps = props ? Array.from(
+            new Map(props.map(prop => [prop.id, prop])).values()
+          ).slice(0, 20) : []
+          
+          console.log('Unique props after dedup:', uniqueProps.length)
+          setPlayerProps(uniqueProps)
+        }
+      }
+
+      // Fetch news
+      try {
+        const newsResponse = await fetch(`/api/news?sport=${selectedSport}`)
+        const newsData = await newsResponse.json()
+        setNews(newsData.articles || [])
+      } catch (error) {
+        console.error('Error loading news:', error)
+      }
     } catch (error) {
-      console.error('Error loading news:', error)
+      console.error('Error loading data:', error)
+    } finally {
+      setLoading(false)
     }
-  } catch (error) {
-    console.error('Error loading data:', error)
-  } finally {
-    setLoading(false)
   }
-}
 
   return (
     <main className="max-w-lg mx-auto p-4">
@@ -91,13 +89,17 @@ async function loadData() {
         <span className="sr-only">Ares - Smart betting analysis</span>
       </div>
 
-      {/* Sport Tabs */}
+      {/* Interactive Sport Tabs */}
       <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
         {SPORTS.map((sport) => (
           <button
             key={sport.key}
             onClick={() => setSelectedSport(sport.key)}
-            className={`!bg-gradient-to-r from-blue-600 to-blue-900 px-4 py-2 rounded-lg font-semibold whitespace-nowrap`}
+            className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition-all ${
+              selectedSport === sport.key
+                ? '!bg-gradient-to-r from-blue-600 to-blue-900 text-white shadow-lg scale-105'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
           >
             {sport.label}
           </button>

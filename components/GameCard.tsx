@@ -11,6 +11,18 @@ interface GameCardProps {
 export default function GameCard({ game, odds }: GameCardProps) {
   const mainOdds = odds?.[0]
   
+  // Format date and time with timezone
+  const gameDate = new Date(game.game_date)
+  const dateStr = gameDate.toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric'
+  })
+  const timeStr = gameDate.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit',
+    timeZoneName: 'short'
+  })
+  
   return (
     <Link href={`/build?game_id=${game.id}`}>
       <div className="bg-white rounded-lg shadow-md p-4 hover:shadow-xl transition-all border border-gray-200 hover:border-blue-400">
@@ -18,12 +30,10 @@ export default function GameCard({ game, odds }: GameCardProps) {
           <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
             {game.sport}
           </span>
-          <span className="text-xs font-medium text-gray-600">
-            {new Date(game.game_date).toLocaleTimeString('en-US', { 
-              hour: 'numeric', 
-              minute: '2-digit' 
-            })}
-          </span>
+          <div className="text-right">
+            <div className="text-xs font-medium text-gray-600">{dateStr}</div>
+            <div className="text-xs font-medium text-gray-500">{timeStr}</div>
+          </div>
         </div>
 
         <div className="space-y-2.5">

@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { fetchOdds, fetchPlayerProps, SPORT_KEYS } from '@/lib/odds-api'
 import { getTop25CFBTeams, isTop25Team } from '@/lib/espn-api'
 
+
 export const maxDuration = 300 // 5 minutes max execution
 
 export async function GET(request: Request) {
@@ -46,6 +47,7 @@ export async function GET(request: Request) {
     NFL: SportResult;
     NBA: SportResult;
     CFB: SportResult;
+    featuredPicks?: { success: boolean; generated: number; error?: string };
     errors: string[];
   };
 
@@ -61,12 +63,31 @@ export async function GET(request: Request) {
     for (const sport of ['NFL', 'NBA', 'CFB']) {
       try {
         const result = await collectSportData(sport)
-        results[sport as keyof Omit<Results, 'errors'>] = result
+        if (sport === 'NFL' || sport === 'NBA' || sport === 'CFB') {
+        results[sport] = result
+        }
       } catch (error) {
         results.errors.push(`${sport}: ${error}`)
       }
     }
 
+    // After collecting all sport data, generate featured picks
+    try {
+      console.log('🎯 Generating featured picks...')
+      const { generateFeaturedPicks } = await import('@/lib/generateFeaturedPicks')
+      const pickResults = await generateFeaturedPicks()
+      
+      results.featuredPicks = {
+        success: pickResults.success,
+        generated: pickResults.picksGenerated,
+        error: pickResults.error
+      }
+      
+      console.log(`✅ Featured picks: ${pickResults.picksGenerated} generated`)
+    } catch (error) {
+      console.error('❌ Error generating featured picks:', error)
+      results.errors.push(`Featured picks: ${error}`)
+    }
     // Mark run as completed
     await supabase
       .from('cron_runs')

@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import ConfidenceBar from '@/components/ConfidenceBar'
-import { UserPick } from '@/lib/types'
+import { UserPick, Game } from '@/lib/types'
 import { Trash2, TrendingUp, DollarSign, Target } from 'lucide-react'
 
 export default function PicksPage() {
   const [picks, setPicks] = useState<UserPick[]>([])
+  const [games, setGames] = useState<Record<string, Game>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -29,7 +30,29 @@ export default function PicksPage() {
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
 
-    if (data) setPicks(data)
+    if (data) {
+      setPicks(data)
+      
+      // Load game data for all picks that have game_ids
+      const gameIds = data
+        .map(pick => pick.picks?.game_id)
+        .filter(Boolean)
+      
+      if (gameIds.length > 0) {
+        const { data: gamesData } = await supabase
+          .from('games')
+          .select('*')
+          .in('id', gameIds)
+        
+        if (gamesData) {
+          const gamesMap: Record<string, Game> = {}
+          gamesData.forEach(game => {
+            gamesMap[game.id] = game
+          })
+          setGames(gamesMap)
+        }
+      }
+    }
     setLoading(false)
   }
 
@@ -115,6 +138,7 @@ export default function PicksPage() {
             {picks.map((pick) => {
               const analysis = pick.analysis_snapshot
               const score = analysis?.recommendation_score || 0
+              const game = pick.picks?.game_id ? games[pick.picks.game_id] : null
               
               return (
                 <div key={pick.id} className={`bg-white rounded-lg shadow-md border-2 overflow-hidden`}>
@@ -124,7 +148,7 @@ export default function PicksPage() {
                         <p className="font-bold text-gray-900 mb-1">
                           {analysis?.selection || 'Bet'}
                         </p>
-                        <div className="flex gap-2 text-xs">
+                        <div className="flex gap-2 text-xs mb-2">
                           <span className="text-white bg-gradient-to-r from-blue-600 to-blue-900 px-2 py-1 rounded">
                             {pick.picks?.sportsbook || 'N/A'}
                           </span>
@@ -132,6 +156,27 @@ export default function PicksPage() {
                             {pick.picks?.odds > 0 ? '+' : ''}{pick.picks?.odds}
                           </span>
                         </div>
+                        {game && (
+                          <div className="text-xs text-gray-600">
+                            <div className="font-semibold">{game.away_team} @ {game.home_team}</div>
+                            <div className="flex gap-2 mt-1">
+                              <span>
+                                {new Date(game.game_date).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric'
+                                })}
+                              </span>
+                              <span>•</span>
+                              <span>
+                                {new Date(game.game_date).toLocaleTimeString('en-US', {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                  timeZoneName: 'short'
+                                })}
+                              </span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <span className={`text-2xl font-bold`}>
@@ -204,7 +249,7 @@ export default function PicksPage() {
                   </div>
 
                   <div className="bg-gray-100 px-4 py-2 text-xs text-gray-500">
-                    Added {new Date(pick.created_at).toLocaleString()}
+                    Pick added {new Date(pick.created_at).toLocaleString()}
                   </div>
                 </div>
               )
