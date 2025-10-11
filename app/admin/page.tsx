@@ -39,6 +39,25 @@ export default function AdminPage() {
     }
   }
 
+  async function generateFeaturedPicks() {
+    setLoading(true)
+    setResult('🎯 Generating featured picks...\n\nAnalyzing all available games and props...')
+    
+    try {
+      const response = await fetch('/api/generate-featured-picks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      
+      const data = await response.json()
+      setResult(JSON.stringify(data, null, 2))
+    } catch (error) {
+      setResult('Error: ' + String(error))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (!isAuthenticated) {
     return (
       <main className="max-w-md mx-auto p-4 flex items-center justify-center min-h-screen">
@@ -100,6 +119,19 @@ export default function AdminPage() {
         >
           Collect NCAAF Data
         </button>
+
+        <div className="border-t border-gray-300 pt-3 mt-6">
+          <button
+            onClick={generateFeaturedPicks}
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-blue-600 to-blue-900 text-white font-bold py-4 rounded-lg hover:from-blue-700 hover:to-blue-950 disabled:bg-gray-400 shadow-lg"
+          >
+            🎯 Generate Featured Picks
+          </button>
+          <p className="text-xs text-gray-500 text-center mt-2">
+            Analyzes all games/props and creates featured picks
+          </p>
+        </div>
       </div>
 
       {result && (

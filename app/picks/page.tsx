@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import ConfidenceBar from '@/components/ConfidenceBar'
 import { UserPick, Game } from '@/lib/types'
 import { Trash2, TrendingUp, DollarSign, Target } from 'lucide-react'
+import { getBookmakerDisplayName } from '@/lib/bookmakers'
 
 export default function PicksPage() {
   const [picks, setPicks] = useState<UserPick[]>([])
@@ -150,7 +151,7 @@ export default function PicksPage() {
                         </p>
                         <div className="flex gap-2 text-xs mb-2">
                           <span className="text-white bg-gradient-to-r from-blue-600 to-blue-900 px-2 py-1 rounded">
-                            {pick.picks?.sportsbook || 'N/A'}
+                            {getBookmakerDisplayName(pick.picks?.sportsbook || 'N/A')}
                           </span>
                           <span className="text-white bg-gradient-to-r from-blue-600 to-blue-900 px-2 py-1 rounded">
                             {pick.picks?.odds > 0 ? '+' : ''}{pick.picks?.odds}

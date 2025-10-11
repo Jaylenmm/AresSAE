@@ -6,11 +6,11 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import BettingOptions from '@/components/BettingOptions'
 import BuildFeaturedPicks from '@/components/BuildFeaturedPicks'
-
 import { Game, OddsData, PlayerProp } from '@/lib/types'
 import { Search } from 'lucide-react'
 import { analyzeGameBet, analyzePlayerProp } from '@/lib/betAnalysisTEST'
 import BetConfirmationModal from '@/components/BetConfirmationModal'
+import { getBookmakerDisplayName } from '@/lib/bookmakers'
 
 export default function BuildPageContent() {
   const router = useRouter()
@@ -424,7 +424,7 @@ export default function BuildPageContent() {
               <option key={book} value={book}>
                 {book === 'best_odds' 
                   ? 'Best Odds' 
-                  : book.charAt(0).toUpperCase() + book.slice(1).replace(/_/g, ' ')}
+                  :  getBookmakerDisplayName(book)}
               </option>
             ))}
           </select>

@@ -41,12 +41,11 @@ export async function fetchNBAPlayerStats(
     
     console.log(`Fetching NBA stats for ${playerName}...`)
     
-    const response = await axios.get('/api/espn/player-stats', {
-      params: {
-        player: playerName,
-        sport: 'basketball',
-        season
-      },
+    // Build absolute URL for server-side calls
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+    const url = `${baseUrl}/api/espn/player-stats?player=${encodeURIComponent(playerName)}&sport=basketball&season=${season}`
+    
+    const response = await axios.get(url, {
       timeout: 10000
     })
     
@@ -88,12 +87,11 @@ export async function fetchNFLPlayerStats(
     
     console.log(`Fetching NFL stats for ${playerName}...`)
     
-    const response = await axios.get('/api/espn/player-stats', {
-      params: {
-        player: playerName,
-        sport: 'football',
-        season
-      },
+    // Build absolute URL for server-side calls
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+    const url = `${baseUrl}/api/espn/player-stats?player=${encodeURIComponent(playerName)}&sport=football&season=${season}`
+    
+    const response = await axios.get(url, {
       timeout: 10000
     })
     
@@ -135,12 +133,11 @@ export async function fetchMLBPlayerStats(
     
     console.log(`Fetching MLB stats for ${playerName}...`)
     
-    const response = await axios.get('/api/espn/player-stats', {
-      params: {
-        player: playerName,
-        sport: 'baseball',
-        season
-      },
+    // Build absolute URL for server-side calls
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+    const url = `${baseUrl}/api/espn/player-stats?player=${encodeURIComponent(playerName)}&sport=baseball&season=${season}`
+    
+    const response = await axios.get(url, {
       timeout: 10000
     })
     
@@ -184,13 +181,11 @@ export async function fetchPlayerGameLog(
     
     console.log(`Fetching game log for player ${playerId}...`)
     
-    const response = await axios.get('/api/espn/game-log', {
-      params: {
-        playerId,
-        sport,
-        season,
-        limit
-      },
+    // Build absolute URL for server-side calls
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+    const url = `${baseUrl}/api/espn/game-log?playerId=${playerId}&sport=${sport}&season=${season}&limit=${limit}`
+    
+    const response = await axios.get(url, {
       timeout: 10000
     })
     

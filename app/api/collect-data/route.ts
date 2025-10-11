@@ -77,7 +77,7 @@ export async function POST(request: Request) {
 
         const oddsEntry: any = {
           game_id: game.id,
-          sportsbook: bookmaker.key,
+          sportsbook: bookmaker.displayName,
           updated_at: new Date().toISOString()
         }
 

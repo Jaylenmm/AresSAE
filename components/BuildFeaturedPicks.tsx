@@ -1,44 +1,72 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react'
 
 interface FeaturedPick {
   id: string
   sport: string
+  game_id: string
   game_info: string
   pick_type: string
   selection: string
   odds: number
   confidence: number
-  reasoning: string
+  hit_probability: number
+  ev_percentage: number
   sportsbook: string
+  bet_details: any
 }
 
 export default function BuildFeaturedPicks() {
+  const router = useRouter()
   const [picks, setPicks] = useState<FeaturedPick[]>([])
-  const [currentPage, setCurrentPage] = useState(0)
   const [loading, setLoading] = useState(true)
-
-  const PICKS_PER_PAGE = 10 // 2x5 grid
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [currentIndex, setCurrentIndex] = useState(0)
 
   useEffect(() => {
     loadAllSportsPicks()
   }, [])
 
+  // Auto-scroll effect
+  useEffect(() => {
+    if (picks.length === 0) return
+
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % picks.length)
+    }, 5000)
+
+    return () => clearInterval(interval)
+  }, [picks.length])
+
+  // Smooth scroll when index changes
+  useEffect(() => {
+    if (scrollContainerRef.current && picks.length > 0) {
+      const cardWidth = scrollContainerRef.current.children[0]?.clientWidth || 280
+      const gap = 12
+      scrollContainerRef.current.scrollTo({
+        left: currentIndex * (cardWidth + gap),
+        behavior: 'smooth'
+      })
+    }
+  }, [currentIndex, picks])
+
   async function loadAllSportsPicks() {
     setLoading(true)
     try {
-      // Fetch featured picks from ALL sports
       const { data } = await supabase
         .from('featured_picks')
         .select('*')
+        .eq('is_active', true)
+        .gte('expires_at', new Date().toISOString())
         .order('confidence', { ascending: false })
-        .limit(30) // Get top 30 picks across all sports
 
-      if (data) {
-        setPicks(data)
+      if (data && data.length > 0) {
+        const shuffled = data.sort(() => 0.5 - Math.random())
+        const randomPicks = shuffled.slice(0, 10)
+        setPicks(randomPicks)
       }
     } catch (error) {
       console.error('Error loading featured picks:', error)
@@ -47,124 +75,90 @@ export default function BuildFeaturedPicks() {
     }
   }
 
-  const totalPages = Math.ceil(picks.length / PICKS_PER_PAGE)
-  const currentPicks = picks.slice(
-    currentPage * PICKS_PER_PAGE,
-    (currentPage + 1) * PICKS_PER_PAGE
-  )
-
-  const nextPage = () => {
-    if (currentPage < totalPages - 1) {
-      setCurrentPage(currentPage + 1)
-    }
-  }
-
-  const prevPage = () => {
-    if (currentPage > 0) {
-      setCurrentPage(currentPage - 1)
+  function handleCardClick(bet: FeaturedPick) {
+    if (bet.pick_type === 'player_prop' && bet.bet_details?.prop?.id) {
+      router.push(`/build?prop_id=${bet.bet_details.prop.id}`)
+    } else {
+      router.push(`/build?game_id=${bet.game_id}`)
     }
   }
 
   if (loading) {
     return (
-      <div className="bg-gradient-to-r from-blue-600 to-blue-900 rounded-lg p-4 mb-6">
-        <div className="text-center text-white py-4">Loading picks...</div>
-      </div>
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="text-xl font-bold text-gray-900">Ares Picks</h2>
+        </div>
+        <div className="text-center py-8 text-gray-500">Loading picks...</div>
+      </section>
     )
   }
 
   if (picks.length === 0) {
-    return (
-      <div className="bg-gradient-to-r from-blue-600 to-blue-900 rounded-lg p-4 mb-6">
-        <div className="flex items-center gap-2 mb-3">
-          <TrendingUp className="text-white" size={20} />
-          <h2 className="text-lg font-bold text-white">Ares Picks - All Sports</h2>
-        </div>
-        <div className="text-center text-white/80 py-2 text-sm">
-          No featured picks available right now
-        </div>
-      </div>
-    )
+    return null
   }
 
   return (
-    <div className="bg-gradient-to-r from-blue-600 to-blue-900 rounded-lg p-4 mb-6">
-      <div className="flex items-center justify-between mb-3">
+    <section className="mb-8">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <TrendingUp className="text-white" size={20} />
-          <h2 className="text-lg font-bold text-white">Ares Picks - All Sports</h2>
+          <h2 className="text-xl font-bold text-gray-900">Ares Picks</h2>
         </div>
-        {totalPages > 1 && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={prevPage}
-              disabled={currentPage === 0}
-              className="text-white disabled:opacity-30 hover:bg-white/20 rounded p-1 transition-colors"
-            >
-              <ChevronLeft size={20} />
-            </button>
-            <span className="text-white text-sm">
-              {currentPage + 1} / {totalPages}
-            </span>
-            <button
-              onClick={nextPage}
-              disabled={currentPage === totalPages - 1}
-              className="text-white disabled:opacity-30 hover:bg-white/20 rounded p-1 transition-colors"
-            >
-              <ChevronRight size={20} />
-            </button>
-          </div>
-        )}
+        <p className="text-xs text-gray-500">Best hit probability with the best odds</p>
       </div>
 
-      {/* 2x5 Grid */}
-      <div className="grid grid-cols-2 gap-2">
-        {currentPicks.map((pick) => (
-          <button
-            key={pick.id}
-            className="bg-white/10 hover:bg-white/20 backdrop-blur rounded-lg p-3 text-left transition-all border border-white/20 hover:border-white/40 active:scale-[0.98]"
+      <div 
+        ref={scrollContainerRef}
+        className="flex gap-3 overflow-x-auto scrollbar-hide snap-x snap-mandatory"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
+        {picks.map((bet) => (
+          <div
+            key={bet.id}
+            onClick={() => handleCardClick(bet)}
+            className="flex-shrink-0 w-[280px] snap-start bg-gradient-to-br from-blue-600 to-blue-900 rounded-lg p-4 text-white cursor-pointer hover:shadow-xl transition-all"
           >
-            <div className="flex items-start justify-between mb-2">
-              <span className="text-xs font-semibold text-white/90 bg-white/20 px-2 py-0.5 rounded">
-                {pick.sport}
-              </span>
-              <span className="text-lg font-bold text-white">
-                {pick.confidence}
-              </span>
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-lg truncate">{bet.selection}</p>
+                <p className="text-sm text-blue-100">{bet.pick_type.replace('_', ' ')}</p>
+              </div>
+              <div className="text-right ml-2">
+                <p className="text-2xl font-bold">
+                  {bet.odds > 0 ? '+' : ''}{bet.odds}
+                </p>
+              </div>
             </div>
 
-            <div className="mb-2">
-              <p className="text-xs text-white/70 mb-1">{pick.game_info}</p>
-              <p className="text-sm font-bold text-white leading-tight">
-                {pick.selection}
-              </p>
+            <div className="flex justify-between items-center pt-3 border-t border-blue-400/30">
+              <div>
+                <p className="text-xs text-blue-200">Hit Probability</p>
+                <p className="text-sm font-semibold">{Math.round(bet.hit_probability)}%</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-blue-200">EV</p>
+                <p className="text-sm font-semibold">+{bet.ev_percentage.toFixed(1)}%</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-blue-200">Book</p>
+                <p className="text-sm font-semibold">{bet.sportsbook}</p>
+              </div>
             </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-white/80">{pick.pick_type}</span>
-              <span className="text-sm font-bold text-white">
-                {pick.odds > 0 ? '+' : ''}{pick.odds}
-              </span>
-            </div>
-          </button>
+          </div>
         ))}
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex justify-center gap-1 mt-3">
-          {Array.from({ length: totalPages }).map((_, idx) => (
-            <button
-              key={idx}
-              onClick={() => setCurrentPage(idx)}
-              className={`w-2 h-2 rounded-full transition-all ${
-                idx === currentPage 
-                  ? 'bg-white w-6' 
-                  : 'bg-white/40 hover:bg-white/60'
-              }`}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+      <div className="flex justify-center gap-2 mt-4">
+        {picks.map((_, index) => (
+          <button
+            key={index}
+            onClick={() => setCurrentIndex(index)}
+            className={`w-2 h-2 rounded-full transition-all ${
+              index === currentIndex ? 'bg-blue-600 w-6' : 'bg-gray-300'
+            }`}
+          />
+        ))}
+      </div>
+    </section>
   )
 }

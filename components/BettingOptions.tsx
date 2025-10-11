@@ -1,4 +1,5 @@
 import { OddsData } from '@/lib/types'
+import { getBookmakerDisplayName } from '@/lib/bookmakers'
 
 interface BettingOptionsProps {
   odds: OddsData[]
@@ -116,7 +117,7 @@ export default function BettingOptions({ odds, homeTeam, awayTeam, onSelectBet }
         ))}
       </div>
       <p className="text-xs text-[var(--vs-muted)] mt-2">
-        Odds from {primaryOdds.sportsbook ?? 'N/A'}
+        Odds from {getBookmakerDisplayName(primaryOdds.sportsbook ?? 'N/A')}
       </p>
     </div>
   )

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { getBookmakerDisplayName } from '@/lib/bookmakers'
 
 interface FeaturedPick {
   id: string
@@ -166,7 +167,7 @@ export default function FeaturedPicks({ sport }: { sport: string }) {
               </div>
               <div className="text-right">
                 <p className="text-xs text-blue-200">Book</p>
-                <p className="text-sm font-semibold">{bet.sportsbook}</p>
+                <p className="text-sm font-semibold">{getBookmakerDisplayName(bet.sportsbook)}</p>
               </div>
             </div>
           </div>
