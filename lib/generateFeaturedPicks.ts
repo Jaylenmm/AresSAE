@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
-import { analyzeGameBet, analyzePlayerProp } from './betAnalysisTEST'
+import { analyzeBet, BetOption, AnalysisResult } from './analysis-engine'
 import { Game, OddsData, PlayerProp } from './types'
+import { transformGameToAnalysisFormat, transformPlayerPropsToAnalysisFormat } from './supabase-adapter'
 
 interface FeaturedPickData {
   sport: string
@@ -77,14 +78,17 @@ export async function generateFeaturedPicks(): Promise<{ success: boolean; picks
         const gameOdds = allOdds.filter(o => o.game_id === game.id)
         if (gameOdds.length === 0) continue
         
+        // Transform game data once for this game
+        const gameData = transformGameToAnalysisFormat(game, gameOdds)
+        
         // Analyze spreads
-        await analyzeSpreadBets(game, gameOdds, qualifyingPicks)
+        await analyzeSpreadBets(game, gameOdds, gameData.bookmakers, qualifyingPicks)
         
         // Analyze totals
-        await analyzeTotalBets(game, gameOdds, qualifyingPicks)
+        await analyzeTotalBets(game, gameOdds, gameData.bookmakers, qualifyingPicks)
         
         // Analyze moneylines
-        await analyzeMoneylineBets(game, gameOdds, qualifyingPicks)
+        await analyzeMoneylineBets(game, gameOdds, gameData.bookmakers, qualifyingPicks)
       }
     }
     
@@ -119,11 +123,62 @@ export async function generateFeaturedPicks(): Promise<{ success: boolean; picks
 }
 
 /**
+ * Helper to convert analysis result to featured pick format
+ */
+function convertAnalysisToFeaturedPick(
+  analysis: AnalysisResult,
+  game: Game,
+  pickType: string,
+  selection: string,
+  line: number | null,
+  betDetails: any
+): FeaturedPickData {
+  return {
+    sport: game.sport,
+    game_id: game.id,
+    game_info: `${game.away_team} @ ${game.home_team}`,
+    pick_type: pickType,
+    selection,
+    line,
+    odds: analysis.bestOdds,
+    sportsbook: analysis.bestSportsbook,
+    confidence: analysis.confidence,
+    hit_probability: analysis.confidence / 100, // Convert confidence to 0-1 probability
+    ev_percentage: analysis.expectedValue ?? 0,
+    has_edge: (analysis.edge ?? 0) > 0,
+    reasoning: formatReasoning(analysis),
+    bet_details: betDetails,
+    expires_at: game.game_date
+  }
+}
+
+/**
+ * Format analysis reasoning for display
+ */
+function formatReasoning(analysis: AnalysisResult): string {
+  const parts: string[] = []
+  
+  if (analysis.reasons.length > 0) {
+    parts.push(...analysis.reasons)
+  }
+  
+  if (analysis.warnings.length > 0) {
+    parts.push(...analysis.warnings)
+  }
+  
+  parts.push(`Market: ${analysis.marketEfficiency}`)
+  parts.push(`Sharp Consensus: ${analysis.sharpConsensus}`)
+  
+  return parts.join(' | ')
+}
+
+/**
  * Analyze spread bets for a game
  */
 async function analyzeSpreadBets(
   game: Game, 
-  gameOdds: OddsData[], 
+  gameOdds: OddsData[],
+  bookmakers: any[],
   qualifyingPicks: FeaturedPickData[]
 ) {
   // Home spread
@@ -135,39 +190,35 @@ async function analyzeSpreadBets(
     })
     
     try {
-      const analysis = await analyzeGameBet({
-        type: 'spread',
-        selection: 'home',
-        team: game.home_team,
-        line: bestHomeSpread.spread_home,
+      const betOption: BetOption = {
+        id: `spread-home-${game.id}`,
+        betType: 'spreads',
+        market: 'spreads',
+        selection: game.home_team,
+        line: bestHomeSpread.spread_home!,
         odds: bestHomeSpread.spread_home_odds!,
         sportsbook: bestHomeSpread.sportsbook,
-        game_id: game.id
-      }, gameOdds)
+        eventId: game.id,
+        sport: game.sport
+      }
+      
+      const analysis = analyzeBet(betOption, bookmakers)
       
       if (meetsQualificationCriteria(analysis)) {
-        qualifyingPicks.push({
-          sport: game.sport,
-          game_id: game.id,
-          game_info: `${game.away_team} @ ${game.home_team}`,
-          pick_type: 'spread',
-          selection: `${game.home_team} ${bestHomeSpread.spread_home! > 0 ? '+' : ''}${bestHomeSpread.spread_home}`,
-          line: bestHomeSpread.spread_home ?? null,
-          odds: analysis.best_odds,
-          sportsbook: analysis.best_book,
-          confidence: analysis.recommendation_score,
-          hit_probability: analysis.hit_probability,
-          ev_percentage: analysis.ev_percentage,
-          has_edge: analysis.has_edge,
-          reasoning: analysis.reasoning,
-          bet_details: {
+        const pick = convertAnalysisToFeaturedPick(
+          analysis,
+          game,
+          'spread',
+          `${game.home_team} ${bestHomeSpread.spread_home! > 0 ? '+' : ''}${bestHomeSpread.spread_home}`,
+          bestHomeSpread.spread_home ?? null,
+          {
             game,
             type: 'spread',
             team: game.home_team,
             line: bestHomeSpread.spread_home
-          },
-          expires_at: game.game_date
-        })
+          }
+        )
+        qualifyingPicks.push(pick)
       }
     } catch (error) {
       console.error('Error analyzing home spread:', error)
@@ -183,39 +234,35 @@ async function analyzeSpreadBets(
     })
     
     try {
-      const analysis = await analyzeGameBet({
-        type: 'spread',
-        selection: 'away',
-        team: game.away_team,
-        line: bestAwaySpread.spread_away,
+      const betOption: BetOption = {
+        id: `spread-away-${game.id}`,
+        betType: 'spreads',
+        market: 'spreads',
+        selection: game.away_team,
+        line: bestAwaySpread.spread_away!,
         odds: bestAwaySpread.spread_away_odds!,
         sportsbook: bestAwaySpread.sportsbook,
-        game_id: game.id
-      }, gameOdds)
+        eventId: game.id,
+        sport: game.sport
+      }
+      
+      const analysis = analyzeBet(betOption, bookmakers)
       
       if (meetsQualificationCriteria(analysis)) {
-        qualifyingPicks.push({
-          sport: game.sport,
-          game_id: game.id,
-          game_info: `${game.away_team} @ ${game.home_team}`,
-          pick_type: 'spread',
-          selection: `${game.away_team} ${bestAwaySpread.spread_away! > 0 ? '+' : ''}${bestAwaySpread.spread_away}`,
-          line: bestAwaySpread.spread_away ?? null,
-          odds: analysis.best_odds,
-          sportsbook: analysis.best_book,
-          confidence: analysis.recommendation_score,
-          hit_probability: analysis.hit_probability,
-          ev_percentage: analysis.ev_percentage,
-          has_edge: analysis.has_edge,
-          reasoning: analysis.reasoning,
-          bet_details: {
+        const pick = convertAnalysisToFeaturedPick(
+          analysis,
+          game,
+          'spread',
+          `${game.away_team} ${bestAwaySpread.spread_away! > 0 ? '+' : ''}${bestAwaySpread.spread_away}`,
+          bestAwaySpread.spread_away ?? null,
+          {
             game,
             type: 'spread',
             team: game.away_team,
             line: bestAwaySpread.spread_away
-          },
-          expires_at: game.game_date
-        })
+          }
+        )
+        qualifyingPicks.push(pick)
       }
     } catch (error) {
       console.error('Error analyzing away spread:', error)
@@ -229,6 +276,7 @@ async function analyzeSpreadBets(
 async function analyzeTotalBets(
   game: Game,
   gameOdds: OddsData[],
+  bookmakers: any[],
   qualifyingPicks: FeaturedPickData[]
 ) {
   // Over
@@ -240,38 +288,35 @@ async function analyzeTotalBets(
     })
     
     try {
-      const analysis = await analyzeGameBet({
-        type: 'total',
-        selection: 'over',
-        line: bestOver.total,
+      const betOption: BetOption = {
+        id: `total-over-${game.id}`,
+        betType: 'totals',
+        market: 'totals',
+        selection: 'Over',
+        line: bestOver.total!,
         odds: bestOver.over_odds!,
         sportsbook: bestOver.sportsbook,
-        game_id: game.id
-      }, gameOdds)
+        eventId: game.id,
+        sport: game.sport
+      }
+      
+      const analysis = analyzeBet(betOption, bookmakers)
       
       if (meetsQualificationCriteria(analysis)) {
-        qualifyingPicks.push({
-          sport: game.sport,
-          game_id: game.id,
-          game_info: `${game.away_team} @ ${game.home_team}`,
-          pick_type: 'total',
-          selection: `Over ${bestOver.total}`,
-          line: bestOver.total ?? null,
-          odds: analysis.best_odds,
-          sportsbook: analysis.best_book,
-          confidence: analysis.recommendation_score,
-          hit_probability: analysis.hit_probability,
-          ev_percentage: analysis.ev_percentage,
-          has_edge: analysis.has_edge,
-          reasoning: analysis.reasoning,
-          bet_details: {
+        const pick = convertAnalysisToFeaturedPick(
+          analysis,
+          game,
+          'total',
+          `Over ${bestOver.total}`,
+          bestOver.total ?? null,
+          {
             game,
             type: 'total',
             selection: 'over',
             line: bestOver.total
-          },
-          expires_at: game.game_date
-        })
+          }
+        )
+        qualifyingPicks.push(pick)
       }
     } catch (error) {
       console.error('Error analyzing over:', error)
@@ -287,38 +332,35 @@ async function analyzeTotalBets(
     })
     
     try {
-      const analysis = await analyzeGameBet({
-        type: 'total',
-        selection: 'under',
-        line: bestUnder.total,
+      const betOption: BetOption = {
+        id: `total-under-${game.id}`,
+        betType: 'totals',
+        market: 'totals',
+        selection: 'Under',
+        line: bestUnder.total!,
         odds: bestUnder.under_odds!,
         sportsbook: bestUnder.sportsbook,
-        game_id: game.id
-      }, gameOdds)
+        eventId: game.id,
+        sport: game.sport
+      }
+      
+      const analysis = analyzeBet(betOption, bookmakers)
       
       if (meetsQualificationCriteria(analysis)) {
-        qualifyingPicks.push({
-          sport: game.sport,
-          game_id: game.id,
-          game_info: `${game.away_team} @ ${game.home_team}`,
-          pick_type: 'total',
-          selection: `Under ${bestUnder.total}`,
-          line: bestUnder.total ?? null,
-          odds: analysis.best_odds,
-          sportsbook: analysis.best_book,
-          confidence: analysis.recommendation_score,
-          hit_probability: analysis.hit_probability,
-          ev_percentage: analysis.ev_percentage,
-          has_edge: analysis.has_edge,
-          reasoning: analysis.reasoning,
-          bet_details: {
+        const pick = convertAnalysisToFeaturedPick(
+          analysis,
+          game,
+          'total',
+          `Under ${bestUnder.total}`,
+          bestUnder.total ?? null,
+          {
             game,
             type: 'total',
             selection: 'under',
             line: bestUnder.total
-          },
-          expires_at: game.game_date
-        })
+          }
+        )
+        qualifyingPicks.push(pick)
       }
     } catch (error) {
       console.error('Error analyzing under:', error)
@@ -332,6 +374,7 @@ async function analyzeTotalBets(
 async function analyzeMoneylineBets(
   game: Game,
   gameOdds: OddsData[],
+  bookmakers: any[],
   qualifyingPicks: FeaturedPickData[]
 ) {
   // Home ML
@@ -343,37 +386,33 @@ async function analyzeMoneylineBets(
     })
     
     try {
-      const analysis = await analyzeGameBet({
-        type: 'moneyline',
-        selection: 'home',
-        team: game.home_team,
+      const betOption: BetOption = {
+        id: `ml-home-${game.id}`,
+        betType: 'h2h',
+        market: 'h2h',
+        selection: game.home_team,
         odds: bestHomeML.moneyline_home!,
         sportsbook: bestHomeML.sportsbook,
-        game_id: game.id
-      }, gameOdds)
+        eventId: game.id,
+        sport: game.sport
+      }
+      
+      const analysis = analyzeBet(betOption, bookmakers)
       
       if (meetsQualificationCriteria(analysis)) {
-        qualifyingPicks.push({
-          sport: game.sport,
-          game_id: game.id,
-          game_info: `${game.away_team} @ ${game.home_team}`,
-          pick_type: 'moneyline',
-          selection: `${game.home_team} ML`,
-          line: null,
-          odds: analysis.best_odds,
-          sportsbook: analysis.best_book,
-          confidence: analysis.recommendation_score,
-          hit_probability: analysis.hit_probability,
-          ev_percentage: analysis.ev_percentage,
-          has_edge: analysis.has_edge,
-          reasoning: analysis.reasoning,
-          bet_details: {
+        const pick = convertAnalysisToFeaturedPick(
+          analysis,
+          game,
+          'moneyline',
+          `${game.home_team} ML`,
+          null,
+          {
             game,
             type: 'moneyline',
             team: game.home_team
-          },
-          expires_at: game.game_date
-        })
+          }
+        )
+        qualifyingPicks.push(pick)
       }
     } catch (error) {
       console.error('Error analyzing home ML:', error)
@@ -389,37 +428,33 @@ async function analyzeMoneylineBets(
     })
     
     try {
-      const analysis = await analyzeGameBet({
-        type: 'moneyline',
-        selection: 'away',
-        team: game.away_team,
+      const betOption: BetOption = {
+        id: `ml-away-${game.id}`,
+        betType: 'h2h',
+        market: 'h2h',
+        selection: game.away_team,
         odds: bestAwayML.moneyline_away!,
         sportsbook: bestAwayML.sportsbook,
-        game_id: game.id
-      }, gameOdds)
+        eventId: game.id,
+        sport: game.sport
+      }
+      
+      const analysis = analyzeBet(betOption, bookmakers)
       
       if (meetsQualificationCriteria(analysis)) {
-        qualifyingPicks.push({
-          sport: game.sport,
-          game_id: game.id,
-          game_info: `${game.away_team} @ ${game.home_team}`,
-          pick_type: 'moneyline',
-          selection: `${game.away_team} ML`,
-          line: null,
-          odds: analysis.best_odds,
-          sportsbook: analysis.best_book,
-          confidence: analysis.recommendation_score,
-          hit_probability: analysis.hit_probability,
-          ev_percentage: analysis.ev_percentage,
-          has_edge: analysis.has_edge,
-          reasoning: analysis.reasoning,
-          bet_details: {
+        const pick = convertAnalysisToFeaturedPick(
+          analysis,
+          game,
+          'moneyline',
+          `${game.away_team} ML`,
+          null,
+          {
             game,
             type: 'moneyline',
             team: game.away_team
-          },
-          expires_at: game.game_date
-        })
+          }
+        )
+        qualifyingPicks.push(pick)
       }
     } catch (error) {
       console.error('Error analyzing away ML:', error)
@@ -435,108 +470,115 @@ async function analyzePlayerProps(
   allProps: PlayerProp[],
   qualifyingPicks: FeaturedPickData[]
 ) {
-  // Group props by player to avoid duplicates
-  const analyzedPlayers = new Set<string>()
-  
+  // Group props by game
+  const propsByGame = new Map<string, PlayerProp[]>()
   for (const prop of allProps) {
-    const playerKey = `${prop.player_name}-${prop.prop_type}`
-    
-    // Skip if already analyzed this player/prop combo
-    if (analyzedPlayers.has(playerKey)) continue
-    analyzedPlayers.add(playerKey)
-    
-    const game = games.find(g => g.id === prop.game_id)
+    if (!propsByGame.has(prop.game_id)) {
+      propsByGame.set(prop.game_id, [])
+    }
+    propsByGame.get(prop.game_id)!.push(prop)
+  }
+  
+  // Analyze each game's props
+  for (const [gameId, props] of propsByGame) {
+    const game = games.find(g => g.id === gameId)
     if (!game) continue
     
-    const gameProps = allProps.filter(p => p.game_id === prop.game_id)
+    // Transform props data once for this game
+    const propsBookmakers = transformPlayerPropsToAnalysisFormat(game, props)
     
-    // Analyze over
-    if (prop.over_odds) {
-      try {
-        const analysis = await analyzePlayerProp({
-          type: 'player_prop',
-          player: prop.player_name,
-          propType: prop.prop_type,
-          selection: 'over',
-          line: prop.line,
-          odds: prop.over_odds,
-          sportsbook: prop.sportsbook,
-          game_id: prop.game_id
-        }, gameProps)
-        
-        if (meetsQualificationCriteria(analysis)) {
-          qualifyingPicks.push({
-            sport: game.sport,
-            game_id: game.id,
-            game_info: `${prop.player_name} - ${game.away_team} @ ${game.home_team}`,
-            pick_type: 'player_prop',
-            selection: `${prop.player_name} Over ${prop.line} ${prop.prop_type}`,
+    // Group by player to avoid duplicates
+    const analyzedPlayers = new Set<string>()
+    
+    for (const prop of props) {
+      const playerKey = `${prop.player_name}-${prop.prop_type}`
+      
+      // Skip if already analyzed this player/prop combo
+      if (analyzedPlayers.has(playerKey)) continue
+      analyzedPlayers.add(playerKey)
+      
+      // Analyze over
+      if (prop.over_odds) {
+        try {
+          const betOption: BetOption = {
+            id: `prop-over-${prop.id}`,
+            betType: 'player_prop',
+            market: prop.prop_type,
+            selection: 'Over',
             line: prop.line,
-            odds: analysis.best_odds,
-            sportsbook: analysis.best_book,
-            confidence: analysis.recommendation_score,
-            hit_probability: analysis.hit_probability,
-            ev_percentage: analysis.ev_percentage,
-            has_edge: analysis.has_edge,
-            reasoning: analysis.reasoning,
-            bet_details: {
+            odds: prop.over_odds,
+            sportsbook: prop.sportsbook,
+            playerName: prop.player_name,
+            eventId: game.id,
+            sport: game.sport
+          }
+          
+          const analysis = analyzeBet(betOption, propsBookmakers)
+          
+          if (meetsQualificationCriteria(analysis)) {
+            const pick = convertAnalysisToFeaturedPick(
+              analysis,
               game,
-              prop,
-              type: 'player_prop',
-              player: prop.player_name,
-              propType: prop.prop_type,
-              selection: 'over'
-            },
-            expires_at: game.game_date
-          })
+              'player_prop',
+              `${prop.player_name} Over ${prop.line} ${prop.prop_type}`,
+              prop.line,
+              {
+                game,
+                prop,
+                type: 'player_prop',
+                player: prop.player_name,
+                propType: prop.prop_type,
+                selection: 'over'
+              }
+            )
+            pick.game_info = `${prop.player_name} - ${game.away_team} @ ${game.home_team}`
+            qualifyingPicks.push(pick)
+          }
+        } catch (error) {
+          console.error(`Error analyzing ${prop.player_name} over:`, error)
         }
-      } catch (error) {
-        console.error(`Error analyzing ${prop.player_name} over:`, error)
       }
-    }
-    
-    // Analyze under
-    if (prop.under_odds) {
-      try {
-        const analysis = await analyzePlayerProp({
-          type: 'player_prop',
-          player: prop.player_name,
-          propType: prop.prop_type,
-          selection: 'under',
-          line: prop.line,
-          odds: prop.under_odds,
-          sportsbook: prop.sportsbook,
-          game_id: prop.game_id
-        }, gameProps)
-        
-        if (meetsQualificationCriteria(analysis)) {
-          qualifyingPicks.push({
-            sport: game.sport,
-            game_id: game.id,
-            game_info: `${prop.player_name} - ${game.away_team} @ ${game.home_team}`,
-            pick_type: 'player_prop',
-            selection: `${prop.player_name} Under ${prop.line} ${prop.prop_type}`,
+      
+      // Analyze under
+      if (prop.under_odds) {
+        try {
+          const betOption: BetOption = {
+            id: `prop-under-${prop.id}`,
+            betType: 'player_prop',
+            market: prop.prop_type,
+            selection: 'Under',
             line: prop.line,
-            odds: analysis.best_odds,
-            sportsbook: analysis.best_book,
-            confidence: analysis.recommendation_score,
-            hit_probability: analysis.hit_probability,
-            ev_percentage: analysis.ev_percentage,
-            has_edge: analysis.has_edge,
-            reasoning: analysis.reasoning,
-            bet_details: {
+            odds: prop.under_odds,
+            sportsbook: prop.sportsbook,
+            playerName: prop.player_name,
+            eventId: game.id,
+            sport: game.sport
+          }
+          
+          const analysis = analyzeBet(betOption, propsBookmakers)
+          
+          if (meetsQualificationCriteria(analysis)) {
+            const pick = convertAnalysisToFeaturedPick(
+              analysis,
               game,
-              prop,
-              type: 'player_prop',
-              player: prop.player_name,
-              propType: prop.prop_type,
-              selection: 'under'
-            },
-            expires_at: game.game_date
-          })
+              'player_prop',
+              `${prop.player_name} Under ${prop.line} ${prop.prop_type}`,
+              prop.line,
+              {
+                game,
+                prop,
+                type: 'player_prop',
+                player: prop.player_name,
+                propType: prop.prop_type,
+                selection: 'under'
+              }
+            )
+            pick.game_info = `${prop.player_name} - ${game.away_team} @ ${game.home_team}`
+            qualifyingPicks.push(pick)
+          }
+        } catch (error) {
+          console.error(`Error analyzing ${prop.player_name} under:`, error)
         }
-      } catch (error) {
-        console.error(`Error analyzing ${prop.player_name} under:`, error)
       }
     }
   }
@@ -544,11 +586,11 @@ async function analyzePlayerProps(
 
 /**
  * Check if bet meets qualification criteria
- * Priority: hit_probability >= 40% (REQUIRED), ev_percentage and has_edge are bonuses
+ * Priority: confidence >= 40 (REQUIRED)
  */
-function meetsQualificationCriteria(analysis: any): boolean {
-  // Only requirement: hit probability >= 40%
-  if (analysis.hit_probability < 40) {
+function meetsQualificationCriteria(analysis: AnalysisResult): boolean {
+  // Only requirement: confidence >= 40
+  if (analysis.confidence < 40) {
     return false
   }
   
@@ -560,16 +602,16 @@ function meetsQualificationCriteria(analysis: any): boolean {
  * Calculate priority score for sorting picks
  * Higher score = better pick
  */
-function calculatePriorityScore(analysis: any): number {
-  let score = analysis.hit_probability // Base score from hit probability
+function calculatePriorityScore(analysis: AnalysisResult): number {
+  let score = analysis.confidence // Base score from confidence
   
   // Bonus points for positive EV (up to +20)
-  if (analysis.ev_percentage > 0) {
-    score += Math.min(analysis.ev_percentage * 2, 20)
+  if (analysis.expectedValue && analysis.expectedValue > 0) {
+    score += Math.min(analysis.expectedValue * 2, 20)
   }
   
   // Bonus points for having edge (+10)
-  if (analysis.has_edge) {
+  if (analysis.edge && analysis.edge > 0) {
     score += 10
   }
   

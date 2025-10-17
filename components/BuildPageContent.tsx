@@ -8,7 +8,6 @@ import BettingOptions from '@/components/BettingOptions'
 import BuildFeaturedPicks from '@/components/BuildFeaturedPicks'
 import { Game, OddsData, PlayerProp } from '@/lib/types'
 import { Search } from 'lucide-react'
-import { analyzeGameBet, analyzePlayerProp } from '@/lib/betAnalysisTEST'
 import BetConfirmationModal from '@/components/BetConfirmationModal'
 import { getBookmakerDisplayName } from '@/lib/bookmakers'
 
@@ -204,12 +203,13 @@ export default function BuildPageContent() {
     setSearching(true)
     try {
       const query = searchQuery.toLowerCase()
+      
 
       const { data: games } = await supabase
         .from('games')
         .select('*')
         .or(`home_team.ilike.%${query}%,away_team.ilike.%${query}%`)
-        .gte('game_date', new Date().toISOString())
+        .gte('game_date', new Date().toISOString()) // ONLY FUTURE GAMES
         .order('game_date', { ascending: true })
 
       const uniqueGames = games ? Array.from(
@@ -262,30 +262,71 @@ export default function BuildPageContent() {
     setSearchResults({ games: [], playerProps: [] })
   }
 
-  async function handleSelectBet(bet: any) {
+async function handleSelectBet(bet: any) {
+  // TEMPORARILY DISABLED AUTH FOR LOCAL TESTING
+  // const { data: { user } } = await supabase.auth.getUser()
+  
+  // if (!user) {
+  //   const currentPath = window.location.pathname
+  //   const gameId = selectedGame?.id
+  //   const propId = bet.type === 'player_prop' ? `${bet.player}-${bet.propType}` : null
+  //   
+  //   let redirectUrl = `${currentPath}?`
+  //   if (gameId) redirectUrl += `game_id=${gameId}`
+  //   if (propId) redirectUrl += `&prop_search=${encodeURIComponent(propId)}`
+  //   if (selectedSportsbook) redirectUrl += `&sportsbook=${selectedSportsbook}`
+  //   
+  //   sessionStorage.setItem('pending_bet', JSON.stringify(bet))
+  //   
+  //   router.push(`/login?redirect=${encodeURIComponent(redirectUrl)}`)
+  //   return
+  // }
+
+  if (!selectedGame) {
+    alert('No game selected')
+    return
+  }
+
+  // Show confirmation modal
+  setModalData({ betDetails: bet })
+  setShowModal(true)
+}
+
+// Add useEffect to check for pending bet after auth
+useEffect(() => {
+  const checkPendingBet = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     
-    if (!user) {
-      alert('Please sign in to save bets')
-      return
-    }
-
-    let analysis
-    
-    try {
-      if (bet.type === 'player_prop') {
-        analysis = await analyzePlayerProp(bet, playerProps)
-      } else {
-        analysis = await analyzeGameBet(bet, gameOdds)
+    if (user) {
+      const pendingBet = sessionStorage.getItem('pending_bet')
+      if (pendingBet) {
+        try {
+          const bet = JSON.parse(pendingBet)
+          sessionStorage.removeItem('pending_bet')
+          
+          // Wait a moment for game to load
+          setTimeout(() => {
+            setModalData({ betDetails: bet })
+            setShowModal(true)
+          }, 500)
+        } catch (e) {
+          console.error('Error loading pending bet:', e)
+        }
       }
-    } catch (e) {
-      console.error('Analysis error:', e)
-      alert('Analysis failed: ' + e)
-      return
     }
+  }
+  
+  checkPendingBet()
+}, [selectedGame])
 
+  async function confirmAndSaveBet() {
+    if (!modalData || !selectedGame) return
+
+    const bet = modalData.betDetails
+    const { data: { user } } = await supabase.auth.getUser()
+    
     const pickData = {
-      user_id: user.id,
+      user_id: user?.id,
       pick_type: 'straight',
       picks: {
         bet_type: bet.type,
@@ -296,19 +337,7 @@ export default function BuildPageContent() {
         line: bet.line,
         odds: bet.odds,
         sportsbook: bet.sportsbook,
-        game_id: selectedGame?.id
-      },
-      analysis_snapshot: {
-        selection: bet.type === 'player_prop' 
-          ? `${bet.player} ${bet.selection} ${bet.line} ${bet.propType}`
-          : `${bet.team || bet.selection} ${bet.line || ''}`,
-        ev_percentage: analysis.ev_percentage,
-        has_edge: analysis.has_edge,
-        hit_probability: analysis.hit_probability,
-        recommendation_score: analysis.recommendation_score,
-        reasoning: analysis.reasoning,
-        best_book: analysis.best_book,
-        best_odds: analysis.best_odds
+        game_id: selectedGame.id
       },
       total_odds: bet.odds,
       status: 'pending'
@@ -318,11 +347,13 @@ export default function BuildPageContent() {
       .from('user_picks')
       .insert([pickData])
 
+    setShowModal(false)
+    setModalData(null)
+
     if (error) {
       alert(`Error saving bet: ${error.message}`)
     } else {
-      setModalData({ analysis, betDetails: bet })
-      setShowModal(true)
+      alert('Bet saved successfully!')
     }
   }
 
@@ -579,7 +610,7 @@ export default function BuildPageContent() {
         <BetConfirmationModal
           isOpen={showModal}
           onClose={() => setShowModal(false)}
-          analysis={modalData.analysis}
+          onConfirm={confirmAndSaveBet}
           betDetails={modalData.betDetails}
         />
       )}

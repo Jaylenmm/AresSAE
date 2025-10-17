@@ -3,8 +3,29 @@ import { supabase } from '@/lib/supabase'
 import { fetchOdds, fetchPlayerProps, SPORT_KEYS } from '@/lib/odds-api'
 import { getTop25NCAAFTeams, isTop25Team } from '@/lib/espn-api'
 
-
 export const maxDuration = 300 // 5 minutes max execution
+
+// Bookmaker name mapping to display proper names
+const BOOKMAKER_NAMES: Record<string, string> = {
+  'draftkings': 'DraftKings',
+  'fanduel': 'FanDuel',
+  'betmgm': 'BetMGM',
+  'caesars': 'Caesars',
+  'betrivers': 'BetRivers',
+  'pointsbetus': 'PointsBet',
+  'espnbet': 'ESPN BET',
+  'wynnbet': 'WynnBet',
+  'bovada': 'Bovada',
+  'mybookieag': 'MyBookie',
+  'betus': 'BetUS',
+  'lowvig': 'LowVig',
+  'betonlineag': 'BetOnline',
+  'superbook': 'SuperBook',
+  'unibet_us': 'Unibet',
+  'pinnacle': 'Pinnacle',
+  'bookmaker': 'Bookmaker',
+  'circa': 'Circa'
+}
 
 export async function GET(request: Request) {
   // Verify this is called by Vercel Cron (security)
@@ -46,6 +67,7 @@ export async function GET(request: Request) {
   type Results = {
     NFL: SportResult;
     NBA: SportResult;
+    MLB: SportResult;
     NCAAF: SportResult;
     featuredPicks?: { success: boolean; generated: number; error?: string };
     errors: string[];
@@ -54,19 +76,23 @@ export async function GET(request: Request) {
   const results: Results = {
     NFL: { games: 0, odds: 0, props: 0 },
     NBA: { games: 0, odds: 0, props: 0 },
+    MLB: { games: 0, odds: 0, props: 0 },
     NCAAF: { games: 0, odds: 0, props: 0 },
     errors: []
   }
 
   try {
-    // Collect data for each sport
-    for (const sport of ['NFL', 'NBA', 'NCAAF']) {
+    // CRITICAL: Collect data for each sport - INCLUDING MLB!
+    for (const sport of ['NFL', 'NBA', 'MLB', 'NCAAF']) {
       try {
+        console.log(`📊 Collecting ${sport} data...`)
         const result = await collectSportData(sport)
-        if (sport === 'NFL' || sport === 'NBA' || sport === 'NCAAF') {
-        results[sport] = result
+        if (sport === 'NFL' || sport === 'NBA' || sport === 'MLB' || sport === 'NCAAF') {
+          results[sport] = result
         }
+        console.log(`✅ ${sport}: ${result.games} games, ${result.odds} odds, ${result.props} props`)
       } catch (error) {
+        console.error(`❌ Error collecting ${sport} data:`, error)
         results.errors.push(`${sport}: ${error}`)
       }
     }
@@ -88,6 +114,7 @@ export async function GET(request: Request) {
       console.error('❌ Error generating featured picks:', error)
       results.errors.push(`Featured picks: ${error}`)
     }
+
     // Mark run as completed
     await supabase
       .from('cron_runs')
@@ -123,9 +150,16 @@ export async function GET(request: Request) {
 
 async function collectSportData(sport: string) {
   const sportKey = SPORT_KEYS[sport as keyof typeof SPORT_KEYS]
+  
+  if (!sportKey) {
+    throw new Error(`Invalid sport: ${sport}`)
+  }
+  
   let gamesCreated = 0
   let oddsCreated = 0
   let propsCreated = 0
+
+  console.log(`Fetching odds for ${sport} (${sportKey})...`)
 
   // Get Top 25 for NCAAF
   let top25Teams: string[] = []
@@ -135,6 +169,8 @@ async function collectSportData(sport: string) {
 
   // Fetch odds
   const oddsData = await fetchOdds(sportKey)
+  console.log(`Received ${oddsData.length} events for ${sport}`)
+  
   const gameIdMap = new Map<string, string>()
 
   for (const event of oddsData) {
@@ -166,15 +202,23 @@ async function collectSportData(sport: string) {
     gameIdMap.set(event.id, game.id)
     gamesCreated++
 
-    // Store odds
+    // Store odds with proper bookmaker names
     for (const bookmaker of event.bookmakers || []) {
       const spreads = bookmaker.markets?.find((m: any) => m.key === 'spreads')
       const totals = bookmaker.markets?.find((m: any) => m.key === 'totals')
       const h2h = bookmaker.markets?.find((m: any) => m.key === 'h2h')
+      const altSpreads = bookmaker.markets?.find((m: any) => m.key === 'alternate_spreads')
+      const altTotals = bookmaker.markets?.find((m: any) => m.key === 'alternate_totals')
 
+      // CRITICAL: Map bookmaker key to proper display name
+      const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
+      
+      console.log(`  Processing ${bookmaker.key} -> ${displayName}`)
+
+      // Store standard lines
       const oddsEntry: any = {
         game_id: game.id,
-        sportsbook: bookmaker.key,
+        sportsbook: displayName,
         updated_at: new Date().toISOString()
       }
 
@@ -213,22 +257,104 @@ async function collectSportData(sport: string) {
         .upsert(oddsEntry, { onConflict: 'game_id,sportsbook' })
 
       oddsCreated++
+
+      // Store alternate spreads
+      if (altSpreads?.outcomes) {
+        const altSpreadsByLine = new Map<number, { home: any, away: any }>()
+        
+        altSpreads.outcomes.forEach((outcome: any) => {
+          const line = Math.abs(outcome.point)
+          if (!altSpreadsByLine.has(line)) {
+            altSpreadsByLine.set(line, { home: null, away: null })
+          }
+          const pair = altSpreadsByLine.get(line)!
+          if (outcome.name === event.home_team) {
+            pair.home = outcome
+          } else {
+            pair.away = outcome
+          }
+        })
+
+        for (const [line, { home, away }] of altSpreadsByLine) {
+          if (home && away) {
+            await supabase
+              .from('odds_data')
+              .upsert({
+                game_id: game.id,
+                sportsbook: displayName,
+                spread_home: home.point,
+                spread_away: away.point,
+                spread_home_odds: home.price,
+                spread_away_odds: away.price,
+                is_alternate: true,
+                updated_at: new Date().toISOString()
+              }, { onConflict: 'game_id,sportsbook,spread_home,total' })
+            
+            oddsCreated++
+          }
+        }
+      }
+
+      // Store alternate totals
+      if (altTotals?.outcomes) {
+        const altTotalsByLine = new Map<number, { over: any, under: any }>()
+        
+        altTotals.outcomes.forEach((outcome: any) => {
+          const line = outcome.point
+          if (!altTotalsByLine.has(line)) {
+            altTotalsByLine.set(line, { over: null, under: null })
+          }
+          const pair = altTotalsByLine.get(line)!
+          if (outcome.name === 'Over') {
+            pair.over = outcome
+          } else {
+            pair.under = outcome
+          }
+        })
+
+        for (const [line, { over, under }] of altTotalsByLine) {
+          if (over && under) {
+            await supabase
+              .from('odds_data')
+              .upsert({
+                game_id: game.id,
+                sportsbook: displayName,
+                total: over.point,
+                over_odds: over.price,
+                under_odds: under.price,
+                is_alternate: true,
+                updated_at: new Date().toISOString()
+              }, { onConflict: 'game_id,sportsbook,spread_home,total' })
+            
+            oddsCreated++
+          }
+        }
+      }
     }
   }
 
-// Fetch player props
+  // Fetch player props (STANDARD + ALTERNATES for all sports)
+  console.log(`Fetching player props (standard + alternates) for ${sport}...`)
   const propsData = await fetchPlayerProps(sportKey)
+  console.log(`Received ${propsData.length} events with props for ${sport}`)
   
   for (const eventData of propsData) {
     const gameId = gameIdMap.get(eventData.id)
     if (!gameId) continue
 
     for (const bookmaker of eventData.bookmakers || []) {
+      // CRITICAL: Map bookmaker key to proper display name for props too
+      const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
+
       for (const market of bookmaker.markets || []) {
+        // Process BOTH standard AND alternate markets
+        const isAlternate = market.key.includes('_alternate')
+        
         const propType = market.key
           .replace('player_', '')
           .replace('batter_', '')
           .replace('pitcher_', '')
+          .replace('_alternate', '') // Remove _alternate suffix for consistent naming
           .replace(/_/g, ' ')
           .split(' ')
           .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -254,9 +380,12 @@ async function collectSportData(sport: string) {
         }
 
         // Now save each player with BOTH over and under odds
+        // This will create MULTIPLE rows for the same player/prop/book with different lines
         for (const [playerName, outcomes] of playerOutcomes) {
           const line = outcomes.over?.point || outcomes.under?.point
           if (!line) continue
+
+          console.log(`  ${isAlternate ? 'ALT' : 'STD'}: ${playerName} ${propType} ${line}`)
 
           await supabase
             .from('player_props')
@@ -267,10 +396,12 @@ async function collectSportData(sport: string) {
               line: line,
               over_odds: outcomes.over?.price || null,
               under_odds: outcomes.under?.price || null,
-              sportsbook: bookmaker.key,
+              sportsbook: displayName,
+              is_alternate: isAlternate, // CRITICAL: Set this flag
               updated_at: new Date().toISOString()
             }, {
-              onConflict: 'game_id,player_name,prop_type,sportsbook'
+              // IMPORTANT: Change conflict resolution to allow multiple lines
+              onConflict: 'game_id,player_name,prop_type,sportsbook,line'
             })
 
           propsCreated++

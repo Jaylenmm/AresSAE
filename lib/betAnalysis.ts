@@ -1,16 +1,14 @@
-// ===== FIXED: lib/betAnalysisTEST.ts =====
+// ===== FIXED: lib/betAnalysis.ts =====
 
 import { OddsData, PlayerProp } from './types'
-import { analyzeGameBet as comprehensiveGameAnalysis, analyzePlayerProp as comprehensivePlayerAnalysis } from './analysis-engine'
-import type { ComprehensiveBetAnalysis } from './analysis-engine'
+import { analyzeGameBet as comprehensiveGameAnalysis, analyzePlayerProp as comprehensivePlayerAnalysis } from './analysis-engineOLD'
+import type { ComprehensiveBetAnalysis } from './analysis-engineOLD'
 import { 
   fetchNBAPlayerStats, 
   fetchNFLPlayerStats, 
-  fetchMLBPlayerStats, 
-  fetchPlayerGameLog,
-  mapPropTypeToStatName,
-  extractStatValues
-} from './espn-apiTEST'
+  fetchMLBPlayerStats,
+  mapPropTypeToStatName
+} from './espn-api'
 
 /**
  * Legacy interface for backwards compatibility
@@ -59,7 +57,7 @@ function getSportFromPropType(propType: string): 'basketball' | 'football' | 'ba
     return 'basketball'
   }
   
-  // MLB props - FIXED
+  // MLB props
   if (lowerProp.includes('batter') || lowerProp.includes('pitcher') ||
       lowerProp.includes('home_run') || lowerProp.includes('homerun') ||
       lowerProp.includes('strikeout') || lowerProp.includes('hit') || 
@@ -99,8 +97,7 @@ export async function analyzeGameBet(
 }
 
 /**
- * MAIN EXPORT: Analyze player props WITH ESPN stats
- * PRODUCTION-READY with proper error handling
+ * MAIN EXPORT: Analyze player props WITH ESPN season stats
  */
 export async function analyzePlayerProp(
   bet: BetSelection,
@@ -123,13 +120,11 @@ export async function analyzePlayerProp(
   
   console.log(`\n🎯 Analyzing ${bet.player} ${bet.propType} ${selection}`)
   
-  // ===== STEP 1: Determine Sport from Prop Type =====
+  // ===== STEP 1: Determine Sport =====
   const sport = getSportFromPropType(bet.propType)
   
   if (!sport) {
-    console.warn(`⚠️ Could not determine sport from prop type: ${bet.propType}`)
-    console.log(`📊 Falling back to odds-only analysis`)
-    
+    console.warn(`⚠️ Unknown sport for: ${bet.propType}`)
     const analysis = await comprehensivePlayerAnalysis(
       playerProps,
       bet.player,
@@ -137,82 +132,54 @@ export async function analyzePlayerProp(
       selection,
       undefined
     )
-    
     const result = convertToLegacyFormat(analysis)
-    result.reasoning = `[Data: Market odds only - Unknown sport] ${result.reasoning}`
+    result.reasoning = `[Data: Market odds only] ${result.reasoning}`
     return result
   }
   
-  console.log(`🏈 Detected sport: ${sport.toUpperCase()}`)
+  console.log(`🏈 Sport: ${sport.toUpperCase()}`)
   
-  // ===== STEP 2: Try ESPN Stats (FREE) =====
+  // ===== STEP 2: Get Season Stats =====
   let historicalData: { seasonStats: number[]; last5Games: number[] } | undefined
+  let playerAverage: number | undefined
   
   try {
-    console.log(`📊 Fetching ESPN stats for ${bet.player}...`)
+    console.log(`📊 Fetching season stats...`)
     
     let playerStats = null
-    let season = 2025
     
-    // Fetch stats for the correct sport
     if (sport === 'basketball') {
       playerStats = await fetchNBAPlayerStats(bet.player, 2025)
     } else if (sport === 'football') {
       playerStats = await fetchNFLPlayerStats(bet.player, 2024)
-      season = 2024
     } else if (sport === 'baseball') {
       playerStats = await fetchMLBPlayerStats(bet.player, 2024)
-      season = 2024
     }
     
-    if (playerStats && playerStats.playerId) {
-      console.log(`✅ Found ${sport.toUpperCase()} stats for ${playerStats.playerName}`)
+    if (playerStats?.playerId) {
+      console.log(`✅ Found stats for ${playerStats.playerName}`)
       
       const statName = mapPropTypeToStatName(bet.propType)
+      playerAverage = playerStats.stats[statName]
       
-      // Try to get game logs, but don't fail if unavailable
-      let gameLogs: any[] = []
-      try {
-        gameLogs = await fetchPlayerGameLog(playerStats.playerId, sport, season, 10)
-      } catch (error) {
-        console.log(`Game logs unavailable, using season stats only`)
-      }
-      
-      if (gameLogs.length > 0) {
-        const allValues = extractStatValues(gameLogs, statName)
-        const last5Values = allValues.slice(0, 5)
-        
-        if (allValues.length > 0) {
-          historicalData = {
-            seasonStats: allValues,
-            last5Games: last5Values
-          }
-          console.log(`📈 Using ${allValues.length} games of ESPN data`)
-        } else {
-          console.warn(`⚠️ ESPN stats found but no values for ${statName}`)
+      if (playerAverage && !isNaN(playerAverage)) {
+        historicalData = {
+          seasonStats: [playerAverage],
+          last5Games: [playerAverage]
         }
+        console.log(`📈 Season avg: ${playerAverage.toFixed(1)} ${statName}`)
       } else {
-        // Use season average as fallback
-        const seasonValue = playerStats.stats[statName]
-        if (seasonValue && !isNaN(seasonValue)) {
-          historicalData = {
-            seasonStats: [seasonValue],
-            last5Games: [seasonValue]
-          }
-          console.log(`📊 Using season average: ${seasonValue} ${statName}`)
-        } else {
-          console.warn(`⚠️ No game logs available for ${playerStats.playerName}`)
-        }
+        console.log(`⚠️ No ${statName} found. Available:`, Object.keys(playerStats.stats).slice(0, 5).join(', '))
       }
     } else {
-      console.log(`⚠️ No ESPN stats found for ${bet.player} in ${sport}`)
+      console.log(`⚠️ Player not found`)
     }
   } catch (error) {
-    console.error('ESPN stats fetch failed:', error)
+    console.error('Stats error:', error)
   }
   
   // ===== STEP 3: Run Analysis =====
-  console.log(`🔬 Running comprehensive analysis...`)
+  console.log(`🔬 Analyzing...`)
   
   const analysis = await comprehensivePlayerAnalysis(
     playerProps,
@@ -222,20 +189,16 @@ export async function analyzePlayerProp(
     historicalData
   )
   
-  // Add data source info to reasoning
+  // Add data source
   let dataSource = 'Market odds only'
-  if (historicalData) {
-    if (historicalData.seasonStats.length >= 5) {
-      dataSource = `ESPN ${sport} stats (${historicalData.seasonStats.length} games)`
-    } else if (historicalData.seasonStats.length > 0) {
-      dataSource = `ESPN ${sport} stats (${historicalData.seasonStats.length} games - limited data)`
-    }
+  if (historicalData && playerAverage) {
+    dataSource = `ESPN ${sport} avg: ${playerAverage.toFixed(1)}`
   }
   
-  console.log(`✅ Analysis complete using: ${dataSource}\n`)
+  console.log(`✅ Complete: ${dataSource}\n`)
   
   const result = convertToLegacyFormat(analysis)
-  result.reasoning = `[Data: ${dataSource}] ${result.reasoning}`
+  result.reasoning = `[${dataSource}] ${result.reasoning}`
   
   return result
 }
@@ -251,44 +214,34 @@ export async function getComprehensiveAnalysis(
   
   if (bet.type === 'player_prop' && playerProps) {
     const selection = bet.selection.toLowerCase().includes('over') ? 'over' : 'under'
-    
-    // Determine sport and fetch stats
     const sport = getSportFromPropType(bet.propType || '')
     let historicalData: { seasonStats: number[]; last5Games: number[] } | undefined
     
     if (sport) {
       try {
         let playerStats = null
-        let season = 2025
         
         if (sport === 'basketball') {
           playerStats = await fetchNBAPlayerStats(bet.player || '', 2025)
         } else if (sport === 'football') {
           playerStats = await fetchNFLPlayerStats(bet.player || '', 2024)
-          season = 2024
         } else if (sport === 'baseball') {
           playerStats = await fetchMLBPlayerStats(bet.player || '', 2024)
-          season = 2024
         }
         
-        if (playerStats && playerStats.playerId) {
+        if (playerStats?.playerId) {
           const statName = mapPropTypeToStatName(bet.propType || '')
-          const gameLogs = await fetchPlayerGameLog(playerStats.playerId, sport, season, 10)
+          const avg = playerStats.stats[statName]
           
-          if (gameLogs.length > 0) {
-            const allValues = extractStatValues(gameLogs, statName)
-            const last5Values = allValues.slice(0, 5)
-            
-            if (allValues.length > 0) {
-              historicalData = {
-                seasonStats: allValues,
-                last5Games: last5Values
-              }
+          if (avg && !isNaN(avg)) {
+            historicalData = {
+              seasonStats: [avg],
+              last5Games: [avg]
             }
           }
         }
       } catch (error) {
-        console.error('Error fetching stats for comprehensive analysis:', error)
+        console.error('Stats error:', error)
       }
     }
     
@@ -317,7 +270,6 @@ export async function getComprehensiveAnalysis(
     return comprehensiveGameAnalysis(allOdds, betType, selection)
   }
   
-  // Fallback
   return {
     recommendation: 'pass',
     confidence: 0,
@@ -339,7 +291,7 @@ export async function getComprehensiveAnalysis(
       recommended: 0,
       percentage: 0
     },
-    reasoning: ['Insufficient data for analysis'],
+    reasoning: ['Insufficient data'],
     warnings: [],
     hitProbability: 50,
     impliedProbability: 50
@@ -347,7 +299,7 @@ export async function getComprehensiveAnalysis(
 }
 
 /**
- * Helper: Convert comprehensive analysis to legacy format
+ * Helper: Convert to legacy format
  */
 function convertToLegacyFormat(analysis: ComprehensiveBetAnalysis): LegacyAnalysisResult {
   let score = 0

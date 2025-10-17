@@ -1,6 +1,6 @@
 'use client'
 
-interface BetConfirmationModalProps {
+interface AnalyzeConfirmationModalProps {
   isOpen: boolean
   onClose: () => void
   onConfirm: () => void
@@ -15,12 +15,12 @@ interface BetConfirmationModalProps {
   }
 }
 
-export default function BetConfirmationModal({ 
+export default function AnalyzeConfirmationModal({ 
   isOpen, 
   onClose,
   onConfirm,
   betDetails 
-}: BetConfirmationModalProps) {
+}: AnalyzeConfirmationModalProps) {
   if (!isOpen) return null
 
   return (
@@ -30,9 +30,9 @@ export default function BetConfirmationModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-gradient-to-br from-blue-600 to-blue-900 p-6">
+        <div className="bg-gradient-to-br from-purple-600 to-purple-900 p-6">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-2xl font-bold text-white">Confirm Bet</h2>
+            <h2 className="text-2xl font-bold text-white">Analyze This Pick?</h2>
             <button 
               onClick={onClose}
               className="text-white hover:text-gray-200"
@@ -43,7 +43,7 @@ export default function BetConfirmationModal({
             </button>
           </div>
           <p className="text-sm text-white opacity-90">
-            Review your selection before saving
+            Run Ares analysis on this bet
           </p>
         </div>
 
@@ -66,36 +66,34 @@ export default function BetConfirmationModal({
             </div>
             
             <div className="border-t border-gray-200 pt-3">
-              <div className="flex justify-between items-center mb-2">
+              <div className="flex justify-between items-center">
                 <span className="text-gray-600">Odds:</span>
                 <span className="text-xl font-bold text-gray-900">
                   {betDetails.odds > 0 ? '+' : ''}{betDetails.odds}
                 </span>
               </div>
-              {betDetails.sportsbook && (
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Sportsbook:</span>
-                  <span className="text-sm font-semibold text-gray-700">
-                    {betDetails.sportsbook}
-                  </span>
-                </div>
-              )}
             </div>
+          </div>
+
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-6">
+            <p className="text-sm text-purple-900">
+              💡 Analysis will check market efficiency, edge detection, and provide recommendations
+            </p>
           </div>
 
           {/* Action Buttons */}
           <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="flex-1 bg-gray-200 text-gray-700 font-semibold py-3 rounded-lg hover:bg-gray-300 transition-colors"
+              className="flex-1 bg-white border-2 border-gray-300 text-gray-700 font-semibold py-3 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={onConfirm}
-              className="flex-1 bg-gradient-to-r from-blue-600 to-blue-900 text-white font-semibold py-3 rounded-lg hover:from-blue-700 hover:to-blue-950 transition-colors"
+              className="flex-1 bg-gradient-to-r from-purple-600 to-purple-900 text-white font-semibold py-3 rounded-lg hover:opacity-90 transition-opacity"
             >
-              Save Bet
+              Analyze
             </button>
           </div>
         </div>

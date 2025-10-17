@@ -3,6 +3,28 @@ import { supabase } from '@/lib/supabase'
 import { fetchOdds, fetchPlayerProps, SPORT_KEYS } from '@/lib/odds-api'
 import { getTop25NCAAFTeams, isTop25Team } from '@/lib/espn-api'
 
+// CRITICAL: Bookmaker name mapping
+const BOOKMAKER_NAMES: Record<string, string> = {
+  'draftkings': 'DraftKings',
+  'fanduel': 'FanDuel',
+  'betmgm': 'BetMGM',
+  'caesars': 'Caesars',
+  'betrivers': 'BetRivers',
+  'pointsbetus': 'PointsBet',
+  'espnbet': 'ESPN BET',
+  'wynnbet': 'WynnBet',
+  'bovada': 'Bovada',
+  'mybookieag': 'MyBookie',
+  'betus': 'BetUS',
+  'lowvig': 'LowVig',
+  'betonlineag': 'BetOnline',
+  'superbook': 'SuperBook',
+  'unibet_us': 'Unibet',
+  'pinnacle': 'Pinnacle',
+  'bookmaker': 'Bookmaker',
+  'circa': 'Circa'
+}
+
 export async function POST(request: Request) {
   const { sport } = await request.json()
   
@@ -45,7 +67,6 @@ export async function POST(request: Request) {
         console.log(`✅ Including ${event.away_team} @ ${event.home_team} (Top 25 game)`)
       }
 
-      // FIXED: Remove ignoreDuplicates and use .select() instead of .single()
       const { data: games, error: gameError } = await supabase
         .from('games')
         .upsert({
@@ -75,9 +96,12 @@ export async function POST(request: Request) {
         const totals = bookmaker.markets?.find((m: any) => m.key === 'totals')
         const h2h = bookmaker.markets?.find((m: any) => m.key === 'h2h')
 
+        // FIXED: Use mapping instead of displayName
+        const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
+
         const oddsEntry: any = {
           game_id: game.id,
-          sportsbook: bookmaker.displayName,
+          sportsbook: displayName, // FIXED
           updated_at: new Date().toISOString()
         }
 
@@ -125,7 +149,7 @@ export async function POST(request: Request) {
     // Fetch player props
     console.log('🔍 Fetching player props...')
     
-    // ADDED: If no new games, populate map from existing games
+    // If no new games, populate map from existing games
     if (gameIdMap.size === 0) {
       console.log('📋 No new games - loading existing games to map props')
       const { data: existingGames } = await supabase
@@ -156,7 +180,6 @@ export async function POST(request: Request) {
       
       if (!gameId) {
         console.log(`❌ No game found for event ${eventData.id}`)
-        console.log('Available game IDs in map:', Array.from(gameIdMap.keys()))
         continue
       }
 
@@ -169,6 +192,9 @@ export async function POST(request: Request) {
 
       for (const bookmaker of eventData.bookmakers) {
         console.log(`📚 Processing bookmaker: ${bookmaker.key}`)
+        
+        // FIXED: Use mapping for props too
+        const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
         
         if (!bookmaker.markets || bookmaker.markets.length === 0) {
           console.log('⚠️ No markets for this bookmaker')
@@ -222,7 +248,6 @@ export async function POST(request: Request) {
           // Now save each player with BOTH over and under odds
           for (const [playerName, outcomes] of playerOutcomes) {
             try {
-              // Use the line from either over or under (they should be the same)
               const line = outcomes.over?.point || outcomes.under?.point
               
               if (!line) {
@@ -237,11 +262,11 @@ export async function POST(request: Request) {
                 line: line,
                 over_odds: outcomes.over?.price || null,
                 under_odds: outcomes.under?.price || null,
-                sportsbook: bookmaker.key,
+                sportsbook: displayName, // FIXED
                 updated_at: new Date().toISOString()
               }
 
-              console.log('💾 Saving prop with BOTH sides:', propData)
+              console.log('💾 Saving prop:', propData)
 
               const { data, error } = await supabase
                 .from('player_props')
@@ -254,7 +279,7 @@ export async function POST(request: Request) {
                 console.error('❌ Error saving prop:', error)
                 propErrors++
               } else {
-                console.log('✅ Prop saved successfully with both odds')
+                console.log('✅ Prop saved successfully')
                 propsCreated++
               }
             } catch (propError) {

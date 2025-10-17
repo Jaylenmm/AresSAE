@@ -39,7 +39,7 @@ export default function FeaturedPicks({ sport }: { sport: string }) {
 
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % featuredBets.length)
-    }, 5000) // Scroll every 5 seconds
+    }, 7000) // Scroll every 7 seconds
 
     return () => clearInterval(interval)
   }, [featuredBets.length])

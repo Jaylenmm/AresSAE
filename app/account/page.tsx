@@ -15,17 +15,15 @@ export default function AccountPage() {
 
   async function checkUser() {
     const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      // Not logged in - redirect to login page, then home after auth
+      router.push('/login?redirect=/')
+      return
+    }
+    
     setUser(user)
     setLoading(false)
-  }
-
-  async function signInWithGoogle() {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`
-      }
-    })
   }
 
   async function signOut() {
@@ -42,23 +40,9 @@ export default function AccountPage() {
     )
   }
 
+  // If no user at this point, they're being redirected
   if (!user) {
-    return (
-      <main className="max-w-lg mx-auto p-4">
-        <div className="bg-white rounded-lg shadow-md p-8 text-center">
-          <h1 className="text-2xl font-bold mb-4">Sign In</h1>
-          <p className="text-gray-600 mb-6">
-            Sign in to save your picks and access Ares analysis
-          </p>
-          <button
-            onClick={signInWithGoogle}
-            className="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Sign in with Google
-          </button>
-        </div>
-      </main>
-    )
+    return null
   }
 
   return (

@@ -1,4 +1,4 @@
-// ===== CREATE: lib/odds-apiTEST.ts =====
+// lib/odds-api.ts
 
 const API_KEY = process.env.THE_ODDS_API_KEY
 const BASE_URL = 'https://api.the-odds-api.com/v4'
@@ -10,16 +10,88 @@ export const SPORT_KEYS = {
   'NCAAF': 'americanfootball_ncaaf'
 }
 
-/**
- * Fetch game odds (unchanged from production)
- */
+// Complete market lists from Odds API documentation
+// STANDARD + ALTERNATE markets for each sport
+const PLAYER_PROP_MARKETS = {
+  // NFL/NCAAF - Standard + Alternate markets
+  football: [
+    // Standard markets
+    'player_pass_tds',
+    'player_pass_yds',
+    'player_pass_completions',
+    'player_rush_yds',
+    'player_rush_attempts',
+    'player_receptions',
+    'player_reception_yds',
+    'player_anytime_td',
+    'player_pass_interceptions',
+    // Alternate markets
+    'player_pass_tds_alternate',
+    'player_pass_yds_alternate',
+    'player_pass_completions_alternate',
+    'player_rush_yds_alternate',
+    'player_rush_attempts_alternate',
+    'player_receptions_alternate',
+    'player_reception_yds_alternate',
+    'player_pass_interceptions_alternate'
+  ],
+  
+  // NBA/NCAAB - Standard + Alternate markets
+  basketball: [
+    // Standard markets
+    'player_points',
+    'player_rebounds',
+    'player_assists',
+    'player_threes',
+    'player_blocks',
+    'player_steals',
+    'player_points_rebounds_assists',
+    'player_points_rebounds',
+    'player_points_assists',
+    // Alternate markets
+    'player_points_alternate',
+    'player_rebounds_alternate',
+    'player_assists_alternate',
+    'player_threes_alternate',
+    'player_blocks_alternate',
+    'player_steals_alternate',
+    'player_points_rebounds_assists_alternate',
+    'player_points_rebounds_alternate',
+    'player_points_assists_alternate'
+  ],
+  
+  // MLB - Standard + Alternate markets
+  baseball: [
+    // Standard markets
+    'batter_home_runs',
+    'batter_hits',
+    'batter_total_bases',
+    'batter_rbis',
+    'batter_runs_scored',
+    'batter_strikeouts',
+    'pitcher_strikeouts',
+    'pitcher_hits_allowed',
+    'pitcher_earned_runs',
+    // Alternate markets
+    'batter_home_runs_alternate',
+    'batter_hits_alternate',
+    'batter_total_bases_alternate',
+    'batter_rbis_alternate',
+    'batter_runs_scored_alternate',
+    'batter_strikeouts_alternate',
+    'pitcher_strikeouts_alternate',
+    'pitcher_hits_allowed_alternate',
+    'pitcher_earned_runs_alternate'
+  ]
+}
+
 export async function fetchOdds(sportKey: string) {
   try {
     const response = await fetch(
       `${BASE_URL}/sports/${sportKey}/odds?` + new URLSearchParams({
         apiKey: API_KEY!,
-        regions: 'us',
-        markets: 'h2h,spreads,totals',
+        regions: 'us,us2',
+        markets: 'h2h,spreads,totals,alternate_spreads,alternate_totals',
         oddsFormat: 'american'
       })
     )
@@ -28,9 +100,7 @@ export async function fetchOdds(sportKey: string) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
     
-    // Track usage
     const remaining = response.headers.get('x-requests-remaining')
-    const used = response.headers.get('x-requests-used')
     const lastCost = response.headers.get('x-requests-last')
     
     console.log(`📊 Odds API - Remaining: ${remaining}, Last Cost: ${lastCost}`)
@@ -42,13 +112,8 @@ export async function fetchOdds(sportKey: string) {
   }
 }
 
-/**
- * CORRECT way to fetch player props - TWO STEP PROCESS
- * (From The Odds API documentation - this is the production-tested version)
- */
 export async function fetchPlayerProps(sportKey: string) {
   try {
-    // STEP 1: Get event IDs (FREE - no credit cost)
     console.log('Step 1: Fetching event IDs...')
     const eventsResponse = await fetch(
       `${BASE_URL}/sports/${sportKey}/events?apiKey=${API_KEY}`
@@ -63,20 +128,22 @@ export async function fetchPlayerProps(sportKey: string) {
     
     if (events.length === 0) return []
     
-    // Determine prop markets for this sport
+    // Get appropriate markets for this sport (STANDARD + ALTERNATES)
     let propMarkets: string[] = []
     if (sportKey === 'americanfootball_nfl' || sportKey === 'americanfootball_ncaaf') {
-      propMarkets = ['player_pass_yds', 'player_pass_tds', 'player_rush_yds', 'player_receptions', 'player_reception_yds']
+      propMarkets = PLAYER_PROP_MARKETS.football
     } else if (sportKey === 'basketball_nba') {
-      propMarkets = ['player_points', 'player_rebounds', 'player_assists', 'player_threes']
+      propMarkets = PLAYER_PROP_MARKETS.basketball
     } else if (sportKey === 'baseball_mlb') {
-      propMarkets = ['batter_home_runs', 'pitcher_strikeouts']
+      propMarkets = PLAYER_PROP_MARKETS.baseball
     }
     
-    if (propMarkets.length === 0) return []
+    if (propMarkets.length === 0) {
+      console.log('No prop markets defined for this sport')
+      return []
+    }
     
-    // STEP 2: Query each event individually for player props
-    console.log('Step 2: Fetching player props for each event...')
+    console.log(`Step 2: Fetching ${propMarkets.length} prop markets (standard + alternates) for each event...`)
     const allPropsData = []
     
     // Limit to first 10 events to save credits
@@ -90,24 +157,24 @@ export async function fetchPlayerProps(sportKey: string) {
           `${BASE_URL}/sports/${sportKey}/events/${event.id}/odds?` + new URLSearchParams({
             apiKey: API_KEY!,
             regions: 'us',
-            markets: propMarkets.join(','),
+            markets: propMarkets.join(','), // Now includes both standard + alternate markets
             oddsFormat: 'american'
           })
         )
         
         if (!propsResponse.ok) {
+          const errorText = await propsResponse.text()
           console.error(`Props fetch failed for ${event.id}: ${propsResponse.status}`)
+          console.error(`Error details: ${errorText}`)
           continue
         }
         
-        // Track usage per event
         const remaining = propsResponse.headers.get('x-requests-remaining')
         const lastCost = propsResponse.headers.get('x-requests-last')
         console.log(`💰 Event ${event.id} - Remaining: ${remaining}, Cost: ${lastCost}`)
         
         const propsData = await propsResponse.json()
         
-        // Add event metadata to response
         allPropsData.push({
           id: event.id,
           home_team: event.home_team,
@@ -118,7 +185,7 @@ export async function fetchPlayerProps(sportKey: string) {
         
         console.log(`Got ${propsData.bookmakers?.length || 0} bookmakers for event ${event.id}`)
         
-        // Rate limiting - wait 100ms between requests (stay under 30 req/sec)
+        // Rate limiting - 100ms between requests (max 10 req/sec)
         await new Promise(resolve => setTimeout(resolve, 100))
         
       } catch (error) {
@@ -136,68 +203,12 @@ export async function fetchPlayerProps(sportKey: string) {
   }
 }
 
-/**
- * NEW: Fetch historical odds (EXPENSIVE - 10x cost)
- * Use sparingly and always check cache first
- */
-export async function fetchHistoricalOddsRaw(params: {
-  sport: string
-  eventId?: string
-  date: string
-  regions: string
-  markets: string
-}): Promise<any> {
-  try {
-    console.warn('⚠️ EXPENSIVE: Fetching historical odds (10x cost)')
-    
-    const url = params.eventId
-      ? `${BASE_URL}/historical/sports/${params.sport}/events/${params.eventId}/odds`
-      : `${BASE_URL}/historical/sports/${params.sport}/odds`
-    
-    const queryParams = new URLSearchParams({
-      apiKey: API_KEY!,
-      date: params.date,
-      regions: params.regions,
-      markets: params.markets,
-      oddsFormat: 'american'
-    })
-    
-    const response = await fetch(`${url}?${queryParams}`)
-    
-    if (!response.ok) {
-      console.error(`Historical API error: ${response.status}`)
-      return null
-    }
-    
-    // CRITICAL: Track cost carefully
-    const remaining = response.headers.get('x-requests-remaining')
-    const used = response.headers.get('x-requests-used')
-    const lastCost = response.headers.get('x-requests-last')
-    
-    console.log(`💰 HISTORICAL API - Remaining: ${remaining}, Last Cost: ${lastCost} (10x normal)`)
-    
-    // Alert if credits are running low
-    if (remaining && parseInt(remaining) < 1000) {
-      console.error(`🚨 LOW CREDITS WARNING: Only ${remaining} credits remaining!`)
-    }
-    
-    return await response.json()
-  } catch (error) {
-    console.error('Historical odds fetch failed:', error)
-    return null
-  }
-}
-
-/**
- * Helper: Get current API usage stats
- */
 export async function getAPIUsageStats(): Promise<{
   remaining: number
   used: number
   resetDate: string
 }> {
   try {
-    // Make a minimal request just to get headers
     const response = await fetch(
       `${BASE_URL}/sports?apiKey=${API_KEY}`
     )
@@ -205,7 +216,6 @@ export async function getAPIUsageStats(): Promise<{
     const remaining = parseInt(response.headers.get('x-requests-remaining') || '0')
     const used = parseInt(response.headers.get('x-requests-used') || '0')
     
-    // Calculate reset date (1st of next month)
     const now = new Date()
     const resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1)
     
@@ -223,86 +233,3 @@ export async function getAPIUsageStats(): Promise<{
     }
   }
 }
-
-/**
- * Helper: Check if we should use historical data based on remaining credits
- */
-export function shouldUseHistoricalData(remainingCredits: number): boolean {
-  // Only use historical if we have > 5000 credits remaining
-  // (to preserve credits for regular odds collection)
-  if (remainingCredits < 5000) {
-    console.warn(`⚠️ Credits too low (${remainingCredits}) - skipping historical data`)
-    return false
-  }
-  return true
-}
-
-/**
- * TESTING UTILITIES
- */
-
-/**
- * Test function: Verify player props endpoint is working
- */
-export async function testPlayerPropsEndpoint(sportKey: string) {
-  console.log(`\n🧪 Testing player props for ${sportKey}...`)
-  
-  try {
-    const props = await fetchPlayerProps(sportKey)
-    
-    if (props.length > 0) {
-      console.log(`✅ Success! Found ${props.length} events with props`)
-      console.log(`📊 Sample event:`, props[0].home_team, 'vs', props[0].away_team)
-      console.log(`📊 Bookmakers:`, props[0].bookmakers?.length || 0)
-      return true
-    } else {
-      console.log(`⚠️ No props found (may be no games scheduled)`)
-      return false
-    }
-  } catch (error) {
-    console.error(`❌ Test failed:`, error)
-    return false
-  }
-}
-
-/**
- * Test function: Verify historical endpoint (EXPENSIVE!)
- */
-export async function testHistoricalEndpoint() {
-  console.log(`\n🧪 Testing historical odds (THIS WILL COST 10X CREDITS)...`)
-  console.log(`⚠️ Are you sure? Comment this out if not testing.`)
-  
-  // Uncomment to actually test (BE CAREFUL!)
-  // const result = await fetchHistoricalOddsRaw({
-  //   sport: 'basketball_nba',
-  //   date: '2024-10-01T00:00:00Z',
-  //   regions: 'us',
-  //   markets: 'player_points'
-  // })
-  
-  // console.log(result ? '✅ Historical fetch successful' : '❌ Historical fetch failed')
-}
-
-/**
- * USAGE EXAMPLES:
- * 
- * // Regular odds (production)
- * const odds = await fetchOdds('basketball_nba')
- * 
- * // Player props (production)
- * const props = await fetchPlayerProps('basketball_nba')
- * 
- * // Check API usage
- * const usage = await getAPIUsageStats()
- * console.log(`${usage.remaining} credits remaining`)
- * 
- * // Historical odds (expensive!)
- * if (shouldUseHistoricalData(usage.remaining)) {
- *   const historical = await fetchHistoricalOddsRaw({
- *     sport: 'basketball_nba',
- *     date: '2024-10-01T00:00:00Z',
- *     regions: 'us',
- *     markets: 'player_points'
- *   })
- * }
- */

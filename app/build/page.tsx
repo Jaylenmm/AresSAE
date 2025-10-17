@@ -13,4 +13,8 @@ if (typeof window !== 'undefined') {
   }
 } 
 
-export { default } from '@/components/BuildPageContent'
+import BuildPageContent from '@/components/BuildPageContent'
+
+export default function BuildPage() {
+  return <BuildPageContent />
+}

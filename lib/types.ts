@@ -29,12 +29,14 @@ export interface PlayerProp {
   id: string
   game_id: string
   player_name: string
-  team?: string
   prop_type: string
   line: number
-  over_odds?: number
-  under_odds?: number
+  over_odds: number | null
+  under_odds: number | null
   sportsbook: string
+  is_alternate?: boolean 
+  updated_at: string
+  created_at?: string
 }
 
 export interface MarketAnalysis {

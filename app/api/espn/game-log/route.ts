@@ -1,61 +1,57 @@
-// app/api/espn/game-log/route.ts
-
 import { NextRequest, NextResponse } from 'next/server'
+
+const SPORT_PATH_MAP: { [key: string]: string } = {
+  'basketball': 'basketball/nba',
+  'football': 'football/nfl',
+  'baseball': 'baseball/mlb'
+}
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const playerId = searchParams.get('playerId')
     const sport = searchParams.get('sport') || 'basketball'
+    const limit = parseInt(searchParams.get('limit') || '10')
 
     if (!playerId) {
-      return NextResponse.json({ error: 'Player ID required' }, { status: 400 })
-    }
-
-    const sportPath = sport === 'basketball' ? 'basketball/nba' : 
-                     sport === 'football' ? 'football/nfl' : 'baseball/mlb'
-    
-    const url = `https://site.api.espn.com/apis/site/v2/sports/${sportPath}/athletes/${playerId}/gamelog`
-    
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
-    })
-    
-    if (!res.ok) {
-      console.log(`Game log fetch failed: ${res.status}`)
       return NextResponse.json([])
     }
+
+    const sportPath = SPORT_PATH_MAP[sport]
+    const url = `https://site.web.api.espn.com/apis/common/v3/sports/${sportPath}/athletes/${playerId}/overview`
+    
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok) return NextResponse.json([])
     
     const data = await res.json()
-    const events = data.events || []
     const games: any[] = []
     
-    for (const event of events.slice(0, 10)) {
-      const stats: { [key: string]: number } = {};
+    // Get from last5Games or recentGames
+    const recentGames = data.lastFiveGames || data.recentGames || []
+    
+    for (const game of recentGames.slice(0, limit)) {
+      const stats: { [key: string]: number } = {}
       
-      (event.statistics || []).forEach((category: any) => {
-        (category.stats || []).forEach((stat: any) => {
-          const name = (stat.name || '').toLowerCase().replace(/\s+/g, '_')
-          const value = parseFloat(stat.value)
-          if (name && !isNaN(value)) {
-            stats[name] = value
-          }
+      if (game.statistics) {
+        game.statistics.forEach((stat: any) => {
+          const name = stat.name.toLowerCase().replace(/\s+/g, '_')
+          const value = parseFloat(stat.value || '0')
+          if (!isNaN(value)) stats[name] = value
         })
-      })
+      }
       
       games.push({
-        date: event.gameDate || event.date || '',
-        opponent: event.competition?.opponent?.displayName || 'Unknown',
-        result: event.competition?.result || '',
+        date: game.gameDate || '',
+        opponent: game.opponent?.displayName || '',
+        result: game.gameResult || '',
         stats
       })
     }
     
-    console.log(`Retrieved ${games.length} game logs for player ${playerId}`)
+    console.log(`✅ ${games.length} games, sample stats:`, games[0]?.stats ? Object.keys(games[0].stats) : 'none')
     return NextResponse.json(games)
     
-  } catch (error: any) {
-    console.error('Game log error:', error.message)
+  } catch (error) {
     return NextResponse.json([])
   }
 }
