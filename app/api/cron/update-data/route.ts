@@ -3,9 +3,10 @@ import { supabase } from '@/lib/supabase'
 import { fetchOdds, fetchPlayerProps, SPORT_KEYS } from '@/lib/odds-api'
 import { getTop25NCAAFTeams, isTop25Team } from '@/lib/espn-api'
 
-export const maxDuration = 300 // 5 minutes max execution
+export const maxDuration = 300
 
-// Bookmaker name mapping to display proper names
+type SportResult = { games: number; odds: number; props: number; error?: string };
+
 const BOOKMAKER_NAMES: Record<string, string> = {
   'draftkings': 'DraftKings',
   'fanduel': 'FanDuel',
@@ -28,14 +29,12 @@ const BOOKMAKER_NAMES: Record<string, string> = {
 }
 
 export async function GET(request: Request) {
-  // Verify this is called by Vercel Cron (security)
   const authHeader = request.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Check if we've already run today (prevent duplicate runs)
-  const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD
+  const today = new Date().toISOString().split('T')[0]
   
   const { data: lastRun } = await supabase
     .from('cron_runs')
@@ -52,7 +51,6 @@ export async function GET(request: Request) {
     })
   }
 
-  // Create run record
   const { data: runRecord } = await supabase
     .from('cron_runs')
     .insert({
@@ -63,7 +61,7 @@ export async function GET(request: Request) {
     .select()
     .single()
 
-  type SportResult = { games: number; odds: number; props: number };
+  type SportResult = { games: number; odds: number; props: number; error?: string };
   type Results = {
     NFL: SportResult;
     NBA: SportResult;
@@ -82,24 +80,22 @@ export async function GET(request: Request) {
   }
 
   try {
-    // CRITICAL: Collect data for each sport - INCLUDING MLB!
     for (const sport of ['NFL', 'NBA', 'MLB', 'NCAAF']) {
       try {
-        console.log(`📊 Collecting ${sport} data...`)
         const result = await collectSportData(sport)
         if (sport === 'NFL' || sport === 'NBA' || sport === 'MLB' || sport === 'NCAAF') {
           results[sport] = result
         }
-        console.log(`✅ ${sport}: ${result.games} games, ${result.odds} odds, ${result.props} props`)
       } catch (error) {
-        console.error(`❌ Error collecting ${sport} data:`, error)
-        results.errors.push(`${sport}: ${error}`)
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        results.errors.push(`${sport}: ${errorMsg}`)
+        if (sport === 'NFL' || sport === 'NBA' || sport === 'MLB' || sport === 'NCAAF') {
+          results[sport].error = errorMsg
+        }
       }
     }
 
-    // After collecting all sport data, generate featured picks
     try {
-      console.log('🎯 Generating featured picks...')
       const { generateFeaturedPicks } = await import('@/lib/generateFeaturedPicks')
       const pickResults = await generateFeaturedPicks()
       
@@ -108,14 +104,11 @@ export async function GET(request: Request) {
         generated: pickResults.picksGenerated,
         error: pickResults.error
       }
-      
-      console.log(`✅ Featured picks: ${pickResults.picksGenerated} generated`)
     } catch (error) {
-      console.error('❌ Error generating featured picks:', error)
-      results.errors.push(`Featured picks: ${error}`)
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      results.errors.push(`Featured picks: ${errorMsg}`)
     }
 
-    // Mark run as completed
     await supabase
       .from('cron_runs')
       .update({
@@ -131,7 +124,6 @@ export async function GET(request: Request) {
       results 
     })
   } catch (error) {
-    // Mark run as failed
     await supabase
       .from('cron_runs')
       .update({
@@ -148,7 +140,7 @@ export async function GET(request: Request) {
   }
 }
 
-async function collectSportData(sport: string) {
+async function collectSportData(sport: string): Promise<SportResult> {
   const sportKey = SPORT_KEYS[sport as keyof typeof SPORT_KEYS]
   
   if (!sportKey) {
@@ -159,22 +151,15 @@ async function collectSportData(sport: string) {
   let oddsCreated = 0
   let propsCreated = 0
 
-  console.log(`Fetching odds for ${sport} (${sportKey})...`)
-
-  // Get Top 25 for NCAAF
   let top25Teams: string[] = []
   if (sport === 'NCAAF') {
     top25Teams = await getTop25NCAAFTeams()
   }
 
-  // Fetch odds
   const oddsData = await fetchOdds(sportKey)
-  console.log(`Received ${oddsData.length} events for ${sport}`)
-  
   const gameIdMap = new Map<string, string>()
 
   for (const event of oddsData) {
-    // NCAAF filtering
     if (sport === 'NCAAF') {
       const homeIsTop25 = isTop25Team(event.home_team, top25Teams)
       const awayIsTop25 = isTop25Team(event.away_team, top25Teams)
@@ -202,7 +187,6 @@ async function collectSportData(sport: string) {
     gameIdMap.set(event.id, game.id)
     gamesCreated++
 
-    // Store odds with proper bookmaker names
     for (const bookmaker of event.bookmakers || []) {
       const spreads = bookmaker.markets?.find((m: any) => m.key === 'spreads')
       const totals = bookmaker.markets?.find((m: any) => m.key === 'totals')
@@ -210,12 +194,8 @@ async function collectSportData(sport: string) {
       const altSpreads = bookmaker.markets?.find((m: any) => m.key === 'alternate_spreads')
       const altTotals = bookmaker.markets?.find((m: any) => m.key === 'alternate_totals')
 
-      // CRITICAL: Map bookmaker key to proper display name
       const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
-      
-      console.log(`  Processing ${bookmaker.key} -> ${displayName}`)
 
-      // Store standard lines
       const oddsEntry: any = {
         game_id: game.id,
         sportsbook: displayName,
@@ -258,7 +238,6 @@ async function collectSportData(sport: string) {
 
       oddsCreated++
 
-      // Store alternate spreads
       if (altSpreads?.outcomes) {
         const altSpreadsByLine = new Map<number, { home: any, away: any }>()
         
@@ -295,7 +274,6 @@ async function collectSportData(sport: string) {
         }
       }
 
-      // Store alternate totals
       if (altTotals?.outcomes) {
         const altTotalsByLine = new Map<number, { over: any, under: any }>()
         
@@ -333,34 +311,28 @@ async function collectSportData(sport: string) {
     }
   }
 
-  // Fetch player props (STANDARD + ALTERNATES for all sports)
-  console.log(`Fetching player props (standard + alternates) for ${sport}...`)
   const propsData = await fetchPlayerProps(sportKey)
-  console.log(`Received ${propsData.length} events with props for ${sport}`)
   
   for (const eventData of propsData) {
     const gameId = gameIdMap.get(eventData.id)
     if (!gameId) continue
 
     for (const bookmaker of eventData.bookmakers || []) {
-      // CRITICAL: Map bookmaker key to proper display name for props too
       const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
 
       for (const market of bookmaker.markets || []) {
-        // Process BOTH standard AND alternate markets
         const isAlternate = market.key.includes('_alternate')
         
         const propType = market.key
           .replace('player_', '')
           .replace('batter_', '')
           .replace('pitcher_', '')
-          .replace('_alternate', '') // Remove _alternate suffix for consistent naming
+          .replace('_alternate', '')
           .replace(/_/g, ' ')
           .split(' ')
           .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
           .join(' ')
 
-        // Group outcomes by player 
         const playerOutcomes = new Map<string, { over: any, under: any }>()
         
         for (const outcome of market.outcomes || []) {
@@ -379,13 +351,9 @@ async function collectSportData(sport: string) {
           }
         }
 
-        // Now save each player with BOTH over and under odds
-        // This will create MULTIPLE rows for the same player/prop/book with different lines
         for (const [playerName, outcomes] of playerOutcomes) {
           const line = outcomes.over?.point || outcomes.under?.point
           if (!line) continue
-
-          console.log(`  ${isAlternate ? 'ALT' : 'STD'}: ${playerName} ${propType} ${line}`)
 
           await supabase
             .from('player_props')
@@ -397,10 +365,9 @@ async function collectSportData(sport: string) {
               over_odds: outcomes.over?.price || null,
               under_odds: outcomes.under?.price || null,
               sportsbook: displayName,
-              is_alternate: isAlternate, // CRITICAL: Set this flag
+              is_alternate: isAlternate,
               updated_at: new Date().toISOString()
             }, {
-              // IMPORTANT: Change conflict resolution to allow multiple lines
               onConflict: 'game_id,player_name,prop_type,sportsbook,line'
             })
 

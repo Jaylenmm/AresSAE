@@ -3,7 +3,6 @@ import { supabase } from '@/lib/supabase'
 import { fetchOdds, fetchPlayerProps, SPORT_KEYS } from '@/lib/odds-api'
 import { getTop25NCAAFTeams, isTop25Team } from '@/lib/espn-api'
 
-// CRITICAL: Bookmaker name mapping
 const BOOKMAKER_NAMES: Record<string, string> = {
   'draftkings': 'DraftKings',
   'fanduel': 'FanDuel',
@@ -35,7 +34,6 @@ export async function POST(request: Request) {
   try {
     const sportKey = SPORT_KEYS[sport as keyof typeof SPORT_KEYS]
 
-    // Fetch Top 25 NCAAF teams if needed
     let top25Teams: string[] = []
     if (sport === 'NCAAF') {
       console.log('Fetching Top 25 rankings for NCAAF filtering...')
@@ -43,8 +41,21 @@ export async function POST(request: Request) {
       console.log(`Found ${top25Teams.length} ranked teams`)
     }
 
-    // Fetch regular odds
-    const oddsData = await fetchOdds(sportKey)
+    // Fetch regular odds with error handling
+    let oddsData: any[] = []
+    try {
+      oddsData = await fetchOdds(sportKey)
+    } catch (oddsError: any) {
+      console.error('Error fetching odds:', oddsError)
+      if (oddsError.message?.includes('422')) {
+        return NextResponse.json({ 
+          success: false,
+          message: `No odds available for ${sport} at this time (likely off-season or no scheduled games)`,
+          details: { games: 0, odds: 0, props: 0, propErrors: 0 }
+        })
+      }
+      throw oddsError
+    }
 
     let gamesCreated = 0
     let oddsCreated = 0
@@ -54,7 +65,6 @@ export async function POST(request: Request) {
 
     // Process games and odds
     for (const event of oddsData) {
-      // NCAAF filtering BEFORE upsert
       if (sport === 'NCAAF') {
         const homeIsTop25 = isTop25Team(event.home_team, top25Teams)
         const awayIsTop25 = isTop25Team(event.away_team, top25Teams)
@@ -87,6 +97,7 @@ export async function POST(request: Request) {
       }
 
       const game = games[0]
+      // CRITICAL FIX: Always populate the map
       gameIdMap.set(event.id, game.id)
       gamesCreated++
 
@@ -96,12 +107,11 @@ export async function POST(request: Request) {
         const totals = bookmaker.markets?.find((m: any) => m.key === 'totals')
         const h2h = bookmaker.markets?.find((m: any) => m.key === 'h2h')
 
-        // FIXED: Use mapping instead of displayName
         const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
 
         const oddsEntry: any = {
           game_id: game.id,
-          sportsbook: displayName, // FIXED
+          sportsbook: displayName,
           updated_at: new Date().toISOString()
         }
 
@@ -145,6 +155,8 @@ export async function POST(request: Request) {
         oddsCreated++
       }
     }
+
+    console.log(`✅ Created ${gamesCreated} games, populated map with ${gameIdMap.size} entries`)
 
     // Fetch player props
     console.log('🔍 Fetching player props...')
@@ -193,7 +205,6 @@ export async function POST(request: Request) {
       for (const bookmaker of eventData.bookmakers) {
         console.log(`📚 Processing bookmaker: ${bookmaker.key}`)
         
-        // FIXED: Use mapping for props too
         const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
         
         if (!bookmaker.markets || bookmaker.markets.length === 0) {
@@ -204,7 +215,6 @@ export async function POST(request: Request) {
         for (const market of bookmaker.markets) {
           console.log(`📊 Processing market: ${market.key}`)
           
-          // Clean up prop type name
           const propType = market.key
             .replace('player_', '')
             .replace('batter_', '')
@@ -221,7 +231,6 @@ export async function POST(request: Request) {
 
           console.log(`Found ${market.outcomes.length} outcomes in ${market.key}`)
 
-          // Group outcomes by player (description field)
           const playerOutcomes = new Map<string, { over: any, under: any }>()
           
           for (const outcome of market.outcomes) {
@@ -245,7 +254,6 @@ export async function POST(request: Request) {
             }
           }
 
-          // Now save each player with BOTH over and under odds
           for (const [playerName, outcomes] of playerOutcomes) {
             try {
               const line = outcomes.over?.point || outcomes.under?.point
@@ -262,16 +270,17 @@ export async function POST(request: Request) {
                 line: line,
                 over_odds: outcomes.over?.price || null,
                 under_odds: outcomes.under?.price || null,
-                sportsbook: displayName, // FIXED
+                sportsbook: displayName,
                 updated_at: new Date().toISOString()
               }
 
               console.log('💾 Saving prop:', propData)
 
+              // CRITICAL FIX: Changed conflict specification to match your actual constraint
               const { data, error } = await supabase
                 .from('player_props')
                 .upsert(propData, {
-                  onConflict: 'game_id,player_name,prop_type,sportsbook'
+                  onConflict: 'game_id,player_name,prop_type,line,sportsbook'
                 })
                 .select()
 
