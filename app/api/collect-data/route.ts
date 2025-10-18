@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { fetchOdds, fetchPlayerProps, SPORT_KEYS } from '@/lib/odds-api'
+import { fetchOdds, fetchAlternateOdds, fetchPlayerProps, SPORT_KEYS } from '@/lib/odds-api'
 import { getTop25NCAAFTeams, isTop25Team } from '@/lib/espn-api'
 
 const BOOKMAKER_NAMES: Record<string, string> = {
@@ -33,51 +33,26 @@ export async function POST(request: Request) {
 
   try {
     const sportKey = SPORT_KEYS[sport as keyof typeof SPORT_KEYS]
-
-    let top25Teams: string[] = []
-    if (sport === 'NCAAF') {
-      console.log('Fetching Top 25 rankings for NCAAF filtering...')
-      top25Teams = await getTop25NCAAFTeams()
-      console.log(`Found ${top25Teams.length} ranked teams`)
-    }
-
-    // Fetch regular odds with error handling
-    let oddsData: any[] = []
-    try {
-      oddsData = await fetchOdds(sportKey)
-    } catch (oddsError: any) {
-      console.error('Error fetching odds:', oddsError)
-      if (oddsError.message?.includes('422')) {
-        return NextResponse.json({ 
-          success: false,
-          message: `No odds available for ${sport} at this time (likely off-season or no scheduled games)`,
-          details: { games: 0, odds: 0, props: 0, propErrors: 0 }
-        })
-      }
-      throw oddsError
-    }
-
     let gamesCreated = 0
     let oddsCreated = 0
     let propsCreated = 0
-    let propErrors = 0
+
+    let top25Teams: string[] = []
+    if (sport === 'NCAAF') {
+      top25Teams = await getTop25NCAAFTeams()
+    }
+
+    const oddsData = await fetchOdds(sportKey)
     const gameIdMap = new Map<string, string>()
 
-    // Process games and odds
     for (const event of oddsData) {
       if (sport === 'NCAAF') {
         const homeIsTop25 = isTop25Team(event.home_team, top25Teams)
         const awayIsTop25 = isTop25Team(event.away_team, top25Teams)
-        
-        if (!homeIsTop25 && !awayIsTop25) {
-          console.log(`⏭️  Skipping ${event.away_team} @ ${event.home_team} (not Top 25)`)
-          continue
-        }
-        
-        console.log(`✅ Including ${event.away_team} @ ${event.home_team} (Top 25 game)`)
+        if (!homeIsTop25 && !awayIsTop25) continue
       }
 
-      const { data: games, error: gameError } = await supabase
+      const { data: game } = await supabase
         .from('games')
         .upsert({
           sport: sport,
@@ -87,21 +62,18 @@ export async function POST(request: Request) {
           game_date: event.commence_time,
           status: 'scheduled'
         }, { 
-          onConflict: 'espn_game_id'
+          onConflict: 'espn_game_id',
+          ignoreDuplicates: false
         })
         .select()
+        .single()
 
-      if (gameError || !games || games.length === 0) {
-        console.error('Error upserting game:', gameError)
-        continue
-      }
+      if (!game) continue
 
-      const game = games[0]
-      // CRITICAL FIX: Always populate the map
       gameIdMap.set(event.id, game.id)
       gamesCreated++
 
-      // Store odds from each bookmaker
+      // Store standard odds
       for (const bookmaker of event.bookmakers || []) {
         const spreads = bookmaker.markets?.find((m: any) => m.key === 'spreads')
         const totals = bookmaker.markets?.find((m: any) => m.key === 'totals')
@@ -118,7 +90,6 @@ export async function POST(request: Request) {
         if (spreads?.outcomes) {
           const homeSpread = spreads.outcomes.find((o: any) => o.name === event.home_team)
           const awaySpread = spreads.outcomes.find((o: any) => o.name === event.away_team)
-          
           if (homeSpread && awaySpread) {
             oddsEntry.spread_home = homeSpread.point
             oddsEntry.spread_away = awaySpread.point
@@ -130,7 +101,6 @@ export async function POST(request: Request) {
         if (totals?.outcomes) {
           const over = totals.outcomes.find((o: any) => o.name === 'Over')
           const under = totals.outcomes.find((o: any) => o.name === 'Under')
-          
           if (over && under) {
             oddsEntry.total = over.point
             oddsEntry.over_odds = over.price
@@ -141,7 +111,6 @@ export async function POST(request: Request) {
         if (h2h?.outcomes) {
           const homeML = h2h.outcomes.find((o: any) => o.name === event.home_team)
           const awayML = h2h.outcomes.find((o: any) => o.name === event.away_team)
-          
           if (homeML && awayML) {
             oddsEntry.moneyline_home = homeML.price
             oddsEntry.moneyline_away = awayML.price
@@ -154,99 +123,123 @@ export async function POST(request: Request) {
 
         oddsCreated++
       }
-    }
 
-    console.log(`✅ Created ${gamesCreated} games, populated map with ${gameIdMap.size} entries`)
+      // Fetch alternate markets for this specific event
+      const alternateData = await fetchAlternateOdds(sportKey, event.id)
 
-    // Fetch player props
-    console.log('🔍 Fetching player props...')
-    
-    // If no new games, populate map from existing games
-    if (gameIdMap.size === 0) {
-      console.log('📋 No new games - loading existing games to map props')
-      const { data: existingGames } = await supabase
-        .from('games')
-        .select('id, espn_game_id')
-        .eq('sport', sport)
-        .gte('game_date', new Date().toISOString())
-      
-      if (existingGames) {
-        existingGames.forEach(g => {
-          if (g.espn_game_id) {
-            gameIdMap.set(g.espn_game_id, g.id)
-          }
-        })
-        console.log(`📋 Loaded ${gameIdMap.size} existing games into map`)
-      }
-    }
-    
-    const propsData = await fetchPlayerProps(sportKey)
-    
-    console.log('📦 Props data received:', propsData.length, 'events')
-    
-    // Process player props
-    for (const eventData of propsData) {
-      console.log('🎮 Processing event:', eventData.id)
-      
-      const gameId = gameIdMap.get(eventData.id)
-      
-      if (!gameId) {
-        console.log(`❌ No game found for event ${eventData.id}`)
-        continue
-      }
-
-      console.log(`✅ Found game ID: ${gameId}`)
-
-      if (!eventData.bookmakers || eventData.bookmakers.length === 0) {
-        console.log('⚠️ No bookmakers in event data')
-        continue
-      }
-
-      for (const bookmaker of eventData.bookmakers) {
-        console.log(`📚 Processing bookmaker: ${bookmaker.key}`)
-        
+      for (const bookmaker of alternateData.bookmakers || []) {
+        const altSpreads = bookmaker.markets?.find((m: any) => m.key === 'alternate_spreads')
+        const altTotals = bookmaker.markets?.find((m: any) => m.key === 'alternate_totals')
         const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
-        
-        if (!bookmaker.markets || bookmaker.markets.length === 0) {
-          console.log('⚠️ No markets for this bookmaker')
-          continue
+
+        if (altSpreads?.outcomes) {
+          const altSpreadsByLine = new Map<number, { home: any, away: any }>()
+          
+          altSpreads.outcomes.forEach((outcome: any) => {
+            const line = Math.abs(outcome.point)
+            if (!altSpreadsByLine.has(line)) {
+              altSpreadsByLine.set(line, { home: null, away: null })
+            }
+            const pair = altSpreadsByLine.get(line)!
+            if (outcome.name === event.home_team) {
+              pair.home = outcome
+            } else {
+              pair.away = outcome
+            }
+          })
+
+          for (const [line, { home, away }] of altSpreadsByLine) {
+            if (home && away) {
+              await supabase
+                .from('odds_data')
+                .upsert({
+                  game_id: game.id,
+                  sportsbook: displayName,
+                  spread_home: home.point,
+                  spread_away: away.point,
+                  spread_home_odds: home.price,
+                  spread_away_odds: away.price,
+                  is_alternate: true,
+                  updated_at: new Date().toISOString()
+                }, { onConflict: 'game_id,sportsbook,spread_home,total' })
+              
+              oddsCreated++
+            }
+          }
         }
 
-        for (const market of bookmaker.markets) {
-          console.log(`📊 Processing market: ${market.key}`)
+        if (altTotals?.outcomes) {
+          const altTotalsByLine = new Map<number, { over: any, under: any }>()
+          
+          altTotals.outcomes.forEach((outcome: any) => {
+            const line = outcome.point
+            if (!altTotalsByLine.has(line)) {
+              altTotalsByLine.set(line, { over: null, under: null })
+            }
+            const pair = altTotalsByLine.get(line)!
+            if (outcome.name === 'Over') {
+              pair.over = outcome
+            } else {
+              pair.under = outcome
+            }
+          })
+
+          for (const [line, { over, under }] of altTotalsByLine) {
+            if (over && under) {
+              await supabase
+                .from('odds_data')
+                .upsert({
+                  game_id: game.id,
+                  sportsbook: displayName,
+                  total: over.point,
+                  over_odds: over.price,
+                  under_odds: under.price,
+                  is_alternate: true,
+                  updated_at: new Date().toISOString()
+                }, { onConflict: 'game_id,sportsbook,spread_home,total' })
+              
+              oddsCreated++
+            }
+          }
+        }
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+
+    const propsData = await fetchPlayerProps(sportKey)
+    
+    for (const eventData of propsData) {
+      const gameId = gameIdMap.get(eventData.id)
+      if (!gameId) continue
+
+      for (const bookmaker of eventData.bookmakers || []) {
+        const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
+
+        for (const market of bookmaker.markets || []) {
+          const isAlternate = market.key.includes('_alternate')
           
           const propType = market.key
             .replace('player_', '')
             .replace('batter_', '')
             .replace('pitcher_', '')
+            .replace('_alternate', '')
             .replace(/_/g, ' ')
             .split(' ')
             .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
             .join(' ')
 
-          if (!market.outcomes || market.outcomes.length === 0) {
-            console.log('⚠️ No outcomes for this market')
-            continue
-          }
-
-          console.log(`Found ${market.outcomes.length} outcomes in ${market.key}`)
-
           const playerOutcomes = new Map<string, { over: any, under: any }>()
           
-          for (const outcome of market.outcomes) {
+          for (const outcome of market.outcomes || []) {
             const playerName = outcome.description
-            
-            if (!playerName) {
-              console.log('⚠️ Skipping - no description field')
-              continue
-            }
+            if (!playerName) continue
             
             if (!playerOutcomes.has(playerName)) {
               playerOutcomes.set(playerName, { over: null, under: null })
             }
             
             const player = playerOutcomes.get(playerName)!
-            
             if (outcome.name === 'Over') {
               player.over = outcome
             } else if (outcome.name === 'Under') {
@@ -255,15 +248,12 @@ export async function POST(request: Request) {
           }
 
           for (const [playerName, outcomes] of playerOutcomes) {
-            try {
-              const line = outcomes.over?.point || outcomes.under?.point
-              
-              if (!line) {
-                console.log(`⚠️ No line found for ${playerName}`)
-                continue
-              }
+            const line = outcomes.over?.point || outcomes.under?.point
+            if (!line) continue
 
-              const propData = {
+            await supabase
+              .from('player_props')
+              .upsert({
                 game_id: gameId,
                 player_name: playerName,
                 prop_type: propType,
@@ -271,30 +261,13 @@ export async function POST(request: Request) {
                 over_odds: outcomes.over?.price || null,
                 under_odds: outcomes.under?.price || null,
                 sportsbook: displayName,
+                is_alternate: isAlternate,
                 updated_at: new Date().toISOString()
-              }
+              }, {
+                onConflict: 'game_id,player_name,prop_type,sportsbook,line'
+              })
 
-              console.log('💾 Saving prop:', propData)
-
-              // CRITICAL FIX: Changed conflict specification to match your actual constraint
-              const { data, error } = await supabase
-                .from('player_props')
-                .upsert(propData, {
-                  onConflict: 'game_id,player_name,prop_type,line,sportsbook'
-                })
-                .select()
-
-              if (error) {
-                console.error('❌ Error saving prop:', error)
-                propErrors++
-              } else {
-                console.log('✅ Prop saved successfully')
-                propsCreated++
-              }
-            } catch (propError) {
-              console.error('❌ Exception while processing prop:', propError)
-              propErrors++
-            }
+            propsCreated++
           }
         }
       }
@@ -302,12 +275,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ 
       success: true, 
-      message: `✅ Created ${gamesCreated} games, ${oddsCreated} odds entries, ${propsCreated} player props (${propErrors} errors)`,
+      message: `✅ Created ${gamesCreated} games, ${oddsCreated} odds entries, ${propsCreated} player props`,
       details: {
         games: gamesCreated,
         odds: oddsCreated,
-        props: propsCreated,
-        propErrors: propErrors
+        props: propsCreated
       }
     })
   } catch (error) {

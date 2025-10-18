@@ -74,10 +74,11 @@ const PLAYER_PROP_MARKETS = {
   ]
 }
 
+// Fetch standard odds (h2h, spreads, totals) - NO alternates
 export async function fetchOdds(sportKey: string) {
   const markets = sportKey === 'baseball_mlb' 
     ? 'h2h,spreads,totals'
-    : 'h2h,spreads,totals,alternate_spreads,alternate_totals'
+    : 'h2h,spreads,totals'
   
   const response = await fetch(
     `${BASE_URL}/sports/${sportKey}/odds?` + new URLSearchParams({
@@ -91,6 +92,29 @@ export async function fetchOdds(sportKey: string) {
   if (!response.ok) {
     const errorText = await response.text()
     throw new Error(`Odds API error ${response.status}: ${errorText}`)
+  }
+  
+  return await response.json()
+}
+
+// Fetch alternate markets per event (alternate_spreads, alternate_totals)
+export async function fetchAlternateOdds(sportKey: string, eventId: string) {
+  // MLB doesn't support alternate markets
+  if (sportKey === 'baseball_mlb') {
+    return { bookmakers: [] }
+  }
+
+  const response = await fetch(
+    `${BASE_URL}/sports/${sportKey}/events/${eventId}/odds?` + new URLSearchParams({
+      apiKey: API_KEY!,
+      regions: 'us',
+      markets: 'alternate_spreads,alternate_totals',
+      oddsFormat: 'american'
+    })
+  )
+  
+  if (!response.ok) {
+    return { bookmakers: [] }
   }
   
   return await response.json()
