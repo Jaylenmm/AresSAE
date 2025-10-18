@@ -204,12 +204,11 @@ export default function BuildPageContent() {
     try {
       const query = searchQuery.toLowerCase()
       
-
       const { data: games } = await supabase
         .from('games')
         .select('*')
         .or(`home_team.ilike.%${query}%,away_team.ilike.%${query}%`)
-        .gte('game_date', new Date().toISOString()) // ONLY FUTURE GAMES
+        .gte('game_date', new Date().toISOString())
         .order('game_date', { ascending: true })
 
       const uniqueGames = games ? Array.from(
@@ -262,62 +261,58 @@ export default function BuildPageContent() {
     setSearchResults({ games: [], playerProps: [] })
   }
 
-async function handleSelectBet(bet: any) {
-  // TEMPORARILY DISABLED AUTH FOR LOCAL TESTING
-  // const { data: { user } } = await supabase.auth.getUser()
-  
-  // if (!user) {
-  //   const currentPath = window.location.pathname
-  //   const gameId = selectedGame?.id
-  //   const propId = bet.type === 'player_prop' ? `${bet.player}-${bet.propType}` : null
-  //   
-  //   let redirectUrl = `${currentPath}?`
-  //   if (gameId) redirectUrl += `game_id=${gameId}`
-  //   if (propId) redirectUrl += `&prop_search=${encodeURIComponent(propId)}`
-  //   if (selectedSportsbook) redirectUrl += `&sportsbook=${selectedSportsbook}`
-  //   
-  //   sessionStorage.setItem('pending_bet', JSON.stringify(bet))
-  //   
-  //   router.push(`/login?redirect=${encodeURIComponent(redirectUrl)}`)
-  //   return
-  // }
-
-  if (!selectedGame) {
-    alert('No game selected')
-    return
-  }
-
-  // Show confirmation modal
-  setModalData({ betDetails: bet })
-  setShowModal(true)
-}
-
-// Add useEffect to check for pending bet after auth
-useEffect(() => {
-  const checkPendingBet = async () => {
+  async function handleSelectBet(bet: any) {
     const { data: { user } } = await supabase.auth.getUser()
     
-    if (user) {
-      const pendingBet = sessionStorage.getItem('pending_bet')
-      if (pendingBet) {
-        try {
-          const bet = JSON.parse(pendingBet)
-          sessionStorage.removeItem('pending_bet')
-          
-          // Wait a moment for game to load
-          setTimeout(() => {
-            setModalData({ betDetails: bet })
-            setShowModal(true)
-          }, 500)
-        } catch (e) {
-          console.error('Error loading pending bet:', e)
+    if (!user) {
+      const currentPath = window.location.pathname
+      const gameId = selectedGame?.id
+      const propId = bet.type === 'player_prop' ? `${bet.player}-${bet.propType}` : null
+      
+      let redirectUrl = `${currentPath}?`
+      if (gameId) redirectUrl += `game_id=${gameId}`
+      if (propId) redirectUrl += `&prop_search=${encodeURIComponent(propId)}`
+      if (selectedSportsbook) redirectUrl += `&sportsbook=${selectedSportsbook}`
+      
+      sessionStorage.setItem('pending_bet', JSON.stringify(bet))
+      
+      router.push(`/login?redirect=${encodeURIComponent(redirectUrl)}`)
+      return
+    }
+
+    if (!selectedGame) {
+      alert('No game selected')
+      return
+    }
+
+    setModalData({ betDetails: bet })
+    setShowModal(true)
+  }
+
+  useEffect(() => {
+    const checkPendingBet = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (user) {
+        const pendingBet = sessionStorage.getItem('pending_bet')
+        if (pendingBet) {
+          try {
+            const bet = JSON.parse(pendingBet)
+            sessionStorage.removeItem('pending_bet')
+            
+            setTimeout(() => {
+              setModalData({ betDetails: bet })
+              setShowModal(true)
+            }, 500)
+          } catch (e) {
+            console.error('Error loading pending bet:', e)
+          }
         }
       }
     }
-  }
-  
-  checkPendingBet()
-}, [selectedGame])
+    
+    checkPendingBet()
+  }, [selectedGame])
 
   async function confirmAndSaveBet() {
     if (!modalData || !selectedGame) return

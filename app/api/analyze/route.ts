@@ -1,22 +1,18 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { analyzeGameBet, analyzePlayerProp } from '@/lib/betAnalysis'
+import { analyzeBet, BetOption, BookmakerOdds } from '@/lib/analysis-engine'
 
 export async function POST(request: Request) {
   const { gameId, betType = 'spread', propId } = await request.json()
 
-  // Validate input
   if (!gameId && !propId) {
     return NextResponse.json({ error: 'Game ID or Prop ID required' }, { status: 400 })
   }
 
   try {
-    // PLAYER PROP ANALYSIS
     if (propId) {
       return await analyzePlayerPropBet(propId)
     }
-
-    // GAME BET ANALYSIS
     return await analyzeGameBetByType(gameId, betType)
   } catch (error) {
     console.error('Analysis error:', error)
@@ -24,9 +20,7 @@ export async function POST(request: Request) {
   }
 }
 
-// Analyze game bets (spread, moneyline, total)
 async function analyzeGameBetByType(gameId: string, betType: string) {
-  // Get game
   const { data: game } = await supabase
     .from('games')
     .select('*')
@@ -37,7 +31,6 @@ async function analyzeGameBetByType(gameId: string, betType: string) {
     return NextResponse.json({ error: 'Game not found' }, { status: 404 })
   }
 
-  // Get odds from multiple sportsbooks
   const { data: oddsData } = await supabase
     .from('odds_data')
     .select('*')
@@ -47,174 +40,204 @@ async function analyzeGameBetByType(gameId: string, betType: string) {
     return NextResponse.json({ error: 'No odds data available' }, { status: 404 })
   }
 
-  // Analyze based on bet type
+  // Transform odds data to BookmakerOdds format
+  const bookmakers: BookmakerOdds[] = oddsData.map(odds => ({
+    key: odds.sportsbook,
+    title: odds.sportsbook,
+    lastUpdate: odds.updated_at || new Date().toISOString(),
+    markets: [
+      {
+        key: 'spreads',
+        outcomes: [
+          { name: 'home', price: odds.spread_home_odds || -110, point: odds.spread_home },
+          { name: 'away', price: odds.spread_away_odds || -110, point: odds.spread_away }
+        ]
+      },
+      {
+        key: 'totals',
+        outcomes: [
+          { name: 'Over', price: odds.over_odds || -110, point: odds.total },
+          { name: 'Under', price: odds.under_odds || -110, point: odds.total }
+        ]
+      },
+      {
+        key: 'h2h',
+        outcomes: [
+          { name: game.home_team, price: odds.moneyline_home || -110 },
+          { name: game.away_team, price: odds.moneyline_away || -110 }
+        ]
+      }
+    ]
+  }))
+
   let analyses: any[] = []
 
   if (betType === 'spread' || betType === 'all') {
-    // Analyze home spread
-    const homeSpreadBet = {
-      type: 'spread' as const,
-      team: game.home_team,
+    const homeSpreadBet: BetOption = {
+      id: `${gameId}-spread-home`,
+      betType: 'spreads',
+      market: 'spreads',
       selection: 'home',
       line: oddsData[0]?.spread_home,
       odds: oddsData[0]?.spread_home_odds || -110,
       sportsbook: oddsData[0]?.sportsbook,
-      game_id: gameId
+      eventId: gameId
     }
 
-    const homeSpreadAnalysis = analyzeGameBet(homeSpreadBet, oddsData)
+    const homeSpreadAnalysis = analyzeBet(homeSpreadBet, bookmakers)
 
     analyses.push({
       bet_identifier: `${gameId}-spread-home`,
       game_id: gameId,
       bet_type: 'spread',
-      selection: `${game.home_team} ${homeSpreadAnalysis.best_odds > 0 ? '+' : ''}${oddsData[0]?.spread_home}`,
-      ev_percentage: homeSpreadAnalysis.ev_percentage,
-      has_edge: homeSpreadAnalysis.has_edge,
-      hit_probability: homeSpreadAnalysis.hit_probability,
-      recommendation_score: homeSpreadAnalysis.recommendation_score,
-      reasoning: homeSpreadAnalysis.reasoning,
-      best_book: homeSpreadAnalysis.best_book,
-      best_odds: homeSpreadAnalysis.best_odds
+      selection: `${game.home_team} ${homeSpreadAnalysis.bestOdds > 0 ? '+' : ''}${oddsData[0]?.spread_home}`,
+      ev_percentage: homeSpreadAnalysis.expectedValue,
+      has_edge: homeSpreadAnalysis.edge > 0,
+      hit_probability: homeSpreadAnalysis.confidence,
+      recommendation_score: homeSpreadAnalysis.confidence,
+      reasoning: homeSpreadAnalysis.reasons.join('. '),
+      best_book: homeSpreadAnalysis.bestSportsbook,
+      best_odds: homeSpreadAnalysis.bestOdds
     })
 
-    // Analyze away spread
-    const awaySpreadBet = {
-      type: 'spread' as const,
-      team: game.away_team,
+    const awaySpreadBet: BetOption = {
+      id: `${gameId}-spread-away`,
+      betType: 'spreads',
+      market: 'spreads',
       selection: 'away',
       line: oddsData[0]?.spread_away,
       odds: oddsData[0]?.spread_away_odds || -110,
       sportsbook: oddsData[0]?.sportsbook,
-      game_id: gameId
+      eventId: gameId
     }
 
-    const awaySpreadAnalysis = analyzeGameBet(awaySpreadBet, oddsData)
+    const awaySpreadAnalysis = analyzeBet(awaySpreadBet, bookmakers)
 
     analyses.push({
       bet_identifier: `${gameId}-spread-away`,
       game_id: gameId,
       bet_type: 'spread',
-      selection: `${game.away_team} ${awaySpreadAnalysis.best_odds > 0 ? '+' : ''}${oddsData[0]?.spread_away}`,
-      ev_percentage: awaySpreadAnalysis.ev_percentage,
-      has_edge: awaySpreadAnalysis.has_edge,
-      hit_probability: awaySpreadAnalysis.hit_probability,
-      recommendation_score: awaySpreadAnalysis.recommendation_score,
-      reasoning: awaySpreadAnalysis.reasoning,
-      best_book: awaySpreadAnalysis.best_book,
-      best_odds: awaySpreadAnalysis.best_odds
+      selection: `${game.away_team} ${awaySpreadAnalysis.bestOdds > 0 ? '+' : ''}${oddsData[0]?.spread_away}`,
+      ev_percentage: awaySpreadAnalysis.expectedValue,
+      has_edge: awaySpreadAnalysis.edge > 0,
+      hit_probability: awaySpreadAnalysis.confidence,
+      recommendation_score: awaySpreadAnalysis.confidence,
+      reasoning: awaySpreadAnalysis.reasons.join('. '),
+      best_book: awaySpreadAnalysis.bestSportsbook,
+      best_odds: awaySpreadAnalysis.bestOdds
     })
   }
 
   if (betType === 'total' || betType === 'all') {
-    // Analyze over
-    const overBet = {
-      type: 'total' as const,
-      selection: 'over',
+    const overBet: BetOption = {
+      id: `${gameId}-total-over`,
+      betType: 'totals',
+      market: 'totals',
+      selection: 'Over',
       line: oddsData[0]?.total,
       odds: oddsData[0]?.over_odds || -110,
       sportsbook: oddsData[0]?.sportsbook,
-      game_id: gameId
+      eventId: gameId
     }
 
-    const overAnalysis = analyzeGameBet(overBet, oddsData)
+    const overAnalysis = analyzeBet(overBet, bookmakers)
 
     analyses.push({
       bet_identifier: `${gameId}-total-over`,
       game_id: gameId,
       bet_type: 'total',
       selection: `Over ${oddsData[0]?.total}`,
-      ev_percentage: overAnalysis.ev_percentage,
-      has_edge: overAnalysis.has_edge,
-      hit_probability: overAnalysis.hit_probability,
-      recommendation_score: overAnalysis.recommendation_score,
-      reasoning: overAnalysis.reasoning,
-      best_book: overAnalysis.best_book,
-      best_odds: overAnalysis.best_odds
+      ev_percentage: overAnalysis.expectedValue,
+      has_edge: overAnalysis.edge > 0,
+      hit_probability: overAnalysis.confidence,
+      recommendation_score: overAnalysis.confidence,
+      reasoning: overAnalysis.reasons.join('. '),
+      best_book: overAnalysis.bestSportsbook,
+      best_odds: overAnalysis.bestOdds
     })
 
-    // Analyze under
-    const underBet = {
-      type: 'total' as const,
-      selection: 'under',
+    const underBet: BetOption = {
+      id: `${gameId}-total-under`,
+      betType: 'totals',
+      market: 'totals',
+      selection: 'Under',
       line: oddsData[0]?.total,
       odds: oddsData[0]?.under_odds || -110,
       sportsbook: oddsData[0]?.sportsbook,
-      game_id: gameId
+      eventId: gameId
     }
 
-    const underAnalysis = analyzeGameBet(underBet, oddsData)
+    const underAnalysis = analyzeBet(underBet, bookmakers)
 
     analyses.push({
       bet_identifier: `${gameId}-total-under`,
       game_id: gameId,
       bet_type: 'total',
       selection: `Under ${oddsData[0]?.total}`,
-      ev_percentage: underAnalysis.ev_percentage,
-      has_edge: underAnalysis.has_edge,
-      hit_probability: underAnalysis.hit_probability,
-      recommendation_score: underAnalysis.recommendation_score,
-      reasoning: underAnalysis.reasoning,
-      best_book: underAnalysis.best_book,
-      best_odds: underAnalysis.best_odds
+      ev_percentage: underAnalysis.expectedValue,
+      has_edge: underAnalysis.edge > 0,
+      hit_probability: underAnalysis.confidence,
+      recommendation_score: underAnalysis.confidence,
+      reasoning: underAnalysis.reasons.join('. '),
+      best_book: underAnalysis.bestSportsbook,
+      best_odds: underAnalysis.bestOdds
     })
   }
 
   if (betType === 'moneyline' || betType === 'all') {
-    // Analyze home moneyline
-    const homeMLBet = {
-      type: 'moneyline' as const,
-      team: game.home_team,
-      selection: 'home',
+    const homeMLBet: BetOption = {
+      id: `${gameId}-moneyline-home`,
+      betType: 'h2h',
+      market: 'h2h',
+      selection: game.home_team,
       odds: oddsData[0]?.moneyline_home || -110,
       sportsbook: oddsData[0]?.sportsbook,
-      game_id: gameId
+      eventId: gameId
     }
 
-    const homeMLAnalysis = analyzeGameBet(homeMLBet, oddsData)
+    const homeMLAnalysis = analyzeBet(homeMLBet, bookmakers)
 
     analyses.push({
       bet_identifier: `${gameId}-moneyline-home`,
       game_id: gameId,
       bet_type: 'moneyline',
       selection: game.home_team,
-      ev_percentage: homeMLAnalysis.ev_percentage,
-      has_edge: homeMLAnalysis.has_edge,
-      hit_probability: homeMLAnalysis.hit_probability,
-      recommendation_score: homeMLAnalysis.recommendation_score,
-      reasoning: homeMLAnalysis.reasoning,
-      best_book: homeMLAnalysis.best_book,
-      best_odds: homeMLAnalysis.best_odds
+      ev_percentage: homeMLAnalysis.expectedValue,
+      has_edge: homeMLAnalysis.edge > 0,
+      hit_probability: homeMLAnalysis.confidence,
+      recommendation_score: homeMLAnalysis.confidence,
+      reasoning: homeMLAnalysis.reasons.join('. '),
+      best_book: homeMLAnalysis.bestSportsbook,
+      best_odds: homeMLAnalysis.bestOdds
     })
 
-    // Analyze away moneyline
-    const awayMLBet = {
-      type: 'moneyline' as const,
-      team: game.away_team,
-      selection: 'away',
+    const awayMLBet: BetOption = {
+      id: `${gameId}-moneyline-away`,
+      betType: 'h2h',
+      market: 'h2h',
+      selection: game.away_team,
       odds: oddsData[0]?.moneyline_away || -110,
       sportsbook: oddsData[0]?.sportsbook,
-      game_id: gameId
+      eventId: gameId
     }
 
-    const awayMLAnalysis = analyzeGameBet(awayMLBet, oddsData)
+    const awayMLAnalysis = analyzeBet(awayMLBet, bookmakers)
 
     analyses.push({
       bet_identifier: `${gameId}-moneyline-away`,
       game_id: gameId,
       bet_type: 'moneyline',
       selection: game.away_team,
-      ev_percentage: awayMLAnalysis.ev_percentage,
-      has_edge: awayMLAnalysis.has_edge,
-      hit_probability: awayMLAnalysis.hit_probability,
-      recommendation_score: awayMLAnalysis.recommendation_score,
-      reasoning: awayMLAnalysis.reasoning,
-      best_book: awayMLAnalysis.best_book,
-      best_odds: awayMLAnalysis.best_odds
+      ev_percentage: awayMLAnalysis.expectedValue,
+      has_edge: awayMLAnalysis.edge > 0,
+      hit_probability: awayMLAnalysis.confidence,
+      recommendation_score: awayMLAnalysis.confidence,
+      reasoning: awayMLAnalysis.reasons.join('. '),
+      best_book: awayMLAnalysis.bestSportsbook,
+      best_odds: awayMLAnalysis.bestOdds
     })
   }
 
-  // Save all analyses to database
   const { data: savedAnalyses, error } = await supabase
     .from('market_analysis')
     .upsert(analyses, { onConflict: 'bet_identifier' })
@@ -234,9 +257,7 @@ async function analyzeGameBetByType(gameId: string, betType: string) {
   })
 }
 
-// Analyze player prop bets
 async function analyzePlayerPropBet(propId: string) {
-  // Get the specific prop
   const { data: mainProp } = await supabase
     .from('player_props')
     .select('*')
@@ -247,7 +268,6 @@ async function analyzePlayerPropBet(propId: string) {
     return NextResponse.json({ error: 'Prop not found' }, { status: 404 })
   }
 
-  // Get all props for this player/game to compare across sportsbooks
   const { data: allProps } = await supabase
     .from('player_props')
     .select('*')
@@ -259,33 +279,47 @@ async function analyzePlayerPropBet(propId: string) {
     return NextResponse.json({ error: 'No prop data available' }, { status: 404 })
   }
 
-  // Analyze over
-  const overBet = {
-    type: 'player_prop' as const,
-    player: mainProp.player_name,
-    propType: mainProp.prop_type,
-    selection: 'over',
+  // Transform to BookmakerOdds format
+  const bookmakers: BookmakerOdds[] = allProps.map(prop => ({
+    key: prop.sportsbook,
+    title: prop.sportsbook,
+    lastUpdate: prop.updated_at || new Date().toISOString(),
+    markets: [{
+      key: 'player_prop',
+      outcomes: [
+        { name: 'Over', price: prop.over_odds || -110, point: prop.line, description: prop.player_name },
+        { name: 'Under', price: prop.under_odds || -110, point: prop.line, description: prop.player_name }
+      ]
+    }]
+  }))
+
+  const overBet: BetOption = {
+    id: `${propId}-over`,
+    betType: 'player_prop',
+    market: 'player_prop',
+    selection: 'Over',
     line: mainProp.line,
     odds: mainProp.over_odds || -110,
     sportsbook: mainProp.sportsbook,
-    game_id: mainProp.game_id
+    playerName: mainProp.player_name,
+    eventId: mainProp.game_id
   }
 
-  const overAnalysis = analyzePlayerProp(overBet, allProps)
+  const overAnalysis = analyzeBet(overBet, bookmakers)
 
-  // Analyze under
-  const underBet = {
-    type: 'player_prop' as const,
-    player: mainProp.player_name,
-    propType: mainProp.prop_type,
-    selection: 'under',
+  const underBet: BetOption = {
+    id: `${propId}-under`,
+    betType: 'player_prop',
+    market: 'player_prop',
+    selection: 'Under',
     line: mainProp.line,
     odds: mainProp.under_odds || -110,
     sportsbook: mainProp.sportsbook,
-    game_id: mainProp.game_id
+    playerName: mainProp.player_name,
+    eventId: mainProp.game_id
   }
 
-  const underAnalysis = analyzePlayerProp(underBet, allProps)
+  const underAnalysis = analyzeBet(underBet, bookmakers)
 
   const analyses = [
     {
@@ -293,30 +327,29 @@ async function analyzePlayerPropBet(propId: string) {
       game_id: mainProp.game_id,
       bet_type: 'player_prop',
       selection: `${mainProp.player_name} Over ${mainProp.line} ${mainProp.prop_type}`,
-      ev_percentage: overAnalysis.ev_percentage,
-      has_edge: overAnalysis.has_edge,
-      hit_probability: overAnalysis.hit_probability,
-      recommendation_score: overAnalysis.recommendation_score,
-      reasoning: overAnalysis.reasoning,
-      best_book: overAnalysis.best_book,
-      best_odds: overAnalysis.best_odds
+      ev_percentage: overAnalysis.expectedValue,
+      has_edge: overAnalysis.edge > 0,
+      hit_probability: overAnalysis.confidence,
+      recommendation_score: overAnalysis.confidence,
+      reasoning: overAnalysis.reasons.join('. '),
+      best_book: overAnalysis.bestSportsbook,
+      best_odds: overAnalysis.bestOdds
     },
     {
       bet_identifier: `${propId}-under`,
       game_id: mainProp.game_id,
       bet_type: 'player_prop',
       selection: `${mainProp.player_name} Under ${mainProp.line} ${mainProp.prop_type}`,
-      ev_percentage: underAnalysis.ev_percentage,
-      has_edge: underAnalysis.has_edge,
-      hit_probability: underAnalysis.hit_probability,
-      recommendation_score: underAnalysis.recommendation_score,
-      reasoning: underAnalysis.reasoning,
-      best_book: underAnalysis.best_book,
-      best_odds: underAnalysis.best_odds
+      ev_percentage: underAnalysis.expectedValue,
+      has_edge: underAnalysis.edge > 0,
+      hit_probability: underAnalysis.confidence,
+      recommendation_score: underAnalysis.confidence,
+      reasoning: underAnalysis.reasons.join('. '),
+      best_book: underAnalysis.bestSportsbook,
+      best_odds: underAnalysis.bestOdds
     }
   ]
 
-  // Save to database
   const { data: savedAnalyses, error } = await supabase
     .from('market_analysis')
     .upsert(analyses, { onConflict: 'bet_identifier' })
