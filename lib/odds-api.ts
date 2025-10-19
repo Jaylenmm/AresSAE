@@ -144,7 +144,7 @@ export async function fetchPlayerProps(sportKey: string) {
   if (propMarkets.length === 0) return []
   
   const allPropsData = []
-  const eventsToFetch = events.slice(0, 10)
+  const eventsToFetch = events
   
   for (const event of eventsToFetch) {
     try {
@@ -156,7 +156,7 @@ export async function fetchPlayerProps(sportKey: string) {
           oddsFormat: 'american'
         })
       )
-      
+    
       if (!propsResponse.ok) continue
       
       const propsData = await propsResponse.json()

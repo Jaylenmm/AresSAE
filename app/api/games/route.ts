@@ -14,7 +14,7 @@ export async function GET(request: Request) {
       .eq('sport', sport)
       .gte('game_date', new Date().toISOString())
       .order('game_date', { ascending: true })
-      .limit(20)
+      .limit(sport === 'NCAAF' ? 100 : 20) // More games for NCAAF
 
     // Fetch odds for these games
     const { data: oddsData } = await supabase
