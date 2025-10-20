@@ -321,11 +321,18 @@ export default function BuildPageContent() {
 
     const bet = modalData.betDetails
     
-    /* TEMP: Auth commented for testing - using placeholder user_id */
-    // const { data: { user } } = await supabase.auth.getUser()
+    /* Ensure we have the authenticated user for FK user_id */
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      alert('You need to be logged in to save a bet.')
+      setShowModal(false)
+      setModalData(null)
+      router.push('/login')
+      return
+    }
     
     const pickData = {
-      user_id: '00000000-0000-0000-0000-000000000000', // TEMP: Placeholder
+      user_id: user.id,
       pick_type: 'straight',
       picks: {
         bet_type: bet.type,
