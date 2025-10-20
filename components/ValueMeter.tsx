@@ -41,7 +41,7 @@ export default function ValueMeterTEST({ edge }: ValueMeterProps) {
     <div className="my-4">
       <p className="text-xs text-gray-600 mb-2 font-medium">Value Meter:</p>
       
-      <div className="relative h-16 rounded-lg overflow-hidden border border-gray-300 bg-gray-50">
+      <div className="relative h-16 rounded-lg overflow-hidden border border-blue-500 bg-gray-50">
         {/* Zone labels */}
         <div className="absolute inset-x-0 top-1 flex justify-between px-2 text-xs text-gray-600 font-medium">
           <span>Overpriced</span>
