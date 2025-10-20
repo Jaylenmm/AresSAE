@@ -44,6 +44,22 @@ export default function BuildPageContent() {
     }
   }, [searchParams])
 
+  useEffect(() => {
+    const player = searchParams.get('player')
+    if (player && selectedGame) {
+      setOpenPlayers(prev => ({
+        ...prev,
+        [player]: true
+      }))
+      setTimeout(() => {
+        const element = playerSectionRefs.current[player]
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 300)
+    }
+  }, [selectedGame, searchParams])
+
   async function loadGameById(gameId: string) {
     try {
       const { data: game } = await supabase

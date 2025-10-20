@@ -294,6 +294,88 @@ export default function PicksPage() {
     }
   }
 
+  async function analyzeAtBestOdds(pick: UserPick) {
+    const analysis = pick.analysis_snapshot
+    if (!analysis || !analysis.bestOdds || !analysis.bestSportsbook) {
+      alert('Best odds not available for this pick yet. Try running an analysis first.')
+      return
+    }
+
+    const game = pick.picks?.game_id ? games[pick.picks.game_id] : null
+    if (!game) {
+      alert('Cannot analyze - game data not found')
+      return
+    }
+
+    let transformed: { bookmakers: BookmakerOdds[] }
+    let betOption: BetOption
+
+    if (pick.picks.player) {
+      const { data: playerPropsData } = await supabase
+        .from('player_props')
+        .select('*')
+        .eq('game_id', game.id)
+
+      if (!playerPropsData || playerPropsData.length === 0) {
+        alert('No player props data available for analysis')
+        return
+      }
+
+      const bookmakers = transformPlayerPropsToAnalysisFormat(game, playerPropsData)
+      transformed = { bookmakers }
+    } else {
+      const { data: oddsData } = await supabase
+        .from('odds_data')
+        .select('*')
+        .eq('game_id', game.id)
+
+      if (!oddsData || oddsData.length === 0) {
+        alert('No odds data available for analysis')
+        return
+      }
+
+      transformed = transformGameToAnalysisFormat(game, oddsData)
+    }
+
+    const pickWithBest = {
+      ...pick,
+      picks: {
+        ...pick.picks,
+        odds: analysis.bestOdds,
+        sportsbook: analysis.bestSportsbook
+      }
+    } as UserPick
+
+    betOption = createBetOptionFromSelection(pickWithBest.picks, game)
+
+    const newAnalysis = analyzeBet(betOption, transformed.bookmakers)
+
+    const currentSnapshot = pick.analysis_snapshot || {}
+    const existingHistory = currentSnapshot.history || []
+    const newEntry = {
+      timestamp: new Date().toISOString(),
+      analyzedLine: pick.picks.line,
+      analyzedOdds: analysis.bestOdds,
+      ...newAnalysis
+    }
+
+    const { error } = await supabase
+      .from('user_picks')
+      .update({
+        analysis_snapshot: {
+          ...newEntry,
+          history: [...existingHistory, newEntry]
+        }
+      })
+      .eq('id', pick.id)
+
+    if (!error) {
+      loadPicks()
+    } else {
+      alert('Error saving analysis: ' + error.message)
+    }
+  }
+
   function toggleAnalysisHistory(pickId: string) {
     setExpandedAnalyses(prev => ({
       ...prev,
@@ -374,7 +456,16 @@ export default function PicksPage() {
                   <div className="p-4">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <p className="font-bold text-gray-900 mb-1">
+                        <p 
+                          className="font-bold text-gray-900 mb-1 cursor-pointer hover:underline"
+                          onClick={() => {
+                            if (game) {
+                              const player = pick.picks?.player
+                              const qs = player ? `&player=${encodeURIComponent(player)}` : ''
+                              router.push(`/build?game_id=${game.id}${qs}`)
+                            }
+                          }}
+                        >
                           {pick.picks?.player 
                             ? `${pick.picks.player}`
                             : `${pick.picks?.team || pick.picks?.selection}`
@@ -481,9 +572,22 @@ export default function PicksPage() {
                         <ValueMeter edge={analysis.edge ?? 0} />
 
                         {analysis.bestSportsbook && analysis.bestOdds && (
-                          <div className="text-xs text-gray-600 mb-2">
-                            <p className="font-semibold">Best available:</p>
-                            <p>{analysis.bestOdds > 0 ? '+' : ''}{analysis.bestOdds} @ {getBookmakerDisplayName(analysis.bestSportsbook)}</p>
+                          <div className="text-xs text-gray-600 mb-2 flex items-center gap-3">
+                            <div>
+                              <p className="font-semibold">Best available:</p>
+                              <p>{analysis.bestOdds > 0 ? '+' : ''}{analysis.bestOdds} @ {getBookmakerDisplayName(analysis.bestSportsbook)}</p>
+                            </div>
+                            {(
+                              (pick.picks?.odds !== undefined && pick.picks?.odds !== analysis.bestOdds) ||
+                              ((pick.picks?.sportsbook || '') !== (analysis.bestSportsbook || ''))
+                            ) && (
+                              <button
+                                onClick={() => analyzeAtBestOdds(pick)}
+                                className="text-blue-600 hover:text-blue-800 font-semibold"
+                              >
+                                Analyze at best odds?
+                              </button>
+                            )}
                           </div>
                         )}
 
