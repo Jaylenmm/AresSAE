@@ -1,12 +1,11 @@
 // lib/analysis-engine.ts
-// Universal Analysis Engine with CORRECT formulas and Sharp/Soft fallback
+// Updated with new edge calculation methodology
 
 import {
   americanOddsToImpliedProbability,
   americanToDecimal,
   removeVig,
   calculateEV,
-  calculateEdge
 } from './odds-calculations'
 
 export type BetType = 'h2h' | 'spreads' | 'totals' | 'player_prop' | 'futures';
@@ -55,6 +54,9 @@ export interface AnalysisResult {
   lineMovement: 'toward' | 'away' | 'stable' | 'unknown';
   sharpBookOdds: number | null;
   sharpBookName: string | null;
+  sharpLine: number | null;
+  sharpLineDistance: number;
+  trueProbability: number | null;
   softBookBestOdds: number | null;
   softBookBestName: string | null;
   recommendation: 'strong_bet' | 'bet' | 'consider' | 'avoid' | 'no_edge';
@@ -67,17 +69,100 @@ export interface AnalysisResult {
   }>;
 }
 
-const SHARP_BOOKMAKERS = ['pinnacle', 'betonline', 'bookmaker', 'circa'];
+const SHARP_BOOKMAKERS = ['pinnacle', 'betonline', 'bookmaker', 'circa', 'circasports'];
 
 function isSharpBook(bookmakerKey: string): boolean {
   const normalized = bookmakerKey.toLowerCase().replace(/\s+/g, '');
   return SHARP_BOOKMAKERS.some(sharp => normalized.includes(sharp));
 }
 
+function findSharpConsensus(
+  market: string,
+  selection: string,
+  requestedLine: number | undefined,
+  playerName: string | undefined,
+  allBookmakerData: BookmakerOdds[]
+): {
+  odds: number;
+  opposingOdds: number | null;
+  sportsbook: string;
+  line: number;
+  lineDistance: number;
+} | null {
+  
+  const sharpBookOdds: Array<{
+    sportsbook: string;
+    odds: number;
+    opposingOdds: number | null;
+    line: number;
+    lineDistance: number;
+  }> = [];
+
+  for (const bookmaker of allBookmakerData) {
+    if (!isSharpBook(bookmaker.key)) continue;
+
+    const marketData = bookmaker.markets.find(m => m.key === market);
+    if (!marketData) continue;
+
+    const outcome = marketData.outcomes.find(o => {
+      const matchesName = o.name === selection;
+      const matchesPlayer = !playerName || o.description === playerName;
+      
+      if (requestedLine === undefined) {
+        return matchesName && matchesPlayer;
+      }
+      
+      const outcomeLine = o.point ?? 0;
+      const lineDistance = Math.abs(outcomeLine - requestedLine);
+      
+      return matchesName && matchesPlayer && lineDistance <= 2;
+    });
+
+    if (!outcome) continue;
+
+    let opposingOdds: number | null = null;
+    const opposingOutcome = marketData.outcomes.find(o => {
+      const samePlayer = !playerName || o.description === playerName;
+      const sameLine = (o.point ?? 0) === (outcome.point ?? 0);
+      const opposingSide = o.name !== selection;
+      return samePlayer && sameLine && opposingSide;
+    });
+    
+    if (opposingOutcome) {
+      opposingOdds = opposingOutcome.price;
+    }
+
+    const outcomeLine = outcome.point ?? requestedLine ?? 0;
+    const lineDistance = requestedLine !== undefined 
+      ? Math.abs(outcomeLine - requestedLine) 
+      : 0;
+
+    sharpBookOdds.push({
+      sportsbook: bookmaker.key,
+      odds: outcome.price,
+      opposingOdds,
+      line: outcomeLine,
+      lineDistance: lineDistance
+    });
+  }
+
+  if (sharpBookOdds.length === 0) return null;
+
+  sharpBookOdds.sort((a, b) => {
+    if (a.lineDistance !== b.lineDistance) return a.lineDistance - b.lineDistance;
+    if (a.sportsbook.includes('pinnacle')) return -1;
+    if (b.sportsbook.includes('pinnacle')) return 1;
+    return 0;
+  });
+
+  return sharpBookOdds[0];
+}
+
 export function analyzeBet(
   betOption: BetOption,
   allBookmakerData: BookmakerOdds[]
 ): AnalysisResult {
+  
   const relevantOdds = allBookmakerData
     .map(bookmaker => {
       const market = bookmaker.markets.find(m => m.key === betOption.market);
@@ -112,124 +197,77 @@ export function analyzeBet(
   const worst = sortedOdds[sortedOdds.length - 1];
   const oddsRange = best.odds - worst.odds;
   
-  // CRITICAL FIX: Fallback to soft books if no sharp books available
-  let referenceBook: { sportsbook: string; odds: number; isSharp: boolean };
+  const sharpConsensus = findSharpConsensus(
+    betOption.market,
+    betOption.selection,
+    betOption.line,
+    betOption.playerName,
+    allBookmakerData
+  );
+  
+  let trueProbability: number | null = null;
+  let edge = 0;
+  let expectedValue = 0;
   let usingSoftFallback = false;
   
-  if (sharpOdds.length > 0) {
-    referenceBook = sharpOdds.reduce((a, b) => a.odds > b.odds ? a : b);
+  if (sharpConsensus) {
+    if (sharpConsensus.opposingOdds !== null) {
+      const { prob1 } = removeVig(sharpConsensus.odds, sharpConsensus.opposingOdds);
+      trueProbability = prob1;
+    } else {
+      trueProbability = americanOddsToImpliedProbability(sharpConsensus.odds);
+    }
+    
+    const impliedProbability = americanOddsToImpliedProbability(betOption.odds);
+    edge = (trueProbability - impliedProbability) * 100;
+    expectedValue = calculateEV(trueProbability, betOption.odds) * 100;
   } else {
-    // FALLBACK TO SOFT BOOKS
-    referenceBook = softOdds.reduce((a, b) => a.odds > b.odds ? a : b);
     usingSoftFallback = true;
-    console.warn('⚠️ No sharp books available - using soft book consensus for true probability');
+    const softBest = softOdds.length > 0 ? softOdds.reduce((a, b) => a.odds > b.odds ? a : b) : null;
+    
+    if (softBest) {
+      trueProbability = americanOddsToImpliedProbability(softBest.odds);
+      const impliedProbability = americanOddsToImpliedProbability(betOption.odds);
+      edge = (trueProbability - impliedProbability) * 100;
+      expectedValue = calculateEV(trueProbability, betOption.odds) * 100;
+    }
   }
   
   const softBest = softOdds.length > 0 ? softOdds.reduce((a, b) => a.odds > b.odds ? a : b) : null;
   
-  // Get opposing odds to remove vig
-  let opposingOdds: number | null = null;
+  let baseConfidence = sharpConsensus ? 100 : 40;
+  if (sharpConsensus && sharpConsensus.lineDistance === 1) baseConfidence -= 3;
+  if (sharpConsensus && sharpConsensus.lineDistance === 2) baseConfidence -= 5;
   
-  for (const bookmaker of allBookmakerData) {
-    if (bookmaker.key !== referenceBook.sportsbook) continue;
-    
-    const market = bookmaker.markets.find(m => m.key === betOption.market);
-    if (!market) continue;
-    
-    const opposingOutcome = market.outcomes.find(o => {
-      if (betOption.market === 'h2h') {
-        return o.name !== betOption.selection;
-      } else if (betOption.market === 'spreads' || betOption.market === 'totals') {
-        return o.name !== betOption.selection;
-      } else {
-        return o.name !== betOption.selection && o.description === betOption.playerName;
-      }
-    });
-    
-    if (opposingOutcome) {
-      opposingOdds = opposingOutcome.price;
-      break;
-    }
-  }
-  
-  // Calculate TRUE probability
-  let trueProbability: number;
-  
-  if (opposingOdds !== null) {
-    const { prob1 } = removeVig(referenceBook.odds, opposingOdds);
-    trueProbability = prob1;
-  } else {
-    trueProbability = americanOddsToImpliedProbability(referenceBook.odds);
-  }
-  
-  // Calculate EV and Edge using YOUR EXACT formulas
-  const expectedValue = calculateEV(trueProbability, best.odds);
-  const edge = calculateEdge(trueProbability, best.odds);
-  
-  // Calculate confidence
-  let baseConfidence = usingSoftFallback ? 40 : 50;
   const confidence = calculateConfidence(edge, oddsRange, sharpOdds.length, relevantOdds.length, baseConfidence);
   
-  // Market efficiency
   let marketEfficiency: 'efficient' | 'inefficient' | 'highly_inefficient';
   if (oddsRange <= 15) marketEfficiency = 'efficient';
   else if (oddsRange <= 30) marketEfficiency = 'inefficient';
   else marketEfficiency = 'highly_inefficient';
   
-  // Sharp consensus
-  let sharpConsensus: 'agree' | 'disagree' | 'mixed' | 'unavailable';
+  let sharpConsensusLabel: 'agree' | 'disagree' | 'mixed' | 'unavailable';
   if (sharpOdds.length === 0) {
-    sharpConsensus = 'unavailable';
+    sharpConsensusLabel = 'unavailable';
   } else {
     const avgSharpOdds = sharpOdds.reduce((sum, o) => sum + o.odds, 0) / sharpOdds.length;
     const oddsGap = Math.abs(best.odds - avgSharpOdds);
-    if (oddsGap <= 10) sharpConsensus = 'agree';
-    else if (oddsGap <= 25) sharpConsensus = 'mixed';
-    else sharpConsensus = 'disagree';
+    if (oddsGap <= 10) sharpConsensusLabel = 'agree';
+    else if (oddsGap <= 25) sharpConsensusLabel = 'mixed';
+    else sharpConsensusLabel = 'disagree';
   }
   
-  const recommendation = generateRecommendation(edge, confidence, usingSoftFallback);
+  const recommendation = generateRecommendation(edge, confidence, sharpConsensus !== null);
   
-  // Generate reasons and warnings
-  const reasons: string[] = [];
-  const warnings: string[] = [];
-  
-  if (edge >= 3) {
-    reasons.push(`Strong ${edge.toFixed(1)}% edge vs ${usingSoftFallback ? 'soft' : 'sharp'} market`);
-  } else if (edge >= 2) {
-    reasons.push(`Good ${edge.toFixed(1)}% edge vs ${usingSoftFallback ? 'soft' : 'sharp'} market`);
-  } else if (edge >= 1) {
-    reasons.push(`Marginal ${edge.toFixed(1)}% edge vs ${usingSoftFallback ? 'soft' : 'sharp'} market`);
-  }
-  
-  if (softBest && !usingSoftFallback && referenceBook && softBest.odds > referenceBook.odds) {
-    const gap = softBest.odds - referenceBook.odds;
-    reasons.push(`Soft book offering ${gap > 0 ? '+' : ''}${gap} better than sharp line`);
-  }
-  
-  if (marketEfficiency === 'highly_inefficient') {
-    reasons.push(`Wide market (${oddsRange} points) - potential inefficiency`);
-  }
-  
-  if (usingSoftFallback) {
-    warnings.push('Using soft book consensus - no sharp books available. Lower confidence.');
-  }
-  
-  if (edge < 0) {
-    warnings.push('Negative edge - betting against the market');
-  }
-  
-  if (confidence < 40) {
-    warnings.push('Low confidence - limited data or high uncertainty');
-  }
-  
-  if (sharpOdds.length === 1 && !usingSoftFallback) {
-    warnings.push('Only one sharp bookmaker available');
-  }
-  
-  if (relevantOdds.length < 3) {
-    warnings.push('Limited market coverage');
-  }
+  const { reasons, warnings } = generateInsights(
+    edge,
+    expectedValue,
+    sharpConsensus,
+    relevantOdds,
+    betOption.odds,
+    best.odds,
+    usingSoftFallback
+  );
   
   return {
     bestOdds: best.odds,
@@ -241,10 +279,13 @@ export function analyzeBet(
     edge,
     confidence,
     marketEfficiency,
-    sharpConsensus,
+    sharpConsensus: sharpConsensusLabel,
     lineMovement: 'unknown',
-    sharpBookOdds: sharpOdds.length > 0 ? referenceBook.odds : null,
-    sharpBookName: sharpOdds.length > 0 ? referenceBook.sportsbook : null,
+    sharpBookOdds: sharpConsensus?.odds ?? null,
+    sharpBookName: sharpConsensus?.sportsbook ?? null,
+    sharpLine: sharpConsensus?.line ?? null,
+    sharpLineDistance: sharpConsensus?.lineDistance ?? 0,
+    trueProbability,
     softBookBestOdds: softBest?.odds ?? null,
     softBookBestName: softBest?.sportsbook ?? null,
     recommendation,
@@ -259,58 +300,96 @@ function calculateConfidence(
   oddsRange: number,
   sharpBookCount: number,
   totalBookCount: number,
-  baseConfidence: number = 50
+  baseConfidence: number
 ): number {
   let confidence = baseConfidence;
   
-  // Edge contribution
-  if (edge >= 5) confidence += 25;
-  else if (edge >= 3) confidence += 20;
-  else if (edge >= 2) confidence += 15;
-  else if (edge >= 1) confidence += 10;
-  else if (edge >= 0) confidence += 5;
-  else confidence -= 20;
+  if (edge >= 5) confidence += 20;
+  else if (edge >= 3) confidence += 15;
+  else if (edge >= 2) confidence += 10;
+  else if (edge >= 1) confidence += 5;
+  else if (edge < 0) confidence -= 15;
   
-  // Market tightness
-  if (oddsRange <= 10) confidence += 15;
-  else if (oddsRange <= 20) confidence += 10;
-  else if (oddsRange <= 30) confidence += 5;
-  else confidence -= 10;
+  if (sharpBookCount >= 2) confidence += 10;
+  else if (sharpBookCount === 1) confidence += 5;
+  else confidence -= 15;
   
-  // Sharp book coverage
-  if (sharpBookCount >= 3) confidence += 10;
-  else if (sharpBookCount >= 2) confidence += 5;
-  else if (sharpBookCount === 1) confidence -= 5;
-  else confidence -= 10; // No sharp books
-  
-  // Total coverage
   if (totalBookCount >= 5) confidence += 5;
-  else if (totalBookCount < 3) confidence -= 10;
+  else if (totalBookCount < 3) confidence -= 5;
   
-  return Math.max(1, Math.min(100, Math.round(confidence)));
+  return Math.max(10, Math.min(100, Math.round(confidence)));
 }
 
 function generateRecommendation(
   edge: number,
   confidence: number,
-  usingSoftFallback: boolean
+  hasSharpData: boolean
 ): 'strong_bet' | 'bet' | 'consider' | 'avoid' | 'no_edge' {
   if (edge <= 0) return 'no_edge';
   
-  // Lower thresholds when using soft book fallback
-  if (usingSoftFallback) {
-    if (edge >= 4 && confidence >= 60) return 'bet';
-    if (edge >= 2 && confidence >= 50) return 'consider';
+  if (!hasSharpData) {
+    if (edge >= 4 && confidence >= 55) return 'consider';
     return 'avoid';
   }
   
-  // Normal sharp book thresholds
-  if (edge >= 3 && confidence >= 70) return 'strong_bet';
-  if (edge >= 2 && confidence >= 60) return 'bet';
-  if (edge >= 1 && confidence >= 50) return 'consider';
-  if (confidence < 40) return 'avoid';
+  if (edge >= 3 && confidence >= 65) return 'strong_bet';
+  if (edge >= 2 && confidence >= 55) return 'bet';
+  if (edge >= 1 && confidence >= 45) return 'consider';
   
-  return 'consider';
+  return 'avoid';
+}
+
+function generateInsights(
+  edge: number,
+  ev: number,
+  sharpConsensus: any,
+  allOdds: Array<{ sportsbook: string; odds: number; isSharp: boolean }>,
+  userOdds: number,
+  bestOdds: number,
+  usingSoftFallback: boolean
+): { reasons: string[]; warnings: string[] } {
+  const reasons: string[] = [];
+  const warnings: string[] = [];
+  
+  if (edge >= 3) {
+    reasons.push(`Strong ${edge.toFixed(1)}% edge vs ${usingSoftFallback ? 'soft' : 'sharp'} consensus`);
+  } else if (edge >= 2) {
+    reasons.push(`Good ${edge.toFixed(1)}% edge vs ${usingSoftFallback ? 'soft' : 'sharp'} consensus`);
+  } else if (edge >= 1) {
+    reasons.push(`Marginal ${edge.toFixed(1)}% edge vs ${usingSoftFallback ? 'soft' : 'sharp'} consensus`);
+  }
+  
+  if (bestOdds > userOdds) {
+    const improvement = bestOdds - userOdds;
+    reasons.push(`Better odds available: ${bestOdds > 0 ? '+' : ''}${bestOdds} (${improvement > 0 ? '+' : ''}${improvement} better)`);
+  }
+  
+  if (sharpConsensus && sharpConsensus.lineDistance === 0) {
+    reasons.push('Sharp consensus at exact line');
+  }
+  
+  const sharpCount = allOdds.filter(o => o.isSharp).length;
+  if (sharpCount >= 2) {
+    reasons.push(`${sharpCount} sharp books agree on this line`);
+  }
+  
+  if (!sharpConsensus) {
+    warnings.push('Limited sharp market data - use additional research');
+  }
+  
+  if (sharpConsensus && sharpConsensus.lineDistance > 0) {
+    warnings.push(`Analysis uses sharp line ${sharpConsensus.lineDistance} ${sharpConsensus.lineDistance === 1 ? 'point' : 'points'} away`);
+  }
+  
+  if (allOdds.length < 3) {
+    warnings.push('Limited market coverage - fewer books offering this line');
+  }
+  
+  if (sharpConsensus && !sharpConsensus.opposingOdds) {
+    warnings.push('Vig removal unavailable - using implied probability');
+  }
+  
+  return { reasons, warnings };
 }
 
 function createEmptyAnalysis(): AnalysisResult {
@@ -328,6 +407,9 @@ function createEmptyAnalysis(): AnalysisResult {
     lineMovement: 'unknown',
     sharpBookOdds: null,
     sharpBookName: null,
+    sharpLine: null,
+    sharpLineDistance: 0,
+    trueProbability: null,
     softBookBestOdds: null,
     softBookBestName: null,
     recommendation: 'no_edge',

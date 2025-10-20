@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { UserPick, Game, PlayerProp } from '@/lib/types'
 import { Trash2 } from 'lucide-react'
@@ -9,6 +10,7 @@ import { analyzeBet, BetOption, AnalysisResult, BetType, BookmakerOdds } from '@
 import { transformGameToAnalysisFormat, transformPlayerPropsToAnalysisFormat, createBetOptionFromSelection } from '@/lib/supabase-adapter'
 import AnalyzeConfirmationModal from '@/components/AnalyzeConfirmationModal'
 import LineSelector from '@/components/LineSelector'
+import ValueMeter from '@/components/ValueMeter'
 
 interface AlternateLine {
   line: number
@@ -19,6 +21,7 @@ interface AlternateLine {
 }
 
 export default function PicksPage() {
+  const router = useRouter()
   const [picks, setPicks] = useState<UserPick[]>([])
   const [games, setGames] = useState<Record<string, Game>>({})
   const [loading, setLoading] = useState(true)
@@ -33,12 +36,19 @@ export default function PicksPage() {
   }, [])
 
   async function loadPicks() {
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      router.push('/login')
+      return
+    }
+
     const { data } = await supabase
       .from('user_picks')
       .select('*')
       .eq('status', 'pending')
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-
     if (data) {
       setPicks(data)
       
@@ -467,20 +477,8 @@ export default function PicksPage() {
                           </div>
                         </div>
 
-                        <div className="mb-3">
-                          <span className={`inline-block px-3 py-1 rounded text-sm font-semibold ${
-                            analysis.recommendation === 'strong_bet' ? 'bg-green-600 text-white' :
-                            analysis.recommendation === 'bet' ? 'bg-green-500 text-white' :
-                            analysis.recommendation === 'consider' ? 'bg-yellow-500 text-white' :
-                            analysis.recommendation === 'avoid' ? 'bg-red-500 text-white' :
-                            'bg-gray-500 text-white'
-                          }`}>
-                            {analysis.recommendation === 'strong_bet' ? 'Strong Bet' :
-                             analysis.recommendation === 'bet' ? 'Good Bet' :
-                             analysis.recommendation === 'consider' ? 'Consider' :
-                             analysis.recommendation === 'avoid' ? 'Avoid' : 'No Edge'}
-                          </span>
-                        </div>
+                        {/* VALUE METER - REPLACES "NO EDGE" BADGE */}
+                        <ValueMeter edge={analysis.edge ?? 0} />
 
                         {analysis.bestSportsbook && analysis.bestOdds && (
                           <div className="text-xs text-gray-600 mb-2">
@@ -501,8 +499,8 @@ export default function PicksPage() {
                         )}
 
                         {analysis.warnings && analysis.warnings.length > 0 && (
-                          <div className="text-xs text-red-700 bg-red-50 rounded p-2">
-                            <p className="font-semibold mb-1">⚠️ Warnings:</p>
+                          <div className="text-xs text-blue-700 bg-blue-50 rounded p-2 border border-blue-200">
+                            <p className="font-semibold mb-1">ℹ️ Analysis Notes:</p>
                             <ul className="list-disc list-inside space-y-1">
                               {analysis.warnings.map((warning: string, i: number) => (
                                 <li key={i}>{warning}</li>
@@ -553,21 +551,6 @@ export default function PicksPage() {
                                   </div>
                                 </div>
 
-                                <div className="text-xs">
-                                  <span className={`inline-block px-2 py-1 rounded font-semibold ${
-                                    oldAnalysis.recommendation === 'strong_bet' ? 'bg-green-600 text-white' :
-                                    oldAnalysis.recommendation === 'bet' ? 'bg-green-500 text-white' :
-                                    oldAnalysis.recommendation === 'consider' ? 'bg-yellow-500 text-white' :
-                                    oldAnalysis.recommendation === 'avoid' ? 'bg-red-500 text-white' :
-                                    'bg-gray-500 text-white'
-                                  }`}>
-                                    {oldAnalysis.recommendation === 'strong_bet' ? 'Strong Bet' :
-                                     oldAnalysis.recommendation === 'bet' ? 'Good Bet' :
-                                     oldAnalysis.recommendation === 'consider' ? 'Consider' :
-                                     oldAnalysis.recommendation === 'avoid' ? 'Avoid' : 'No Edge'}
-                                  </span>
-                                </div>
-
                                 {oldAnalysis.bestOdds && (
                                   <p className="text-xs text-gray-600 mt-2">
                                     Best: {oldAnalysis.bestOdds > 0 ? '+' : ''}{oldAnalysis.bestOdds} @ {getBookmakerDisplayName(oldAnalysis.bestSportsbook)}
@@ -579,7 +562,7 @@ export default function PicksPage() {
                         </div>
                       )}
 
-                      <div className="space-y-2">
+                      <div className="space-y-2 mt-3">
                         <button
                           onClick={() => promptAnalysis(pick)}
                           className="w-full bg-[#2d2d2d] text-white font-semibold py-3 rounded-lg hover:bg-[#3d3d3d] transition-colors text-sm border border-gray-700"

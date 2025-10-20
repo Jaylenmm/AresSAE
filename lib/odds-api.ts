@@ -151,7 +151,7 @@ export async function fetchPlayerProps(sportKey: string) {
       const propsResponse = await fetch(
         `${BASE_URL}/sports/${sportKey}/events/${event.id}/odds?` + new URLSearchParams({
           apiKey: API_KEY!,
-          regions: 'us',
+          regions: 'us,us2,eu',
           markets: propMarkets.join(','),
           oddsFormat: 'american'
         })

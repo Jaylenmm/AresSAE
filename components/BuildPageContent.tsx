@@ -262,6 +262,7 @@ export default function BuildPageContent() {
   }
 
   async function handleSelectBet(bet: any) {
+
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
@@ -279,6 +280,7 @@ export default function BuildPageContent() {
       router.push(`/login?redirect=${encodeURIComponent(redirectUrl)}`)
       return
     }
+
 
     if (!selectedGame) {
       alert('No game selected')
@@ -318,10 +320,12 @@ export default function BuildPageContent() {
     if (!modalData || !selectedGame) return
 
     const bet = modalData.betDetails
-    const { data: { user } } = await supabase.auth.getUser()
+    
+    /* TEMP: Auth commented for testing - using placeholder user_id */
+    // const { data: { user } } = await supabase.auth.getUser()
     
     const pickData = {
-      user_id: user?.id,
+      user_id: '00000000-0000-0000-0000-000000000000', // TEMP: Placeholder
       pick_type: 'straight',
       picks: {
         bet_type: bet.type,
