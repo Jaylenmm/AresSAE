@@ -23,7 +23,7 @@ export default function ValueMeterTEST({ edge }: ValueMeterProps) {
   
   // Determine bar color and direction
   const isPositive = edge > 0.5
-  const isNegative = edge < -0.5
+  const isNegative = edge < -3
   const isNeutral = !isPositive && !isNegative
   
   // Bar styling
@@ -39,7 +39,7 @@ export default function ValueMeterTEST({ edge }: ValueMeterProps) {
   
   return (
     <div className="my-4">
-      <p className="text-xs text-gray-600 mb-2 font-medium">Value Meter:</p>
+      <p className="text-xs text-gray-600 mb-2 font-medium">Value Meter: Analyze your pick's value. Sharp bettors tend to look for +2%-5% edges. Fair value is also a good pick though!</p>
       
       <div className="relative h-16 rounded-lg overflow-hidden border border-blue-500 bg-gray-50">
         {/* Zone labels */}

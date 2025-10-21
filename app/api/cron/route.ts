@@ -5,7 +5,13 @@ export const maxDuration = 300
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const url = new URL(request.url)
+  const keyParam = url.searchParams.get('key')
+  const authorized = (
+    authHeader === `Bearer ${process.env.CRON_SECRET}` ||
+    (keyParam && keyParam === process.env.CRON_SECRET)
+  )
+  if (!authorized) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -49,7 +55,8 @@ export async function GET(request: Request) {
     // Collect data for each sport
     for (const sport of ['NFL', 'NBA', 'MLB', 'NCAAF']) {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/collect-data`, {
+        const origin = url.origin
+        const response = await fetch(`${origin}/api/collect-data`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sport })

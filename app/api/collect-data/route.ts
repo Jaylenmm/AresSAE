@@ -84,7 +84,8 @@ export async function POST(request: Request) {
         const oddsEntry: any = {
           game_id: game.id,
           sportsbook: displayName,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          is_alternate: false
         }
 
         if (spreads?.outcomes) {
@@ -119,7 +120,7 @@ export async function POST(request: Request) {
 
         await supabase
           .from('odds_data')
-          .upsert(oddsEntry, { onConflict: 'game_id,sportsbook' })
+          .upsert(oddsEntry, { onConflict: 'game_id,sportsbook,is_alternate' })
 
         oddsCreated++
       }
@@ -161,7 +162,7 @@ export async function POST(request: Request) {
                   spread_away_odds: away.price,
                   is_alternate: true,
                   updated_at: new Date().toISOString()
-                }, { onConflict: 'game_id,sportsbook,spread_home,total' })
+                }, { onConflict: 'game_id,sportsbook,spread_home,total,is_alternate' })
               
               oddsCreated++
             }
@@ -196,7 +197,7 @@ export async function POST(request: Request) {
                   under_odds: under.price,
                   is_alternate: true,
                   updated_at: new Date().toISOString()
-                }, { onConflict: 'game_id,sportsbook,spread_home,total' })
+                }, { onConflict: 'game_id,sportsbook,spread_home,total,is_alternate' })
               
               oddsCreated++
             }
@@ -264,7 +265,7 @@ export async function POST(request: Request) {
                 is_alternate: isAlternate,
                 updated_at: new Date().toISOString()
               }, {
-                onConflict: 'game_id,player_name,prop_type,sportsbook,line'
+                onConflict: 'game_id,player_name,prop_type,sportsbook,line,is_alternate'
               })
 
             propsCreated++

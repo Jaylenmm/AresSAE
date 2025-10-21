@@ -3,6 +3,42 @@
 const API_KEY = process.env.THE_ODDS_API_KEY
 const BASE_URL = 'https://api.the-odds-api.com/v4'
 
+async function fetchWithRetry(
+  url: string,
+  init?: RequestInit,
+  retries: number = 3,
+  baseDelayMs: number = 500,
+  timeoutMs: number = 15000
+) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController()
+    const id = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const res = await fetch(url, { ...(init || {}), signal: controller.signal })
+      clearTimeout(id)
+      if (res.ok) return res
+      // Retry on 429/5xx
+      if (res.status === 429 || (res.status >= 500 && res.status < 600)) {
+        const retryAfter = parseInt(res.headers.get('retry-after') || '0')
+        const delay = retryAfter > 0 ? retryAfter * 1000 : baseDelayMs * Math.pow(3, attempt)
+        if (attempt < retries) await new Promise(r => setTimeout(r, delay))
+        else return res
+      } else {
+        return res
+      }
+    } catch (err) {
+      clearTimeout(id)
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, baseDelayMs * Math.pow(3, attempt)))
+        continue
+      }
+      throw err
+    }
+  }
+  // Should not reach
+  return fetch(url, init)
+}
+
 export const SPORT_KEYS = {
   'NFL': 'americanfootball_nfl',
   'NBA': 'basketball_nba',
@@ -80,10 +116,10 @@ export async function fetchOdds(sportKey: string) {
     ? 'h2h,spreads,totals'
     : 'h2h,spreads,totals'
   
-  const response = await fetch(
+  const response = await fetchWithRetry(
     `${BASE_URL}/sports/${sportKey}/odds?` + new URLSearchParams({
       apiKey: API_KEY!,
-      regions: 'us,us2',
+      regions: 'us,us2,eu',
       markets: markets,
       oddsFormat: 'american'
     })
@@ -104,10 +140,10 @@ export async function fetchAlternateOdds(sportKey: string, eventId: string) {
     return { bookmakers: [] }
   }
 
-  const response = await fetch(
+  const response = await fetchWithRetry(
     `${BASE_URL}/sports/${sportKey}/events/${eventId}/odds?` + new URLSearchParams({
       apiKey: API_KEY!,
-      regions: 'us',
+      regions: 'us,us2,eu',
       markets: 'alternate_spreads,alternate_totals',
       oddsFormat: 'american'
     })
@@ -121,7 +157,7 @@ export async function fetchAlternateOdds(sportKey: string, eventId: string) {
 }
 
 export async function fetchPlayerProps(sportKey: string) {
-  const eventsResponse = await fetch(
+  const eventsResponse = await fetchWithRetry(
     `${BASE_URL}/sports/${sportKey}/events?apiKey=${API_KEY}`
   )
   
@@ -148,7 +184,7 @@ export async function fetchPlayerProps(sportKey: string) {
   
   for (const event of eventsToFetch) {
     try {
-      const propsResponse = await fetch(
+      const propsResponse = await fetchWithRetry(
         `${BASE_URL}/sports/${sportKey}/events/${event.id}/odds?` + new URLSearchParams({
           apiKey: API_KEY!,
           regions: 'us,us2,eu',
