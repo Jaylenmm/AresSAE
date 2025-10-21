@@ -8,7 +8,7 @@ async function fetchWithRetry(
   init?: RequestInit,
   retries: number = 3,
   baseDelayMs: number = 500,
-  timeoutMs: number = 30000
+  timeoutMs: number = 15000
 ) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController()
