@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { fetchOdds, fetchAlternateOdds, fetchPlayerProps, SPORT_KEYS } from '@/lib/odds-api'
+import { fetchOdds, fetchAlternateOdds, fetchPlayerProps, fetchPropsForEvent, getPropMarketsForSportKey, SPORT_KEYS } from '@/lib/odds-api'
 import { getTop25NCAAFTeams, isTop25Team } from '@/lib/espn-api'
 
 const BOOKMAKER_NAMES: Record<string, string> = {
@@ -208,69 +208,75 @@ export async function POST(request: Request) {
       await new Promise(resolve => setTimeout(resolve, 100))
     }
 
-    const propsData = await fetchPlayerProps(sportKey)
-    
-    for (const eventData of propsData) {
-      const gameId = gameIdMap.get(eventData.id)
-      if (!gameId) continue
+    // Fetch player props only for the events we saved (after Top-25 filter, etc.)
+    const propMarkets = getPropMarketsForSportKey(sportKey)
+    for (const [eventId, gameId] of gameIdMap.entries()) {
+      try {
+        const resp = await fetchPropsForEvent(sportKey, eventId, propMarkets)
+        if (!resp.ok) continue
+        const json = await resp.json()
 
-      for (const bookmaker of eventData.bookmakers || []) {
-        const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
+        for (const bookmaker of json.bookmakers || []) {
+          const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
 
-        for (const market of bookmaker.markets || []) {
-          const isAlternate = market.key.includes('_alternate')
-          
-          const propType = market.key
-            .replace('player_', '')
-            .replace('batter_', '')
-            .replace('pitcher_', '')
-            .replace('_alternate', '')
-            .replace(/_/g, ' ')
-            .split(' ')
-            .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ')
-
-          const playerOutcomes = new Map<string, { over: any, under: any }>()
-          
-          for (const outcome of market.outcomes || []) {
-            const playerName = outcome.description
-            if (!playerName) continue
+          for (const market of bookmaker.markets || []) {
+            const isAlternate = market.key.includes('_alternate')
             
-            if (!playerOutcomes.has(playerName)) {
-              playerOutcomes.set(playerName, { over: null, under: null })
-            }
+            const propType = market.key
+              .replace('player_', '')
+              .replace('batter_', '')
+              .replace('pitcher_', '')
+              .replace('_alternate', '')
+              .replace(/_/g, ' ')
+              .split(' ')
+              .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(' ')
+
+            const playerOutcomes = new Map<string, { over: any, under: any }>()
             
-            const player = playerOutcomes.get(playerName)!
-            if (outcome.name === 'Over') {
-              player.over = outcome
-            } else if (outcome.name === 'Under') {
-              player.under = outcome
+            for (const outcome of market.outcomes || []) {
+              const playerName = outcome.description
+              if (!playerName) continue
+              
+              if (!playerOutcomes.has(playerName)) {
+                playerOutcomes.set(playerName, { over: null, under: null })
+              }
+              
+              const player = playerOutcomes.get(playerName)!
+              if (outcome.name === 'Over') {
+                player.over = outcome
+              } else if (outcome.name === 'Under') {
+                player.under = outcome
+              }
             }
-          }
 
-          for (const [playerName, outcomes] of playerOutcomes) {
-            const line = outcomes.over?.point || outcomes.under?.point
-            if (!line) continue
+            for (const [playerName, outcomes] of playerOutcomes) {
+              const line = outcomes.over?.point || outcomes.under?.point
+              if (!line) continue
 
-            await supabase
-              .from('player_props')
-              .upsert({
-                game_id: gameId,
-                player_name: playerName,
-                prop_type: propType,
-                line: line,
-                over_odds: outcomes.over?.price || null,
-                under_odds: outcomes.under?.price || null,
-                sportsbook: displayName,
-                is_alternate: isAlternate,
-                updated_at: new Date().toISOString()
-              }, {
-                onConflict: 'game_id,player_name,prop_type,sportsbook,line,is_alternate'
-              })
+              await supabase
+                .from('player_props')
+                .upsert({
+                  game_id: gameId,
+                  player_name: playerName,
+                  prop_type: propType,
+                  line: line,
+                  over_odds: outcomes.over?.price || null,
+                  under_odds: outcomes.under?.price || null,
+                  sportsbook: displayName,
+                  is_alternate: isAlternate,
+                  updated_at: new Date().toISOString()
+                }, {
+                  onConflict: 'game_id,player_name,prop_type,sportsbook,line,is_alternate'
+                })
 
-            propsCreated++
+              propsCreated++
+            }
           }
         }
+        await new Promise(r => setTimeout(r, 100))
+      } catch (_) {
+        continue
       }
     }
 
