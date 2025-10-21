@@ -1,6 +1,6 @@
 export const PIPELINE_CONFIG = {
   regions: 'us,us2,eu',
-  propsConcurrency: 4,
+  propsConcurrency: 3,
   sports: ['NFL', 'NBA', 'MLB', 'NCAAF'] as const
 }
 

@@ -2,6 +2,7 @@ import { fetchOdds, fetchPropsForEvent, getPropMarketsForSportKey, SPORT_KEYS } 
 import { upsertGame, upsertOdds, upsertPlayerProp } from '@/lib/pipeline/repository'
 import { getBookmakerDisplayName } from '@/lib/bookmakers'
 import { runPool } from '@/lib/pipeline/concurrency'
+import { PIPELINE_CONFIG } from '@/lib/pipeline/config'
 
 export async function runMLB() {
   const sport = 'MLB'
@@ -125,7 +126,7 @@ export async function runMLB() {
         }
       }
     }
-  }, 4)
+  }, PIPELINE_CONFIG.propsConcurrency)
 
   return { games: gamesCreated, odds: oddsCreated, props: propsCreated }
 }

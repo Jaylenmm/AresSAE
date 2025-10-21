@@ -6,7 +6,7 @@ const BASE_URL = 'https://api.the-odds-api.com/v4'
 async function fetchWithRetry(
   url: string,
   init?: RequestInit,
-  retries: number = 3,
+  retries: number = 1,
   baseDelayMs: number = 500,
   timeoutMs: number = 15000
 ) {

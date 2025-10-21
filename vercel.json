@@ -1,8 +1,8 @@
 {
   "crons": [
-    {
-      "path": "/api/cron?key=your-random-secret-string-here",
-      "schedule": "0 6 * * *"
-    }
+    { "path": "/api/cron-mlb?key=your-random-secret-string-here",  "schedule": "0 6 * * *" },
+    { "path": "/api/cron-nba?key=your-random-secret-string-here",  "schedule": "5 6 * * *" },
+    { "path": "/api/cron-nfl?key=your-random-secret-string-here",  "schedule": "10 6 * * *" },
+    { "path": "/api/cron-ncaaf?key=your-random-secret-string-here","schedule": "15 6 * * *" }
   ]
 }
