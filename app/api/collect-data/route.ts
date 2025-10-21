@@ -210,10 +210,14 @@ export async function POST(request: Request) {
 
     // Fetch player props only for the events we saved (after Top-25 filter, etc.)
     const propMarkets = getPropMarketsForSportKey(sportKey)
-    for (const [eventId, gameId] of gameIdMap.entries()) {
+    const entries = Array.from(gameIdMap.entries())
+    let idx = 0
+    const concurrency = 4
+
+    async function processOne(eventId: string, gameId: string) {
       try {
         const resp = await fetchPropsForEvent(sportKey, eventId, propMarkets)
-        if (!resp.ok) continue
+        if (!resp.ok) return
         const json = await resp.json()
 
         for (const bookmaker of json.bookmakers || []) {
@@ -221,7 +225,7 @@ export async function POST(request: Request) {
 
           for (const market of bookmaker.markets || []) {
             const isAlternate = market.key.includes('_alternate')
-            
+
             const propType = market.key
               .replace('player_', '')
               .replace('batter_', '')
@@ -233,15 +237,15 @@ export async function POST(request: Request) {
               .join(' ')
 
             const playerOutcomes = new Map<string, { over: any, under: any }>()
-            
+
             for (const outcome of market.outcomes || []) {
               const playerName = outcome.description
               if (!playerName) continue
-              
+
               if (!playerOutcomes.has(playerName)) {
                 playerOutcomes.set(playerName, { over: null, under: null })
               }
-              
+
               const player = playerOutcomes.get(playerName)!
               if (outcome.name === 'Over') {
                 player.over = outcome
@@ -276,9 +280,20 @@ export async function POST(request: Request) {
         }
         await new Promise(r => setTimeout(r, 100))
       } catch (_) {
-        continue
+        return
       }
     }
+
+    async function worker() {
+      while (true) {
+        const i = idx++
+        if (i >= entries.length) break
+        const [eventId, gameId] = entries[i]
+        await processOne(eventId, gameId)
+      }
+    }
+
+    await Promise.all(new Array(concurrency).fill(0).map(() => worker()))
 
     return NextResponse.json({ 
       success: true, 
