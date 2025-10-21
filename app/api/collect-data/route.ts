@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { fetchOdds, fetchAlternateOdds, fetchPlayerProps, fetchPropsForEvent, getPropMarketsForSportKey, SPORT_KEYS } from '@/lib/odds-api'
+import { fetchOdds, fetchAlternateOdds, fetchPropsForEvent, getPropMarketsForSportKey, SPORT_KEYS } from '@/lib/odds-api'
 import { getTop25NCAAFTeams, isTop25Team } from '@/lib/espn-api'
 
 const BOOKMAKER_NAMES: Record<string, string> = {
@@ -35,10 +35,7 @@ const SOCIAL_BOOK_KEYS = [
   'espnbet'
 ]
 
-const SHARP_BOOK_KEYS = [
-  'circa',
-  'pinnacle'
-]
+
 
 export async function POST(request: Request) {
   const { sport, skipAlternates = false, skipProps = false, bookmakerKeys, hoursAhead } = await request.json()
@@ -63,7 +60,7 @@ export async function POST(request: Request) {
 
     // Optional time window filter
     const now = Date.now()
-    const cutoff = hoursAhead ? now + hoursAhead * 3600_000 : null
+    const cutoff = hoursAhead ? now + hoursAhead * 3600000 : null
 
     for (const event of oddsData) {
       if (cutoff) {
@@ -234,8 +231,9 @@ export async function POST(request: Request) {
           }
         }
       }
+      }
 
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
 
     // Fetch player props only for the events we saved (after Top-25 filter, etc.)
@@ -309,7 +307,7 @@ export async function POST(request: Request) {
             }
           }
         }
-        await new Promise(r => setTimeout(r, 100))
+        await new Promise(r => setTimeout(r, 100));
       } catch (_) {
         return
       }
@@ -324,7 +322,7 @@ export async function POST(request: Request) {
       }
     }
 
-    await Promise.all(new Array(concurrency).fill(0).map(() => worker()))
+    await Promise.all(new Array(concurrency).fill(0).map(() => worker()));
     }
 
     return NextResponse.json({ 
@@ -335,12 +333,12 @@ export async function POST(request: Request) {
         odds: oddsCreated,
         props: propsCreated
       }
-    })
+    });
   } catch (error) {
     console.error('Data collection error:', error)
     return NextResponse.json({ 
       error: 'Failed to collect data',
       details: error instanceof Error ? error.message : String(error)
-    }, { status: 500 })
+    }, { status: 500 });
   }
 }
