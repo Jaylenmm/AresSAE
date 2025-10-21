@@ -239,7 +239,7 @@ export function analyzeBet(
   if (sharpConsensus && sharpConsensus.lineDistance === 1) baseConfidence -= 3;
   if (sharpConsensus && sharpConsensus.lineDistance === 2) baseConfidence -= 5;
   
-  const confidence = calculateConfidence(edge, oddsRange, sharpOdds.length, relevantOdds.length, baseConfidence);
+  const confidence = calculateConfidence(trueProbability, edge, oddsRange, sharpOdds.length, relevantOdds.length, baseConfidence);
   
   let marketEfficiency: 'efficient' | 'inefficient' | 'highly_inefficient';
   if (oddsRange <= 15) marketEfficiency = 'efficient';
@@ -296,27 +296,35 @@ export function analyzeBet(
 }
 
 function calculateConfidence(
+  trueProbability: number | null,
   edge: number,
   oddsRange: number,
   sharpBookCount: number,
   totalBookCount: number,
   baseConfidence: number
 ): number {
-  let confidence = baseConfidence;
-  
-  if (edge >= 5) confidence += 20;
-  else if (edge >= 3) confidence += 15;
-  else if (edge >= 2) confidence += 10;
-  else if (edge >= 1) confidence += 5;
-  else if (edge < 0) confidence -= 15;
-  
-  if (sharpBookCount >= 2) confidence += 10;
-  else if (sharpBookCount === 1) confidence += 5;
-  else confidence -= 15;
-  
-  if (totalBookCount >= 5) confidence += 5;
-  else if (totalBookCount < 3) confidence -= 5;
-  
+  let confidence: number;
+
+  if (trueProbability !== null) {
+    confidence = trueProbability * 100;
+    const edgeAdj = edge >= 0
+      ? Math.min(4, edge * 0.3)
+      : Math.max(-6, edge * 0.5);
+    confidence += edgeAdj;
+  } else {
+    confidence = baseConfidence;
+    confidence += Math.max(-6, Math.min(4, edge * 0.3));
+  }
+
+  if (sharpBookCount >= 2) confidence += 2;
+  else if (sharpBookCount === 1) confidence += 1;
+  else confidence -= 2;
+
+  if (totalBookCount >= 5) confidence += 1;
+  else if (totalBookCount < 3) confidence -= 1;
+
+  if (oddsRange > 30) confidence -= 2;
+
   return Math.max(10, Math.min(100, Math.round(confidence)));
 }
 

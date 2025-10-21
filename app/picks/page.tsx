@@ -545,11 +545,11 @@ export default function PicksPage() {
 
                         <div className="grid grid-cols-3 gap-2 mb-3">
                           <div className="bg-white rounded p-2 text-center border border-gray-200">
-                            <p className="text-xs text-gray-500">EV</p>
-                            <p className={`font-bold ${(analysis.expectedValue ?? 0) > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            <p className="text-xs text-gray-500">EV ($/1)</p>
+                            <p className={`font-bold ${((analysis.expectedValue ?? 0) / 100) > 0 ? 'text-green-600' : 'text-red-600'}`}>
                               {analysis.expectedValue !== undefined && analysis.expectedValue !== null 
-                                ? `${analysis.expectedValue > 0 ? '+' : ''}${analysis.expectedValue.toFixed(1)}%` 
-                                : '0.0%'}
+                                ? `${(((analysis.expectedValue) / 100) > 0 ? '+' : '')}$${((analysis.expectedValue) / 100).toFixed(2)}` 
+                                : '$0.00'}
                             </p>
                           </div>
                           <div className="bg-white rounded p-2 text-center border border-gray-200">
@@ -583,7 +583,7 @@ export default function PicksPage() {
                             ) && (
                               <button
                                 onClick={() => analyzeAtBestOdds(pick)}
-                                className="text-blue-600 hover:text-blue-800 font-semibold"
+                                className="text-blue-600 font-semibold"
                               >
                                 Analyze at best odds?
                               </button>
@@ -632,11 +632,11 @@ export default function PicksPage() {
 
                                 <div className="grid grid-cols-3 gap-2 mb-2">
                                   <div className="text-center">
-                                    <p className="text-xs text-gray-500">EV</p>
-                                    <p className={`text-sm font-bold ${(oldAnalysis.expectedValue ?? 0) > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    <p className="text-xs text-gray-500">EV ($/1)</p>
+                                    <p className={`text-sm font-bold ${((oldAnalysis.expectedValue ?? 0) / 100) > 0 ? 'text-green-600' : 'text-red-600'}`}>
                                       {oldAnalysis.expectedValue !== undefined && oldAnalysis.expectedValue !== null 
-                                        ? `${oldAnalysis.expectedValue > 0 ? '+' : ''}${oldAnalysis.expectedValue.toFixed(1)}%` 
-                                        : '0.0%'}
+                                        ? `${(((oldAnalysis.expectedValue) / 100) > 0 ? '+' : '')}$${((oldAnalysis.expectedValue) / 100).toFixed(2)}` 
+                                        : '$0.00'}
                                     </p>
                                   </div>
                                   <div className="text-center">
