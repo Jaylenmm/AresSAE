@@ -52,58 +52,46 @@ export async function GET(request: Request) {
   }
 
   try {
-    const jobStart = Date.now()
-    // Collect data for each sport in parallel with per-sport timeout
     const origin = url.origin
     const sports = ['NFL', 'NBA', 'MLB', 'NCAAF'] as const
-    const perSportTimeoutMs = 150000 // 150s per sport
-
-    const sportPromises = sports.map((sport) => {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), perSportTimeoutMs)
+    for (const sport of sports) {
       const startedAt = Date.now()
-      return fetch(`${origin}/api/collect-data`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sport }),
-        signal: controller.signal
-      })
-        .then(async (resp) => {
-          clearTimeout(timer)
-          const elapsedMs = Date.now() - startedAt
-          const data = await resp.json().catch(() => ({}))
-          results[sport] = data?.details || data || {}
-          ;(results as any)[`${sport}_elapsed_ms`] = elapsedMs
-        })
-        .catch((err) => {
-          clearTimeout(timer)
-          const elapsedMs = Date.now() - startedAt
-          const errorMsg = err instanceof Error ? err.message : String(err)
-          results.errors.push(`${sport}: ${errorMsg}`)
-          results[sport] = { error: errorMsg }
-          ;(results as any)[`${sport}_elapsed_ms`] = elapsedMs
-        })
-    })
-
-    await Promise.allSettled(sportPromises)
-
-    // Generate featured picks if within overall time budget (soft cap 540s)
-    const elapsedSec = Math.round((Date.now() - jobStart) / 1000)
-    if (elapsedSec < 540) {
       try {
-        const { generateFeaturedPicks } = await import('@/lib/generateFeaturedPicks')
-        const pickResults = await generateFeaturedPicks()
-        results.featuredPicks = {
-          success: pickResults.success,
-          generated: pickResults.picksGenerated,
-          error: pickResults.error
-        }
+        const response = await fetch(`${origin}/api/collect-data`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sport })
+        })
+        const data = await response.json()
+        const elapsedMs = Date.now() - startedAt
+        results[sport] = data.details || data
+        ;(results as any)[`${sport}_elapsed_ms`] = elapsedMs
       } catch (error) {
+        const elapsedMs = Date.now() - startedAt
         const errorMsg = error instanceof Error ? error.message : String(error)
-        results.errors.push(`Featured picks: ${errorMsg}`)
+        results.errors.push(`${sport}: ${errorMsg}`)
+        results[sport] = { error: errorMsg }
+        ;(results as any)[`${sport}_elapsed_ms`] = elapsedMs
       }
-    } else {
-      results.errors.push('Featured picks skipped due to time budget')
+      // Persist incremental progress after each sport
+      await supabase
+        .from('cron_runs')
+        .update({ results })
+        .eq('id', runRecord?.id)
+    }
+
+    // Generate featured picks (no skip)
+    try {
+      const { generateFeaturedPicks } = await import('@/lib/generateFeaturedPicks')
+      const pickResults = await generateFeaturedPicks()
+      results.featuredPicks = {
+        success: pickResults.success,
+        generated: pickResults.picksGenerated,
+        error: pickResults.error
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      results.errors.push(`Featured picks: ${errorMsg}`)
     }
 
     await supabase
