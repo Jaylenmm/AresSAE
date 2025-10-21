@@ -24,8 +24,24 @@ const BOOKMAKER_NAMES: Record<string, string> = {
   'circa': 'Circa'
 }
 
+// Default bookmaker sets
+const SOCIAL_BOOK_KEYS = [
+  'draftkings',
+  'fanduel',
+  'caesars',
+  'betmgm',
+  'bet365',
+  'fanatics',
+  'espnbet'
+]
+
+const SHARP_BOOK_KEYS = [
+  'circa',
+  'pinnacle'
+]
+
 export async function POST(request: Request) {
-  const { sport } = await request.json()
+  const { sport, skipAlternates = false, skipProps = false, bookmakerKeys, hoursAhead } = await request.json()
   
   if (!sport || !SPORT_KEYS[sport as keyof typeof SPORT_KEYS]) {
     return NextResponse.json({ error: 'Invalid sport' }, { status: 400 })
@@ -45,7 +61,15 @@ export async function POST(request: Request) {
     const oddsData = await fetchOdds(sportKey)
     const gameIdMap = new Map<string, string>()
 
+    // Optional time window filter
+    const now = Date.now()
+    const cutoff = hoursAhead ? now + hoursAhead * 3600_000 : null
+
     for (const event of oddsData) {
+      if (cutoff) {
+        const t = new Date(event.commence_time).getTime()
+        if (isFinite(t) && t > cutoff) continue
+      }
       if (sport === 'NCAAF') {
         const homeIsTop25 = isTop25Team(event.home_team, top25Teams)
         const awayIsTop25 = isTop25Team(event.away_team, top25Teams)
@@ -74,7 +98,12 @@ export async function POST(request: Request) {
       gamesCreated++
 
       // Store standard odds
-      for (const bookmaker of event.bookmakers || []) {
+      const allBooks = event.bookmakers || []
+      const activeKeys = Array.isArray(bookmakerKeys) && bookmakerKeys.length > 0
+        ? bookmakerKeys
+        : SOCIAL_BOOK_KEYS
+      const filteredBooks = allBooks.filter((b: any) => activeKeys.includes(b.key))
+      for (const bookmaker of filteredBooks) {
         const spreads = bookmaker.markets?.find((m: any) => m.key === 'spreads')
         const totals = bookmaker.markets?.find((m: any) => m.key === 'totals')
         const h2h = bookmaker.markets?.find((m: any) => m.key === 'h2h')
@@ -126,6 +155,7 @@ export async function POST(request: Request) {
       }
 
       // Fetch alternate markets for this specific event
+      if (!skipAlternates) {
       const alternateData = await fetchAlternateOdds(sportKey, event.id)
 
       for (const bookmaker of alternateData.bookmakers || []) {
@@ -209,10 +239,11 @@ export async function POST(request: Request) {
     }
 
     // Fetch player props only for the events we saved (after Top-25 filter, etc.)
+    if (!skipProps) {
     const propMarkets = getPropMarketsForSportKey(sportKey)
     const entries = Array.from(gameIdMap.entries())
     let idx = 0
-    const concurrency = 4
+    const concurrency = 3
 
     async function processOne(eventId: string, gameId: string) {
       try {
@@ -294,6 +325,7 @@ export async function POST(request: Request) {
     }
 
     await Promise.all(new Array(concurrency).fill(0).map(() => worker()))
+    }
 
     return NextResponse.json({ 
       success: true, 

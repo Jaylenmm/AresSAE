@@ -14,7 +14,13 @@ export async function GET(request: Request) {
   const resp = await fetch(`${origin}/api/collect-data`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sport: 'NFL' })
+    body: JSON.stringify({
+      sport: 'NFL',
+      skipAlternates: true,
+      skipProps: true,
+      hoursAhead: 12,
+      bookmakerKeys: ['draftkings', 'fanduel', 'betmgm', 'caesars', 'espnbet']
+    })
   })
   const data = await resp.json().catch(() => ({}))
   return NextResponse.json({ success: true, sport: 'NFL', details: data?.details || data || {} })
