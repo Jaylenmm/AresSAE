@@ -8,7 +8,7 @@ async function fetchWithRetry(
   init?: RequestInit,
   retries: number = 3,
   baseDelayMs: number = 500,
-  timeoutMs: number = 15000
+  timeoutMs: number = 30000
 ) {
   for (let attempt = 0; attempt <= retries; attempt++) {
     const controller = new AbortController()
@@ -35,8 +35,8 @@ async function fetchWithRetry(
       throw err
     }
   }
-  // Should not reach
-  return fetch(url, init)
+  // Fallback (shouldn't normally reach)
+  return await fetch(url, init)
 }
 
 export const SPORT_KEYS = {
@@ -108,6 +108,32 @@ const PLAYER_PROP_MARKETS = {
     'pitcher_hits_allowed_alternate',
     'pitcher_earned_runs_alternate'
   ]
+}
+
+export function getPropMarketsForSportKey(sportKey: string): string[] {
+  if (sportKey === 'americanfootball_nfl' || sportKey === 'americanfootball_ncaaf') {
+    return PLAYER_PROP_MARKETS.football
+  } else if (sportKey === 'basketball_nba') {
+    return PLAYER_PROP_MARKETS.basketball
+  } else if (sportKey === 'baseball_mlb') {
+    return PLAYER_PROP_MARKETS.baseball
+  }
+  return []
+}
+
+export async function fetchPropsForEvent(
+  sportKey: string,
+  eventId: string,
+  markets: string[]
+) {
+  return fetchWithRetry(
+    `${BASE_URL}/sports/${sportKey}/events/${eventId}/odds?` + new URLSearchParams({
+      apiKey: API_KEY!,
+      regions: 'us,us2,eu',
+      markets: markets.join(','),
+      oddsFormat: 'american'
+    })
+  )
 }
 
 // Fetch standard odds (h2h, spreads, totals) - NO alternates

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-export const maxDuration = 300
+export const maxDuration = 600
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
