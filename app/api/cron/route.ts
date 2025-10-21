@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { runOrchestrator } from '@/lib/pipeline/orchestrator'
 
 export const maxDuration = 600
 
@@ -53,32 +54,13 @@ export async function GET(request: Request) {
 
   try {
     const origin = url.origin
-    const sports = ['NFL', 'NBA', 'MLB', 'NCAAF'] as const
-    for (const sport of sports) {
-      const startedAt = Date.now()
-      try {
-        const response = await fetch(`${origin}/api/collect-data`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sport })
-        })
-        const data = await response.json()
-        const elapsedMs = Date.now() - startedAt
-        results[sport] = data.details || data
-        ;(results as any)[`${sport}_elapsed_ms`] = elapsedMs
-      } catch (error) {
-        const elapsedMs = Date.now() - startedAt
-        const errorMsg = error instanceof Error ? error.message : String(error)
-        results.errors.push(`${sport}: ${errorMsg}`)
-        results[sport] = { error: errorMsg }
-        ;(results as any)[`${sport}_elapsed_ms`] = elapsedMs
-      }
-      // Persist incremental progress after each sport
-      await supabase
-        .from('cron_runs')
-        .update({ results })
-        .eq('id', runRecord?.id)
-    }
+    const orchestrationResults = await runOrchestrator(origin)
+    Object.assign(results, orchestrationResults)
+    // Persist results after orchestration
+    await supabase
+      .from('cron_runs')
+      .update({ results })
+      .eq('id', runRecord?.id)
 
     // Generate featured picks (no skip)
     try {
