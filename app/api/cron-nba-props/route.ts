@@ -11,20 +11,17 @@ export async function GET(request: Request) {
   }
 
   const origin = url.origin
-  const start = Number(url.searchParams.get('start') || 0)
-  const window = Number(url.searchParams.get('window') || 12)
   const resp = await fetch(`${origin}/api/collect-data`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      sport: 'NFL',
+      sport: 'NBA',
       skipAlternates: true,
-      skipProps: true,
-      startHoursAhead: isFinite(start) && start >= 0 ? start : 0,
-      windowHours: isFinite(window) && window > 0 ? window : 12,
+      skipProps: false,
+      hoursAhead: 12,
       bookmakerKeys: ['draftkings', 'fanduel', 'betmgm', 'caesars', 'espnbet']
     })
   })
   const data = await resp.json().catch(() => ({}))
-  return NextResponse.json({ success: true, sport: 'NFL', details: data?.details || data || {} })
+  return NextResponse.json({ success: true, sport: 'NBA', phase: 'props', details: data?.details || data || {} })
 }

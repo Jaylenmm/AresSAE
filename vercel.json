@@ -1,8 +1,34 @@
 {
   "crons": [
-    { "path": "/api/cron-mlb?key=your-random-secret-string-here",  "schedule": "0 6 * * *" },
-    { "path": "/api/cron-nba?key=your-random-secret-string-here",  "schedule": "5 6 * * *" },
-    { "path": "/api/cron-nfl?key=your-random-secret-string-here",  "schedule": "10 6 * * *" },
-    { "path": "/api/cron-ncaaf?key=your-random-secret-string-here","schedule": "15 6 * * *" }
+
+    { "path": "/api/cron-mlb?key=your-random-secret-string-here&start=0&window=48",    "schedule": "0 6 * * *"  },
+    { "path": "/api/cron-mlb?key=your-random-secret-string-here&start=48&window=48",   "schedule": "5 6 * * *"  },
+    { "path": "/api/cron-mlb?key=your-random-secret-string-here&start=96&window=48",   "schedule": "10 6 * * *" },
+
+    { "path": "/api/cron-nba?key=your-random-secret-string-here&start=0&window=48",    "schedule": "15 6 * * *" },
+    { "path": "/api/cron-nba?key=your-random-secret-string-here&start=48&window=48",   "schedule": "20 6 * * *" },
+    { "path": "/api/cron-nba?key=your-random-secret-string-here&start=96&window=48",   "schedule": "25 6 * * *" },
+
+    { "path": "/api/cron-nfl?key=your-random-secret-string-here&start=0&window=48",    "schedule": "30 6 * * *" },
+    { "path": "/api/cron-nfl?key=your-random-secret-string-here&start=48&window=48",   "schedule": "35 6 * * *" },
+    { "path": "/api/cron-nfl?key=your-random-secret-string-here&start=96&window=48",   "schedule": "40 6 * * *" },
+    
+    { "path": "/api/cron-ncaaf?key=your-random-secret-string-here&start=0&window=48",  "schedule": "45 6 * * *" },
+    { "path": "/api/cron-ncaaf?key=your-random-secret-string-here&start=48&window=48", "schedule": "50 6 * * *" },
+    { "path": "/api/cron-ncaaf?key=your-random-secret-string-here&start=96&window=48", "schedule": "55 6 * * *" },
+
+    { "path": "/api/cron-mlb-alts?key=your-random-secret-string-here&start=0&window=48",  "schedule": "0 7 * * *"  },
+    { "path": "/api/cron-mlb-alts?key=your-random-secret-string-here&start=48&window=48", "schedule": "5 7 * * *"  },
+    { "path": "/api/cron-nba-alts?key=your-random-secret-string-here&start=0&window=48",  "schedule": "10 7 * * *" },
+    { "path": "/api/cron-nba-alts?key=your-random-secret-string-here&start=48&window=48", "schedule": "15 7 * * *" },
+    { "path": "/api/cron-nfl-alts?key=your-random-secret-string-here&start=0&window=48",  "schedule": "20 7 * * *" },
+    { "path": "/api/cron-nfl-alts?key=your-random-secret-string-here&start=48&window=48", "schedule": "25 7 * * *" },
+    { "path": "/api/cron-ncaaf-alts?key=your-random-secret-string-here&start=0&window=48","schedule": "30 7 * * *" },
+    { "path": "/api/cron-ncaaf-alts?key=your-random-secret-string-here&start=48&window=48","schedule": "35 7 * * *" },
+
+    { "path": "/api/cron-mlb-props?key=your-random-secret-string-here&start=0&window=48", "schedule": "0 8 * * *"  },
+    { "path": "/api/cron-nba-props?key=your-random-secret-string-here&start=0&window=48", "schedule": "5 8 * * *"  },
+    { "path": "/api/cron-nfl-props?key=your-random-secret-string-here&start=0&window=48", "schedule": "10 8 * * *" },
+    { "path": "/api/cron-ncaaf-props?key=your-random-secret-string-here&start=0&window=48","schedule": "15 8 * * *" }
   ]
 }

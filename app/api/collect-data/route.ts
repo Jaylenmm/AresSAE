@@ -38,7 +38,7 @@ const SOCIAL_BOOK_KEYS = [
 
 
 export async function POST(request: Request) {
-  const { sport, skipAlternates = false, skipProps = false, bookmakerKeys, hoursAhead } = await request.json()
+  const { sport, skipAlternates = false, skipProps = false, bookmakerKeys, hoursAhead, startHoursAhead = 0, windowHours } = await request.json()
   
   if (!sport || !SPORT_KEYS[sport as keyof typeof SPORT_KEYS]) {
     return NextResponse.json({ error: 'Invalid sport' }, { status: 400 })
@@ -60,12 +60,16 @@ export async function POST(request: Request) {
 
     // Optional time window filter
     const now = Date.now()
-    const cutoff = hoursAhead ? now + hoursAhead * 3600000 : null
+    const lower = Math.max(0, Number(startHoursAhead || 0)) * 3600000 + now
+    const upper = typeof windowHours === 'number' && windowHours > 0
+      ? lower + windowHours * 3600000
+      : (hoursAhead ? now + hoursAhead * 3600000 : null)
 
     for (const event of oddsData) {
-      if (cutoff) {
-        const t = new Date(event.commence_time).getTime()
-        if (isFinite(t) && t > cutoff) continue
+      const t = new Date(event.commence_time).getTime()
+      if (isFinite(t)) {
+        if (t < lower) continue
+        if (upper && t >= upper) continue
       }
       if (sport === 'NCAAF') {
         const homeIsTop25 = isTop25Team(event.home_team, top25Teams)
