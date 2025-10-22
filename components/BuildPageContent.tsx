@@ -123,24 +123,14 @@ export default function BuildPageContent() {
     }
   }
 
-  function extractSportsbooks(odds: OddsData[]) {
+  function extractSportsbooksFromProps(props: PlayerProp[]) {
     const books = new Set<string>(['best_odds'])
-    
-    odds.forEach(odd => {
-      if (odd.sportsbook) {
-        books.add(odd.sportsbook.toLowerCase())
-      }
+    props.forEach(p => {
+      if (p.sportsbook) books.add((p.sportsbook as string).toLowerCase())
     })
-    
-    setAvailableSportsbooks(Array.from(books))
-    
-    const booksList = Array.from(books)
-    if (booksList.includes('fanduel')) {
-      setSelectedSportsbook('fanduel')
-    } else if (books.size > 1) {
-      const firstBook = booksList.find(b => b !== 'best_odds')
-      if (firstBook) setSelectedSportsbook(firstBook)
-    }
+    const list = Array.from(books)
+    setAvailableSportsbooks(list)
+    setSelectedSportsbook(prev => (list.includes(prev) ? prev : 'best_odds'))
   }
 
   function getOddsForSportsbook(allOdds: OddsData[]) {
@@ -259,20 +249,14 @@ export default function BuildPageContent() {
   async function selectGame(game: Game) {
     setSelectedGame(game)
 
-    const { data: odds } = await supabase
-      .from('odds_data')
-      .select('*')
-      .eq('game_id', game.id)
-
-    setGameOdds(odds || [])
-    extractSportsbooks(odds || [])
-
     const { data: props } = await supabase
       .from('player_props')
       .select('*')
       .eq('game_id', game.id)
 
+    setGameOdds([]) // temporarily disable v1 odds usage while moving to v2
     setPlayerProps(props || [])
+    extractSportsbooksFromProps(props || [])
     setSearchQuery('')
     setSearchResults({ games: [], playerProps: [] })
   }
@@ -517,15 +501,17 @@ export default function BuildPageContent() {
             </div>
           </div>
 
-          <div className="text-black p-4"> 
-            <h3 className="!text-white font-semibold text-lg mb-3">Game Lines</h3>
-            <BettingOptions
-              odds={displayOdds}
-              homeTeam={selectedGame.home_team}
-              awayTeam={selectedGame.away_team}
-              onSelectBet={handleSelectBet}
-            />
-          </div>
+          {gameOdds.length > 0 && (
+            <div className="text-black p-4"> 
+              <h3 className="!text-white font-semibold text-lg mb-3">Game Lines</h3>
+              <BettingOptions
+                odds={displayOdds}
+                homeTeam={selectedGame.home_team}
+                awayTeam={selectedGame.away_team}
+                onSelectBet={handleSelectBet}
+              />
+            </div>
+          )}
 
           {filteredPlayerProps.length > 0 && (
             <div className="p-4">

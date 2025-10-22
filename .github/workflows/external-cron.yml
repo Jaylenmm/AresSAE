@@ -2,7 +2,7 @@ name: External Cron Scheduler
 
 on:
   schedule:
-    - cron: "0 6 * * *"   # Runs daily at 06:00 UTC
+    - cron: "0 23 * * *"  # Runs daily at 23:00 UTC (~6pm US Central during Daylight Time)
   workflow_dispatch: {}
 
 jobs:
@@ -85,31 +85,5 @@ jobs:
             curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 900 "$BASE_URL/api/cron-ncaaf-props?key=$CRON_SECRET&books=$b"
             sleep 10
           done
-
-      # ========================
-      # Alternates near-term (0–48) — run AFTER props
-      # ========================
-      - name: Sleep 60s before alternates
-        run: sleep 60
-      - name: MLB alternates 0–48h
-        run: |
-          set -e
-          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 900 "$BASE_URL/api/cron-mlb-alts?key=$CRON_SECRET&start=0&window=48"
-      - name: Sleep 20s
-        run: sleep 20
-      - name: NBA alternates 0–48h
-        run: |
-          set -e
-          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 900 "$BASE_URL/api/cron-nba-alts?key=$CRON_SECRET&start=0&window=48"
-      - name: Sleep 20s
-        run: sleep 20
-      - name: NFL alternates 0–48h
-        run: |
-          set -e
-          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 900 "$BASE_URL/api/cron-nfl-alts?key=$CRON_SECRET&start=0&window=48"
-      - name: Sleep 20s
-        run: sleep 20
-      - name: NCAAF alternates 0–48h
-        run: |
-          set -e
-          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 900 "$BASE_URL/api/cron-ncaaf-alts?key=$CRON_SECRET&start=0&window=48"
+      
+      # Alternates disabled for now to focus on standard odds and player props

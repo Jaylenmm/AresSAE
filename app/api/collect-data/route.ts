@@ -112,22 +112,39 @@ export async function POST(request: Request) {
         const h2h = bookmaker.markets?.find((m: any) => m.key === 'h2h')
 
         const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
+        const bookKey = bookmaker.key
 
-        const oddsEntry: any = {
-          game_id: game.id,
-          sportsbook: displayName,
-          updated_at: new Date().toISOString(),
-          is_alternate: false
-        }
+        const nowIso = new Date().toISOString()
 
         if (spreads?.outcomes) {
           const homeSpread = spreads.outcomes.find((o: any) => o.name === event.home_team)
           const awaySpread = spreads.outcomes.find((o: any) => o.name === event.away_team)
           if (homeSpread && awaySpread) {
-            oddsEntry.spread_home = homeSpread.point
-            oddsEntry.spread_away = awaySpread.point
-            oddsEntry.spread_home_odds = homeSpread.price
-            oddsEntry.spread_away_odds = awaySpread.price
+            const del = await supabase
+              .from('odds_data_v2')
+              .delete()
+              .eq('game_id', game.id)
+              .eq('book_key', bookKey)
+              .eq('market', 'spread')
+            if (del.error) {
+              console.error('Supabase delete v2 spread error:', del.error)
+            }
+            const ins = await supabase
+              .from('odds_data_v2')
+              .insert({
+                game_id: game.id,
+                book_key: bookKey,
+                book_name: displayName,
+                market: 'spread',
+                spread_home: homeSpread.point,
+                spread_away: awaySpread.point,
+                spread_home_odds: homeSpread.price,
+                spread_away_odds: awaySpread.price,
+                updated_at: nowIso
+              })
+            if (ins.error) {
+              console.error('Supabase insert v2 spread error:', ins.error)
+            }
           }
         }
 
@@ -135,9 +152,30 @@ export async function POST(request: Request) {
           const over = totals.outcomes.find((o: any) => o.name === 'Over')
           const under = totals.outcomes.find((o: any) => o.name === 'Under')
           if (over && under) {
-            oddsEntry.total = over.point
-            oddsEntry.over_odds = over.price
-            oddsEntry.under_odds = under.price
+            const del = await supabase
+              .from('odds_data_v2')
+              .delete()
+              .eq('game_id', game.id)
+              .eq('book_key', bookKey)
+              .eq('market', 'total')
+            if (del.error) {
+              console.error('Supabase delete v2 total error:', del.error)
+            }
+            const ins = await supabase
+              .from('odds_data_v2')
+              .insert({
+                game_id: game.id,
+                book_key: bookKey,
+                book_name: displayName,
+                market: 'total',
+                line: over.point,
+                over_odds: over.price,
+                under_odds: under.price,
+                updated_at: nowIso
+              })
+            if (ins.error) {
+              console.error('Supabase insert v2 total error:', ins.error)
+            }
           }
         }
 
@@ -145,56 +183,31 @@ export async function POST(request: Request) {
           const homeML = h2h.outcomes.find((o: any) => o.name === event.home_team)
           const awayML = h2h.outcomes.find((o: any) => o.name === event.away_team)
           if (homeML && awayML) {
-            oddsEntry.moneyline_home = homeML.price
-            oddsEntry.moneyline_away = awayML.price
+            const del = await supabase
+              .from('odds_data_v2')
+              .delete()
+              .eq('game_id', game.id)
+              .eq('book_key', bookKey)
+              .eq('market', 'moneyline')
+            if (del.error) {
+              console.error('Supabase delete v2 moneyline error:', del.error)
+            }
+            const ins = await supabase
+              .from('odds_data_v2')
+              .insert({
+                game_id: game.id,
+                book_key: bookKey,
+                book_name: displayName,
+                market: 'moneyline',
+                moneyline_home: homeML.price,
+                moneyline_away: awayML.price,
+                updated_at: nowIso
+              })
+            if (ins.error) {
+              console.error('Supabase insert v2 moneyline error:', ins.error)
+            }
           }
         }
-
-        const hasAny = (
-          oddsEntry.spread_home !== undefined ||
-          oddsEntry.spread_away !== undefined ||
-          oddsEntry.spread_home_odds !== undefined ||
-          oddsEntry.spread_away_odds !== undefined ||
-          oddsEntry.total !== undefined ||
-          oddsEntry.over_odds !== undefined ||
-          oddsEntry.under_odds !== undefined ||
-          oddsEntry.moneyline_home !== undefined ||
-          oddsEntry.moneyline_away !== undefined
-        )
-        if (!hasAny) {
-          continue
-        }
-
-        // Ensure idempotency without ON CONFLICT by delete-then-insert for baseline rows
-        const { error: delErr } = await supabase
-          .from('odds_data')
-          .delete()
-          .eq('game_id', game.id)
-          .eq('sportsbook', displayName)
-          .eq('is_alternate', false)
-        if (delErr) {
-          console.error('Supabase delete baseline odds_data error:', {
-            message: delErr.message,
-            details: (delErr as any).details,
-            hint: (delErr as any).hint,
-            code: (delErr as any).code,
-          })
-          // proceed to try insert anyway
-        }
-
-        const { error: insErr } = await supabase
-          .from('odds_data')
-          .insert(oddsEntry)
-        if (insErr) {
-          console.error('Supabase insert baseline odds_data error:', {
-            message: insErr.message,
-            details: (insErr as any).details,
-            hint: (insErr as any).hint,
-            code: (insErr as any).code,
-          })
-          continue
-        }
-
         oddsCreated++
       }
 
@@ -206,6 +219,7 @@ export async function POST(request: Request) {
         const altSpreads = bookmaker.markets?.find((m: any) => m.key === 'alternate_spreads')
         const altTotals = bookmaker.markets?.find((m: any) => m.key === 'alternate_totals')
         const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
+        const bookKey = bookmaker.key
 
         if (altSpreads?.outcomes) {
           const altSpreadsByLine = new Map<number, { home: any, away: any }>()
@@ -225,28 +239,32 @@ export async function POST(request: Request) {
 
           for (const [line, { home, away }] of altSpreadsByLine) {
             if (home && away) {
-              const { error: altErr } = await supabase
-                .from('odds_data')
+              const del = await supabase
+                .from('odds_data_v2')
+                .delete()
+                .eq('game_id', game.id)
+                .eq('book_key', bookKey)
+                .eq('market', 'alt_spread')
+                .eq('line', Math.abs(home.point))
+              if (del.error) {
+                console.error('Supabase delete v2 alt_spread error:', del.error)
+              }
+              const ins = await supabase
+                .from('odds_data_v2')
                 .insert({
                   game_id: game.id,
-                  sportsbook: displayName,
+                  book_key: bookKey,
+                  book_name: displayName,
+                  market: 'alt_spread',
+                  line: Math.abs(home.point),
                   spread_home: home.point,
                   spread_away: away.point,
                   spread_home_odds: home.price,
                   spread_away_odds: away.price,
-                  is_alternate: true,
                   updated_at: new Date().toISOString()
                 })
-              if (altErr) {
-                // Ignore duplicate violations from unique indexes; log others
-                if ((altErr as any).code !== '23505') {
-                  console.error('Supabase insert alt spread error:', {
-                    message: altErr.message,
-                    details: (altErr as any).details,
-                    hint: (altErr as any).hint,
-                    code: (altErr as any).code,
-                  })
-                }
+              if (ins.error) {
+                console.error('Supabase insert v2 alt_spread error:', ins.error)
               }
               
               oddsCreated++
@@ -272,26 +290,30 @@ export async function POST(request: Request) {
 
           for (const [line, { over, under }] of altTotalsByLine) {
             if (over && under) {
-              const { error: altTotErr } = await supabase
-                .from('odds_data')
+              const del = await supabase
+                .from('odds_data_v2')
+                .delete()
+                .eq('game_id', game.id)
+                .eq('book_key', bookKey)
+                .eq('market', 'alt_total')
+                .eq('line', over.point)
+              if (del.error) {
+                console.error('Supabase delete v2 alt_total error:', del.error)
+              }
+              const ins = await supabase
+                .from('odds_data_v2')
                 .insert({
                   game_id: game.id,
-                  sportsbook: displayName,
-                  total: over.point,
+                  book_key: bookKey,
+                  book_name: displayName,
+                  market: 'alt_total',
+                  line: over.point,
                   over_odds: over.price,
                   under_odds: under.price,
-                  is_alternate: true,
                   updated_at: new Date().toISOString()
                 })
-              if (altTotErr) {
-                if ((altTotErr as any).code !== '23505') {
-                  console.error('Supabase insert alt total error:', {
-                    message: altTotErr.message,
-                    details: (altTotErr as any).details,
-                    hint: (altTotErr as any).hint,
-                    code: (altTotErr as any).code,
-                  })
-                }
+              if (ins.error) {
+                console.error('Supabase insert v2 alt_total error:', ins.error)
               }
               
               oddsCreated++
