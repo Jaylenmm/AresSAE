@@ -17,50 +17,34 @@ jobs:
           [ -n "$BASE_URL" ] || { echo "Missing PROD_BASE_URL secret"; exit 1; }
           [ -n "$CRON_SECRET" ] || { echo "Missing PROD_CRON_SECRET secret"; exit 1; }
 
-      - name: Helper script
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl_call() {
-            local url="$1"
-            echo "Calling: $url"
-            # Retry up to 3 times with backoff
-            for i in 1 2 3; do
-              if curl -fsS --max-time 300 "$url"; then
-                echo "OK"; return 0
-              fi
-              echo "Retry $i failed; sleeping...";
-              sleep $((i*10))
-            done
-            echo "FAILED: $url"; return 1
-          }
-          export -f curl_call
-
       # ========================
       # Baseline (0–48, 48–96, 96–144) MLB/NBA
       # ========================
       - name: MLB baseline slices
         run: |
-          bash -lc 'curl_call "$BASE_URL/api/cron-mlb?key=$CRON_SECRET&start=0&window=48"'
-          bash -lc 'curl_call "$BASE_URL/api/cron-mlb?key=$CRON_SECRET&start=48&window=48"'
-          bash -lc 'curl_call "$BASE_URL/api/cron-mlb?key=$CRON_SECRET&start=96&window=48"'
+          set -e
+          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 300 "$BASE_URL/api/cron-mlb?key=$CRON_SECRET&start=0&window=48"
+          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 300 "$BASE_URL/api/cron-mlb?key=$CRON_SECRET&start=48&window=48"
+          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 300 "$BASE_URL/api/cron-mlb?key=$CRON_SECRET&start=96&window=48"
 
       - name: Sleep 60s between groups
         run: sleep 60
 
       - name: NBA baseline slices
         run: |
-          bash -lc 'curl_call "$BASE_URL/api/cron-nba?key=$CRON_SECRET&start=0&window=48"'
-          bash -lc 'curl_call "$BASE_URL/api/cron-nba?key=$CRON_SECRET&start=48&window=48"'
-          bash -lc 'curl_call "$BASE_URL/api/cron-nba?key=$CRON_SECRET&start=96&window=48"'
+          set -e
+          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 300 "$BASE_URL/api/cron-nba?key=$CRON_SECRET&start=0&window=48"
+          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 300 "$BASE_URL/api/cron-nba?key=$CRON_SECRET&start=48&window=48"
+          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 300 "$BASE_URL/api/cron-nba?key=$CRON_SECRET&start=96&window=48"
 
       - name: Sleep 60s between groups
         run: sleep 60
 
       - name: NFL/NCAAF baseline (6-day)
         run: |
-          bash -lc 'curl_call "$BASE_URL/api/cron-nfl?key=$CRON_SECRET&start=0&window=144"'
-          bash -lc 'curl_call "$BASE_URL/api/cron-ncaaf?key=$CRON_SECRET&start=0&window=144"'
+          set -e
+          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 600 "$BASE_URL/api/cron-nfl?key=$CRON_SECRET&start=0&window=144"
+          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 600 "$BASE_URL/api/cron-ncaaf?key=$CRON_SECRET&start=0&window=144"
 
       # ========================
       # Alternates near-term (0–48)
@@ -69,10 +53,11 @@ jobs:
         run: sleep 60
       - name: Alternates 0–48h
         run: |
-          bash -lc 'curl_call "$BASE_URL/api/cron-mlb-alts?key=$CRON_SECRET&start=0&window=48"'
-          bash -lc 'curl_call "$BASE_URL/api/cron-nba-alts?key=$CRON_SECRET&start=0&window=48"'
-          bash -lc 'curl_call "$BASE_URL/api/cron-nfl-alts?key=$CRON_SECRET&start=0&window=48"'
-          bash -lc 'curl_call "$BASE_URL/api/cron-ncaaf-alts?key=$CRON_SECRET&start=0&window=48"'
+          set -e
+          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 300 "$BASE_URL/api/cron-mlb-alts?key=$CRON_SECRET&start=0&window=48"
+          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 300 "$BASE_URL/api/cron-nba-alts?key=$CRON_SECRET&start=0&window=48"
+          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 300 "$BASE_URL/api/cron-nfl-alts?key=$CRON_SECRET&start=0&window=48"
+          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 300 "$BASE_URL/api/cron-ncaaf-alts?key=$CRON_SECRET&start=0&window=48"
 
       # ========================
       # Props near-term (0–48)
@@ -81,7 +66,8 @@ jobs:
         run: sleep 60
       - name: Props 0–48h
         run: |
-          bash -lc 'curl_call "$BASE_URL/api/cron-mlb-props?key=$CRON_SECRET&start=0&window=48"'
-          bash -lc 'curl_call "$BASE_URL/api/cron-nba-props?key=$CRON_SECRET&start=0&window=48"'
-          bash -lc 'curl_call "$BASE_URL/api/cron-nfl-props?key=$CRON_SECRET&start=0&window=48"'
-          bash -lc 'curl_call "$BASE_URL/api/cron-ncaaf-props?key=$CRON_SECRET&start=0&window=48"'
+          set -e
+          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 300 "$BASE_URL/api/cron-mlb-props?key=$CRON_SECRET&start=0&window=48"
+          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 300 "$BASE_URL/api/cron-nba-props?key=$CRON_SECRET&start=0&window=48"
+          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 300 "$BASE_URL/api/cron-nfl-props?key=$CRON_SECRET&start=0&window=48"
+          curl -fsS --retry 3 --retry-delay 10 --retry-all-errors --max-time 300 "$BASE_URL/api/cron-ncaaf-props?key=$CRON_SECRET&start=0&window=48"
