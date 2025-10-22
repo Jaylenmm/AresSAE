@@ -163,15 +163,32 @@ export async function POST(request: Request) {
           continue
         }
 
-        const { error: oddsErr } = await supabase
+        // Ensure idempotency without ON CONFLICT by delete-then-insert for baseline rows
+        const { error: delErr } = await supabase
           .from('odds_data')
-          .upsert(oddsEntry, { onConflict: 'game_id,sportsbook,is_alternate' })
-        if (oddsErr) {
-          console.error('Supabase upsert odds_data error:', {
-            message: oddsErr.message,
-            details: (oddsErr as any).details,
-            hint: (oddsErr as any).hint,
-            code: (oddsErr as any).code,
+          .delete()
+          .eq('game_id', game.id)
+          .eq('sportsbook', displayName)
+          .eq('is_alternate', false)
+        if (delErr) {
+          console.error('Supabase delete baseline odds_data error:', {
+            message: delErr.message,
+            details: (delErr as any).details,
+            hint: (delErr as any).hint,
+            code: (delErr as any).code,
+          })
+          // proceed to try insert anyway
+        }
+
+        const { error: insErr } = await supabase
+          .from('odds_data')
+          .insert(oddsEntry)
+        if (insErr) {
+          console.error('Supabase insert baseline odds_data error:', {
+            message: insErr.message,
+            details: (insErr as any).details,
+            hint: (insErr as any).hint,
+            code: (insErr as any).code,
           })
           continue
         }
@@ -206,9 +223,9 @@ export async function POST(request: Request) {
 
           for (const [line, { home, away }] of altSpreadsByLine) {
             if (home && away) {
-              await supabase
+              const { error: altErr } = await supabase
                 .from('odds_data')
-                .upsert({
+                .insert({
                   game_id: game.id,
                   sportsbook: displayName,
                   spread_home: home.point,
@@ -217,7 +234,18 @@ export async function POST(request: Request) {
                   spread_away_odds: away.price,
                   is_alternate: true,
                   updated_at: new Date().toISOString()
-                }, { onConflict: 'game_id,sportsbook,spread_home,is_alternate' })
+                })
+              if (altErr) {
+                // Ignore duplicate violations from unique indexes; log others
+                if ((altErr as any).code !== '23505') {
+                  console.error('Supabase insert alt spread error:', {
+                    message: altErr.message,
+                    details: (altErr as any).details,
+                    hint: (altErr as any).hint,
+                    code: (altErr as any).code,
+                  })
+                }
+              }
               
               oddsCreated++
             }
@@ -242,9 +270,9 @@ export async function POST(request: Request) {
 
           for (const [line, { over, under }] of altTotalsByLine) {
             if (over && under) {
-              await supabase
+              const { error: altTotErr } = await supabase
                 .from('odds_data')
-                .upsert({
+                .insert({
                   game_id: game.id,
                   sportsbook: displayName,
                   total: over.point,
@@ -252,7 +280,17 @@ export async function POST(request: Request) {
                   under_odds: under.price,
                   is_alternate: true,
                   updated_at: new Date().toISOString()
-                }, { onConflict: 'game_id,sportsbook,total,is_alternate' })
+                })
+              if (altTotErr) {
+                if ((altTotErr as any).code !== '23505') {
+                  console.error('Supabase insert alt total error:', {
+                    message: altTotErr.message,
+                    details: (altTotErr as any).details,
+                    hint: (altTotErr as any).hint,
+                    code: (altTotErr as any).code,
+                  })
+                }
+              }
               
               oddsCreated++
             }
