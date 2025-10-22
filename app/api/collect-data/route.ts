@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+
+export const maxDuration = 300
 import { supabase } from '@/lib/supabase'
 import { fetchOdds, fetchAlternateOdds, fetchPropsForEvent, getPropMarketsForSportKey, SPORT_KEYS } from '@/lib/odds-api'
 import { getTop25NCAAFTeams, isTop25Team } from '@/lib/espn-api'
@@ -38,7 +40,7 @@ const SOCIAL_BOOK_KEYS = [
 
 
 export async function POST(request: Request) {
-  const { sport, skipAlternates = false, skipProps = false, bookmakerKeys, hoursAhead, startHoursAhead = 0, windowHours } = await request.json()
+  const { sport, skipAlternates = false, skipProps = false, bookmakerKeys, hoursAhead, startHoursAhead = 0, windowHours, propsFromDb = true } = await request.json()
   
   if (!sport || !SPORT_KEYS[sport as keyof typeof SPORT_KEYS]) {
     return NextResponse.json({ error: 'Invalid sport' }, { status: 400 })
@@ -302,10 +304,28 @@ export async function POST(request: Request) {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
 
-    // Fetch player props only for the events we saved (after Top-25 filter, etc.)
+    // Fetch player props
     if (!skipProps) {
     const propMarkets = getPropMarketsForSportKey(sportKey)
-    const entries = Array.from(gameIdMap.entries())
+    // Either use DB games (ignoring any time slicing), or fall back to the games we just saved
+    let entries: Array<[string, string]> = []
+    if (propsFromDb) {
+      const { data: dbGames, error: dbErr } = await supabase
+        .from('games')
+        .select('id, espn_game_id, status, sport')
+        .eq('sport', sport)
+        .eq('status', 'scheduled')
+      if (dbErr) {
+        console.error('Supabase load games for props error:', dbErr)
+      } else {
+        entries = (dbGames || [])
+          .filter((g: any) => g.espn_game_id)
+          .map((g: any) => [g.espn_game_id as string, g.id as string])
+      }
+    }
+    if (entries.length === 0) {
+      entries = Array.from(gameIdMap.entries())
+    }
     let idx = 0
     const concurrency = 3
 
