@@ -148,9 +148,33 @@ export async function POST(request: Request) {
           }
         }
 
-        await supabase
+        const hasAny = (
+          oddsEntry.spread_home !== undefined ||
+          oddsEntry.spread_away !== undefined ||
+          oddsEntry.spread_home_odds !== undefined ||
+          oddsEntry.spread_away_odds !== undefined ||
+          oddsEntry.total !== undefined ||
+          oddsEntry.over_odds !== undefined ||
+          oddsEntry.under_odds !== undefined ||
+          oddsEntry.moneyline_home !== undefined ||
+          oddsEntry.moneyline_away !== undefined
+        )
+        if (!hasAny) {
+          continue
+        }
+
+        const { error: oddsErr } = await supabase
           .from('odds_data')
           .upsert(oddsEntry, { onConflict: 'game_id,sportsbook,is_alternate' })
+        if (oddsErr) {
+          console.error('Supabase upsert odds_data error:', {
+            message: oddsErr.message,
+            details: (oddsErr as any).details,
+            hint: (oddsErr as any).hint,
+            code: (oddsErr as any).code,
+          })
+          continue
+        }
 
         oddsCreated++
       }
