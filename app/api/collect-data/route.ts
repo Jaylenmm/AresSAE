@@ -335,7 +335,10 @@ export async function POST(request: Request) {
         if (!resp.ok) return
         const json = await resp.json()
 
-        for (const bookmaker of json.bookmakers || []) {
+        const activeKeys = Array.isArray(bookmakerKeys) && bookmakerKeys.length > 0
+          ? bookmakerKeys
+          : SOCIAL_BOOK_KEYS
+        for (const bookmaker of (json.bookmakers || []).filter((b: any) => activeKeys.includes(b.key))) {
           const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
 
           for (const market of bookmaker.markets || []) {
