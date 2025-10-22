@@ -217,7 +217,7 @@ export async function POST(request: Request) {
                   spread_away_odds: away.price,
                   is_alternate: true,
                   updated_at: new Date().toISOString()
-                }, { onConflict: 'game_id,sportsbook,spread_home,total,is_alternate' })
+                }, { onConflict: 'game_id,sportsbook,spread_home,is_alternate' })
               
               oddsCreated++
             }
@@ -252,7 +252,7 @@ export async function POST(request: Request) {
                   under_odds: under.price,
                   is_alternate: true,
                   updated_at: new Date().toISOString()
-                }, { onConflict: 'game_id,sportsbook,spread_home,total,is_alternate' })
+                }, { onConflict: 'game_id,sportsbook,total,is_alternate' })
               
               oddsCreated++
             }
