@@ -317,10 +317,13 @@ export default function PicksPage() {
     let betOption: BetOption
 
     if (pick.picks.player) {
-      const { data: playerPropsData } = await supabase
-        .from('player_props')
-        .select('*')
-        .eq('game_id', game.id)
+      const params = new URLSearchParams()
+      params.set('game_ids', game.id)
+      params.set('limit', '200')
+      params.set('strict', '1')
+      const resp = await fetch(`/api/featured-props?${params.toString()}`)
+      const json = await resp.json().catch(() => ({ props: [] }))
+      const playerPropsData = Array.isArray(json?.props) ? (json.props as PlayerProp[]) : []
 
       if (!playerPropsData || playerPropsData.length === 0) {
         alert('No player props data available for analysis')

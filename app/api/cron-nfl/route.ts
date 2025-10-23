@@ -22,7 +22,7 @@ export async function GET(request: Request) {
       skipProps: true,
       startHoursAhead: isFinite(start) && start >= 0 ? start : 0,
       windowHours: isFinite(window) && window > 0 ? window : 12,
-      bookmakerKeys: ['draftkings', 'fanduel', 'betmgm', 'caesars', 'espnbet']
+      bookmakerKeys: ['draftkings', 'fanduel', 'betmgm', 'caesars', 'espnbet', 'pinnacle', 'circa', 'bookmaker']
     })
   })
   const data = await resp.json().catch(() => ({}))

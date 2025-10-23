@@ -393,8 +393,14 @@ export async function POST(request: Request) {
         for (const bookmaker of (json.bookmakers || []).filter((b: any) => activeKeys.includes(b.key))) {
           const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
 
+          const ONE_SIDED_MARKETS = new Set<string>([
+            'batter_home_runs',
+            'player_anytime_td'
+          ])
+
           for (const market of bookmaker.markets || []) {
             const isAlternate = market.key.includes('_alternate')
+            const rawMarketKey = market.key.replace('_alternate', '')
 
             const propType = market.key
               .replace('player_', '')
@@ -425,8 +431,63 @@ export async function POST(request: Request) {
             }
 
             for (const [playerName, outcomes] of playerOutcomes) {
-              // Require both Over and Under to ensure complete markets
-              if (!outcomes.over || !outcomes.under) continue
+              // Case 1: Curated one-sided markets (allow Over-only)
+              if (ONE_SIDED_MARKETS.has(rawMarketKey)) {
+                if (!outcomes.over) continue
+                const line = typeof outcomes.over.point === 'number' ? outcomes.over.point : null
+                if (line === null) continue
+                if (typeof outcomes.over.price !== 'number') continue
+
+                await supabase
+                  .from('player_props_v2')
+                  .upsert({
+                    game_id: gameId,
+                    player_name: playerName,
+                    prop_type: propType,
+                    line: line,
+                    over_odds: outcomes.over.price,
+                    under_odds: outcomes.under ? outcomes.under.price ?? null : null,
+                    sportsbook: displayName,
+                    is_alternate: isAlternate,
+                    updated_at: new Date().toISOString()
+                  }, {
+                    onConflict: 'game_id,player_name,prop_type,sportsbook,line,is_alternate'
+                  })
+
+                propsCreated++
+                continue
+              }
+
+              // Case 2: Standard two-sided markets require both Over and Under
+              // For MLB only, allow partial markets (only Over or only Under) to avoid zero-prop ingestion
+              if (!outcomes.over || !outcomes.under) {
+                if (sport === 'MLB') {
+                  const point = (outcomes.over?.point ?? outcomes.under?.point)
+                  const line = typeof point === 'number' ? point : null
+                  if (line === null) continue
+                  const overOdds = typeof outcomes.over?.price === 'number' ? outcomes.over!.price : null
+                  const underOdds = typeof outcomes.under?.price === 'number' ? outcomes.under!.price : null
+
+                  await supabase
+                    .from('player_props_v2')
+                    .upsert({
+                      game_id: gameId,
+                      player_name: playerName,
+                      prop_type: propType,
+                      line: line,
+                      over_odds: overOdds,
+                      under_odds: underOdds,
+                      sportsbook: displayName,
+                      is_alternate: isAlternate,
+                      updated_at: new Date().toISOString()
+                    }, {
+                      onConflict: 'game_id,player_name,prop_type,sportsbook,line,is_alternate'
+                    })
+
+                  propsCreated++
+                }
+                continue
+              }
               const overPoint = outcomes.over.point
               const underPoint = outcomes.under.point
               const line = typeof overPoint === 'number' ? overPoint : (typeof underPoint === 'number' ? underPoint : null)
