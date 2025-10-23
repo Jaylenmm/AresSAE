@@ -17,6 +17,9 @@ jobs:
           [ -n "$BASE_URL" ] || { echo "Missing PROD_BASE_URL secret"; exit 1; }
           [ -n "$CRON_SECRET" ] || { echo "Missing PROD_CRON_SECRET secret"; exit 1; }
 
+      - name: Pause 60s before running crons
+        run: sleep 60
+
       # ========================
       # Baseline (0–48, 48–96, 96–144) MLB/NBA
       # ========================
