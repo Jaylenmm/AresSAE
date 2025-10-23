@@ -17,6 +17,14 @@ jobs:
           [ -n "$BASE_URL" ] || { echo "Missing PROD_BASE_URL secret"; exit 1; }
           [ -n "$CRON_SECRET" ] || { echo "Missing PROD_CRON_SECRET secret"; exit 1; }
 
+      - name: Debug secrets presence (no values printed)
+        run: |
+          echo "Event: $GITHUB_EVENT_NAME; Ref: $GITHUB_REF; Actor: $GITHUB_ACTOR"
+          echo "BASE_URL set? $([ -n \"$BASE_URL\" ] && echo yes || echo no)"
+          echo "CRON_SECRET set? $([ -n \"$CRON_SECRET\" ] && echo yes || echo no)"
+          echo "BASE_URL length: ${#BASE_URL}"
+          echo "CRON_SECRET length: ${#CRON_SECRET}"
+
       - name: Pause 60s before running crons
         run: sleep 60
 
