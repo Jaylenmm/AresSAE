@@ -26,6 +26,7 @@ export default function BuildPageContent() {
   const [searching, setSearching] = useState(false)
   const [selectedSportsbook, setSelectedSportsbook] = useState('best_odds')
   const [availableSportsbooks, setAvailableSportsbooks] = useState<string[]>([])
+  const [sportsbookPropCounts, setSportsbookPropCounts] = useState<Record<string, number>>({})
   const [selectedPropType, setSelectedPropType] = useState<string>('all')
   const [openPlayers, setOpenPlayers] = useState<Record<string, boolean>>({})
   const [showModal, setShowModal] = useState(false)
@@ -78,11 +79,22 @@ export default function BuildPageContent() {
 
   async function loadGameByPropId(propId: string) {
     try {
-      const { data: prop } = await supabase
-        .from('player_props')
+      // Try v2 first
+      let { data: prop, error: v2Err } = await supabase
+        .from('player_props_v2')
         .select('*')
         .eq('id', propId)
-        .single()
+        .maybeSingle()
+
+      // Fallback to legacy if not found
+      if (!prop) {
+        const { data: legacyProp } = await supabase
+          .from('player_props')
+          .select('*')
+          .eq('id', propId)
+          .maybeSingle()
+        prop = legacyProp as any
+      }
 
       if (prop && prop.game_id) {
         const { data: game } = await supabase
@@ -95,7 +107,7 @@ export default function BuildPageContent() {
           await selectGame(game)
           
           if (prop.sportsbook) {
-            setSelectedSportsbook(prop.sportsbook.toLowerCase())
+            setSelectedSportsbook((prop.sportsbook as string).toLowerCase())
           }
           
           setTimeout(() => {
@@ -123,11 +135,15 @@ export default function BuildPageContent() {
     }
   }
 
-  function extractSportsbooksFromData(props: PlayerProp[], odds: OddsData[]) {
-    const books = new Set<string>(['best_odds'])
-    props.forEach(p => { if (p.sportsbook) books.add((p.sportsbook as string).toLowerCase()) })
-    odds.forEach(o => { if (o.sportsbook) books.add((o.sportsbook as string).toLowerCase()) })
-    const list = Array.from(books)
+  function extractSportsbooksFromData(props: PlayerProp[], _odds: OddsData[]) {
+    const counts: Record<string, number> = {}
+    for (const p of props) {
+      const key = (p.sportsbook as string | undefined)?.toLowerCase()
+      if (!key) continue
+      counts[key] = (counts[key] || 0) + 1
+    }
+    const list = ['best_odds', ...Object.keys(counts).sort()]
+    setSportsbookPropCounts(counts)
     setAvailableSportsbooks(list)
     setSelectedSportsbook(prev => (list.includes(prev) ? prev : 'best_odds'))
   }
@@ -492,8 +508,8 @@ export default function BuildPageContent() {
             {availableSportsbooks.map(book => (
               <option key={book} value={book}>
                 {book === 'best_odds' 
-                  ? 'Best Odds' 
-                  :  getBookmakerDisplayName(book)}
+                  ? 'Best Odds'
+                  : `${getBookmakerDisplayName(book)}${sportsbookPropCounts[book] ? ` (${sportsbookPropCounts[book]})` : ''}`}
               </option>
             ))}
           </select>

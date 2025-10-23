@@ -48,23 +48,34 @@ export const SPORT_KEYS = {
 
 const PLAYER_PROP_MARKETS = {
   football: [
-    'player_pass_tds',
+    // Core QB
     'player_pass_yds',
+    'player_pass_tds',
     'player_pass_completions',
+    'player_pass_attempts',
+    'player_pass_interceptions',
+    // Core skill
     'player_rush_yds',
     'player_rush_attempts',
     'player_receptions',
     'player_reception_yds',
+    'player_rush_tds',
+    'player_receiving_tds',
+    // Longest props
+    'player_longest_reception',
+    'player_longest_rush',
+    // TDs
     'player_anytime_td',
-    'player_pass_interceptions',
-    'player_pass_tds_alternate',
+    // Alternates
     'player_pass_yds_alternate',
+    'player_pass_tds_alternate',
     'player_pass_completions_alternate',
+    'player_pass_attempts_alternate',
+    'player_pass_interceptions_alternate',
     'player_rush_yds_alternate',
     'player_rush_attempts_alternate',
     'player_receptions_alternate',
-    'player_reception_yds_alternate',
-    'player_pass_interceptions_alternate'
+    'player_reception_yds_alternate'
   ],
   
   basketball: [
@@ -74,15 +85,18 @@ const PLAYER_PROP_MARKETS = {
     'player_threes',
     'player_blocks',
     'player_steals',
+    'player_turnovers',
     'player_points_rebounds_assists',
     'player_points_rebounds',
     'player_points_assists',
+    // Alternates/combos
     'player_points_alternate',
     'player_rebounds_alternate',
     'player_assists_alternate',
     'player_threes_alternate',
     'player_blocks_alternate',
     'player_steals_alternate',
+    'player_turnovers_alternate',
     'player_points_rebounds_assists_alternate',
     'player_points_rebounds_alternate',
     'player_points_assists_alternate'
@@ -98,6 +112,9 @@ const PLAYER_PROP_MARKETS = {
     'pitcher_strikeouts',
     'pitcher_hits_allowed',
     'pitcher_earned_runs',
+    'pitcher_outs_recorded',
+    'pitcher_walks',
+    // Alternates
     'batter_home_runs_alternate',
     'batter_hits_alternate',
     'batter_total_bases_alternate',
@@ -106,7 +123,9 @@ const PLAYER_PROP_MARKETS = {
     'batter_strikeouts_alternate',
     'pitcher_strikeouts_alternate',
     'pitcher_hits_allowed_alternate',
-    'pitcher_earned_runs_alternate'
+    'pitcher_earned_runs_alternate',
+    'pitcher_outs_recorded_alternate',
+    'pitcher_walks_alternate'
   ]
 }
 
