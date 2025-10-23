@@ -249,11 +249,12 @@ export default function BuildPageContent() {
     setSelectedGame(game)
 
     const [propsRes, v2Res] = await Promise.all([
-      supabase.from('player_props').select('*').eq('game_id', game.id),
+      fetch(`/api/featured-props?game_ids=${encodeURIComponent(game.id)}&limit=200&sport=${encodeURIComponent(game.sport)}`)
+        .then(r => r.json()).catch(() => ({ props: [] })),
       supabase.from('odds_data_v2').select('*').eq('game_id', game.id),
     ])
 
-    const props = propsRes.data || []
+    const props = (Array.isArray(propsRes?.props) ? propsRes.props : []) as PlayerProp[]
     const v2 = (v2Res.data || []) as any[]
 
     // Aggregate v2 baseline markets into legacy OddsData per book
