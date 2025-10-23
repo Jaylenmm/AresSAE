@@ -42,9 +42,15 @@ export default function Home() {
       setOddsData(data.odds || {})
 
       // Fetch player props via server API to avoid client RLS issues
-      if (uniqueGames.length > 0) {
-        const gameIds = uniqueGames.map((g: Game) => g.id).join(',')
-        const propsResponse = await fetch(`/api/featured-props?game_ids=${encodeURIComponent(gameIds)}&limit=80`)
+      {
+        const params = new URLSearchParams()
+        params.set('limit', '80')
+        params.set('sport', selectedSport)
+        if (uniqueGames.length > 0) {
+          const gameIds = uniqueGames.map((g: Game) => g.id).join(',')
+          params.set('game_ids', gameIds)
+        }
+        const propsResponse = await fetch(`/api/featured-props?${params.toString()}`)
         const propsJson = (await propsResponse.json().catch(() => ({ props: [] }))) as { props: PlayerProp[] }
         const props = Array.isArray(propsJson?.props) ? (propsJson.props as PlayerProp[]) : []
 
