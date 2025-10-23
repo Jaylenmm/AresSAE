@@ -31,10 +31,42 @@ async function analyzeGameBetByType(gameId: string, betType: string) {
     return NextResponse.json({ error: 'Game not found' }, { status: 404 })
   }
 
-  const { data: oddsData } = await supabase
+  let { data: oddsData } = await supabase
     .from('odds_data')
     .select('*')
     .eq('game_id', gameId)
+
+  // Fallback to odds_data_v2 aggregated per book if legacy table has no rows
+  if (!oddsData || oddsData.length === 0) {
+    const { data: v2 } = await supabase
+      .from('odds_data_v2')
+      .select('*')
+      .eq('game_id', gameId)
+    const byBook: Record<string, any> = {}
+    for (const row of (v2 || [])) {
+      if (!row || !['spread','total','moneyline'].includes(row.market)) continue
+      const book = (row.book_name || row.book_key) as string
+      if (!byBook[book]) byBook[book] = { 
+        sportsbook: book,
+        game_id: gameId
+      }
+      const agg = byBook[book]
+      if (row.market === 'spread') {
+        agg.spread_home = row.spread_home
+        agg.spread_away = row.spread_away
+        agg.spread_home_odds = row.spread_home_odds
+        agg.spread_away_odds = row.spread_away_odds
+      } else if (row.market === 'total') {
+        agg.total = row.line
+        agg.over_odds = row.over_odds
+        agg.under_odds = row.under_odds
+      } else if (row.market === 'moneyline') {
+        agg.moneyline_home = row.moneyline_home
+        agg.moneyline_away = row.moneyline_away
+      }
+    }
+    oddsData = Object.values(byBook)
+  }
 
   if (!oddsData || oddsData.length === 0) {
     return NextResponse.json({ error: 'No odds data available' }, { status: 404 })
@@ -258,22 +290,40 @@ async function analyzeGameBetByType(gameId: string, betType: string) {
 }
 
 async function analyzePlayerPropBet(propId: string) {
-  const { data: mainProp } = await supabase
-    .from('player_props')
+  // Prefer v2 for props; fallback to legacy
+  let { data: mainProp } = await supabase
+    .from('player_props_v2')
     .select('*')
     .eq('id', propId)
-    .single()
+    .maybeSingle()
+  if (!mainProp) {
+    const legacy = await supabase
+      .from('player_props')
+      .select('*')
+      .eq('id', propId)
+      .maybeSingle()
+    mainProp = legacy.data
+  }
 
   if (!mainProp) {
     return NextResponse.json({ error: 'Prop not found' }, { status: 404 })
   }
 
-  const { data: allProps } = await supabase
-    .from('player_props')
+  let { data: allProps } = await supabase
+    .from('player_props_v2')
     .select('*')
     .eq('game_id', mainProp.game_id)
     .eq('player_name', mainProp.player_name)
     .eq('prop_type', mainProp.prop_type)
+  if (!allProps || allProps.length === 0) {
+    const legacyAll = await supabase
+      .from('player_props')
+      .select('*')
+      .eq('game_id', mainProp.game_id)
+      .eq('player_name', mainProp.player_name)
+      .eq('prop_type', mainProp.prop_type)
+    allProps = legacyAll.data || []
+  }
 
   if (!allProps || allProps.length === 0) {
     return NextResponse.json({ error: 'No prop data available' }, { status: 404 })

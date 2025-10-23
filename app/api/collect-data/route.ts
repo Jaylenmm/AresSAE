@@ -417,8 +417,13 @@ export async function POST(request: Request) {
             }
 
             for (const [playerName, outcomes] of playerOutcomes) {
-              const line = outcomes.over?.point || outcomes.under?.point
-              if (!line) continue
+              // Require both Over and Under to ensure complete markets
+              if (!outcomes.over || !outcomes.under) continue
+              const overPoint = outcomes.over.point
+              const underPoint = outcomes.under.point
+              const line = typeof overPoint === 'number' ? overPoint : (typeof underPoint === 'number' ? underPoint : null)
+              if (line === null) continue
+              if (typeof outcomes.over.price !== 'number' || typeof outcomes.under.price !== 'number') continue
 
               await supabase
                 .from('player_props_v2')
@@ -427,8 +432,8 @@ export async function POST(request: Request) {
                   player_name: playerName,
                   prop_type: propType,
                   line: line,
-                  over_odds: outcomes.over?.price || null,
-                  under_odds: outcomes.under?.price || null,
+                  over_odds: outcomes.over.price,
+                  under_odds: outcomes.under.price,
                   sportsbook: displayName,
                   is_alternate: isAlternate,
                   updated_at: new Date().toISOString()
