@@ -37,6 +37,14 @@ const SOCIAL_BOOK_KEYS = [
   'espnbet'
 ]
 
+const SHARP_BOOK_KEYS = [
+  'pinnacle',
+  'circa',
+  'bookmaker'
+]
+
+const DEFAULT_ODDS_BOOK_KEYS = [...SOCIAL_BOOK_KEYS, ...SHARP_BOOK_KEYS]
+
 // Curated list of supported sportsbooks for props collection (v2)
 const SUPPORTED_PROP_BOOKS = [
   'draftkings',
@@ -113,7 +121,7 @@ export async function POST(request: Request) {
       const allBooks = event.bookmakers || []
       const activeKeys = Array.isArray(bookmakerKeys) && bookmakerKeys.length > 0
         ? bookmakerKeys
-        : SOCIAL_BOOK_KEYS
+        : DEFAULT_ODDS_BOOK_KEYS
       const filteredBooks = allBooks.filter((b: any) => activeKeys.includes(b.key))
       for (const bookmaker of filteredBooks) {
         const spreads = bookmaker.markets?.find((m: any) => m.key === 'spreads')

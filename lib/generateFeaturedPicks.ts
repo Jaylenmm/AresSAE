@@ -52,21 +52,57 @@ export async function generateFeaturedPicks(): Promise<{ success: boolean; picks
     
     const gameIds = games.map(g => g.id)
     
-    // Fetch all odds
-    const { data: allOdds, error: oddsError } = await supabase
+    // Fetch all odds (v2-first)
+    let { data: allOdds, error: oddsError } = await supabase
       .from('odds_data')
       .select('*')
       .in('game_id', gameIds)
-    
     if (oddsError) throw oddsError
+
+    if (!allOdds || allOdds.length === 0) {
+      // Aggregate odds_data_v2 into legacy shape per book
+      const { data: v2 } = await supabase
+        .from('odds_data_v2')
+        .select('*')
+        .in('game_id', gameIds)
+      const byGameBook = new Map<string, any>()
+      for (const row of (v2 || [])) {
+        if (!row || !['spread','total','moneyline'].includes(row.market)) continue
+        const key = `${row.game_id}::${row.book_name || row.book_key}`
+        if (!byGameBook.has(key)) {
+          byGameBook.set(key, { game_id: row.game_id, sportsbook: (row.book_name || row.book_key) })
+        }
+        const agg = byGameBook.get(key)
+        if (row.market === 'spread') {
+          agg.spread_home = row.spread_home
+          agg.spread_away = row.spread_away
+          agg.spread_home_odds = row.spread_home_odds
+          agg.spread_away_odds = row.spread_away_odds
+        } else if (row.market === 'total') {
+          agg.total = row.line
+          agg.over_odds = row.over_odds
+          agg.under_odds = row.under_odds
+        } else if (row.market === 'moneyline') {
+          agg.moneyline_home = row.moneyline_home
+          agg.moneyline_away = row.moneyline_away
+        }
+      }
+      allOdds = Array.from(byGameBook.values()) as any
+    }
     
-    // Fetch all player props
-    const { data: allProps, error: propsError } = await supabase
-      .from('player_props')
+    // Fetch all player props (v2-first)
+    let { data: allProps, error: propsError } = await supabase
+      .from('player_props_v2')
       .select('*')
       .in('game_id', gameIds)
-    
     if (propsError) throw propsError
+    if (!allProps || allProps.length === 0) {
+      const legacy = await supabase
+        .from('player_props')
+        .select('*')
+        .in('game_id', gameIds)
+      allProps = legacy.data || []
+    }
     
     console.log(`📈 Analyzing ${allOdds?.length || 0} odds entries and ${allProps?.length || 0} props`)
     
