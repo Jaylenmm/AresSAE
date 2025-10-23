@@ -249,7 +249,7 @@ export default function BuildPageContent() {
     setSelectedGame(game)
 
     const [propsRes, v2Res] = await Promise.all([
-      fetch(`/api/featured-props?game_ids=${encodeURIComponent(game.id)}&limit=200&sport=${encodeURIComponent(game.sport)}`)
+      fetch(`/api/featured-props?game_ids=${encodeURIComponent(game.id)}&limit=200&sport=${encodeURIComponent(game.sport)}&strict=1`)
         .then(r => r.json()).catch(() => ({ props: [] })),
       supabase.from('odds_data_v2').select('*').eq('game_id', game.id),
     ])
