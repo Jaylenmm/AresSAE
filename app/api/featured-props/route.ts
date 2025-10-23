@@ -28,15 +28,16 @@ export async function GET(request: Request) {
       gameIds = (games || []).map((g: any) => g.id)
     }
 
-    const query = supabaseAdmin
-      .from('player_props')
+    const baseLimit = Math.max(10, Math.min(200, limitParam))
+    const v2Query = supabaseAdmin
+      .from('player_props_v2')
       .select('*')
       .order('updated_at', { ascending: false })
-      .limit(Math.max(10, Math.min(200, limitParam)))
+      .limit(baseLimit)
 
     let { data, error } = gameIds.length > 0
-      ? await query.in('game_id', gameIds)
-      : await query
+      ? await v2Query.in('game_id', gameIds)
+      : await v2Query
 
     if (error) {
       return NextResponse.json({ props: [], error: error.message }, { status: 200 })
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
     // If nothing found for provided gameIds/upcoming games, try by sport (latest), then global latest
     if ((!data || data.length === 0) && sportParam) {
       const { data: bySport } = await supabaseAdmin
-        .from('player_props')
+        .from('player_props_v2')
         .select('*')
         .in('game_id', (
           (await supabaseAdmin
@@ -55,7 +56,7 @@ export async function GET(request: Request) {
           ).data || []
         ).map((g: any) => g.id))
         .order('updated_at', { ascending: false })
-        .limit(Math.max(10, Math.min(200, limitParam)))
+        .limit(baseLimit)
       if (bySport && bySport.length > 0) {
         return NextResponse.json({ props: bySport, meta: { fallback: 'by_sport' } })
       }
@@ -63,11 +64,29 @@ export async function GET(request: Request) {
 
     if (!data || data.length === 0) {
       const { data: recent } = await supabaseAdmin
+        .from('player_props_v2')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .limit(baseLimit)
+      if (recent && recent.length > 0) {
+        return NextResponse.json({ props: recent, meta: { fallback: 'global_recent_v2' } })
+      }
+      // Final fallback: legacy table
+      const legacyQuery = supabaseAdmin
         .from('player_props')
         .select('*')
         .order('updated_at', { ascending: false })
-        .limit(Math.max(10, Math.min(200, limitParam)))
-      return NextResponse.json({ props: recent || [], meta: { fallback: 'global_recent' } })
+        .limit(baseLimit)
+      const legacyByGames = gameIds.length > 0 ? await legacyQuery.in('game_id', gameIds) : await legacyQuery
+      if (legacyByGames.data && legacyByGames.data.length > 0) {
+        return NextResponse.json({ props: legacyByGames.data, meta: { fallback: 'legacy_by_games' } })
+      }
+      const { data: legacyRecent } = await supabaseAdmin
+        .from('player_props')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .limit(baseLimit)
+      return NextResponse.json({ props: legacyRecent || [], meta: { fallback: 'legacy_global_recent' } })
     }
 
     return NextResponse.json({ props: data })

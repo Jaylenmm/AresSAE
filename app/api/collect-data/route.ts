@@ -37,6 +37,15 @@ const SOCIAL_BOOK_KEYS = [
   'espnbet'
 ]
 
+// Curated list of supported sportsbooks for props collection (v2)
+const SUPPORTED_PROP_BOOKS = [
+  'draftkings',
+  'fanduel',
+  'betmgm',
+  'caesars',
+  'espnbet'
+]
+
 
 
 export async function POST(request: Request) {
@@ -348,6 +357,18 @@ export async function POST(request: Request) {
     if (entries.length === 0) {
       entries = Array.from(gameIdMap.entries())
     }
+    // Lightweight cache cleanup: drop stale props older than 10 days
+    try {
+      const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
+      const cleanup = await supabase
+        .from('player_props_v2')
+        .delete()
+        .lt('updated_at', tenDaysAgo)
+      if (cleanup.error) {
+        // Table may not exist yet; ignore
+      }
+    } catch {}
+
     let idx = 0
     const concurrency = 3
 
@@ -357,9 +378,10 @@ export async function POST(request: Request) {
         if (!resp.ok) return
         const json = await resp.json()
 
+        // Use curated supported books list for props v2 unless explicitly overridden
         const activeKeys = Array.isArray(bookmakerKeys) && bookmakerKeys.length > 0
           ? bookmakerKeys
-          : SOCIAL_BOOK_KEYS
+          : SUPPORTED_PROP_BOOKS
         for (const bookmaker of (json.bookmakers || []).filter((b: any) => activeKeys.includes(b.key))) {
           const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
 
@@ -399,7 +421,7 @@ export async function POST(request: Request) {
               if (!line) continue
 
               await supabase
-                .from('player_props')
+                .from('player_props_v2')
                 .upsert({
                   game_id: gameId,
                   player_name: playerName,
