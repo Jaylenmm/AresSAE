@@ -31,25 +31,18 @@ async function analyzeGameBetByType(gameId: string, betType: string) {
     return NextResponse.json({ error: 'Game not found' }, { status: 404 })
   }
 
-  let { data: oddsData } = await supabase
-    .from('odds_data')
+  // Prefer v2 odds aggregation first
+  const { data: v2 } = await supabase
+    .from('odds_data_v2')
     .select('*')
     .eq('game_id', gameId)
-
-  // Fallback to odds_data_v2 aggregated per book if legacy table has no rows
-  if (!oddsData || oddsData.length === 0) {
-    const { data: v2 } = await supabase
-      .from('odds_data_v2')
-      .select('*')
-      .eq('game_id', gameId)
+  let oddsData: any[] | null = null
+  if (v2 && v2.length > 0) {
     const byBook: Record<string, any> = {}
-    for (const row of (v2 || [])) {
+    for (const row of v2) {
       if (!row || !['spread','total','moneyline'].includes(row.market)) continue
       const book = (row.book_name || row.book_key) as string
-      if (!byBook[book]) byBook[book] = { 
-        sportsbook: book,
-        game_id: gameId
-      }
+      if (!byBook[book]) byBook[book] = { sportsbook: book, game_id: gameId }
       const agg = byBook[book]
       if (row.market === 'spread') {
         agg.spread_home = row.spread_home
@@ -66,6 +59,12 @@ async function analyzeGameBetByType(gameId: string, betType: string) {
       }
     }
     oddsData = Object.values(byBook)
+  } else {
+    const legacy = await supabase
+      .from('odds_data')
+      .select('*')
+      .eq('game_id', gameId)
+    oddsData = legacy.data || []
   }
 
   if (!oddsData || oddsData.length === 0) {

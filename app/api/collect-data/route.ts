@@ -51,7 +51,11 @@ const SUPPORTED_PROP_BOOKS = [
   'fanduel',
   'betmgm',
   'caesars',
-  'espnbet'
+  'espnbet',
+  // sharp props (where available via API)
+  'pinnacle',
+  'circa',
+  'bookmaker'
 ]
 
 
