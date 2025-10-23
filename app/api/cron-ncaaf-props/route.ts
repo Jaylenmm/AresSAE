@@ -13,6 +13,10 @@ export async function GET(request: Request) {
   const origin = url.origin
   const start = Number(url.searchParams.get('start') || 0)
   const window = Number(url.searchParams.get('window') || 48)
+  const booksParam = url.searchParams.get('books') || ''
+  const books = booksParam
+    ? booksParam.split(',').map(s => s.trim()).filter(Boolean)
+    : ['draftkings', 'fanduel', 'betmgm', 'caesars', 'espnbet', 'pinnacle', 'circa', 'circasports', 'bookmaker', 'betonlineag']
   const resp = await fetch(`${origin}/api/collect-data`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -22,7 +26,7 @@ export async function GET(request: Request) {
       skipProps: false,
       startHoursAhead: isFinite(start) && start >= 0 ? start : 0,
       windowHours: isFinite(window) && window > 0 ? window : 48,
-      bookmakerKeys: ['draftkings', 'fanduel', 'betmgm', 'caesars', 'espnbet']
+      bookmakerKeys: books
     })
   })
   const data = await resp.json().catch(() => ({}))

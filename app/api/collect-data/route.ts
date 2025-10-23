@@ -23,7 +23,8 @@ const BOOKMAKER_NAMES: Record<string, string> = {
   'unibet_us': 'Unibet',
   'pinnacle': 'Pinnacle',
   'bookmaker': 'Bookmaker',
-  'circa': 'Circa'
+  'circa': 'Circa',
+  'circasports': 'Circa'
 }
 
 // Default bookmaker sets
@@ -39,8 +40,7 @@ const SOCIAL_BOOK_KEYS = [
 
 const SHARP_BOOK_KEYS = [
   'pinnacle',
-  'circa',
-  'bookmaker'
+  'circa'
 ]
 
 const DEFAULT_ODDS_BOOK_KEYS = [...SOCIAL_BOOK_KEYS, ...SHARP_BOOK_KEYS]
@@ -54,8 +54,7 @@ const SUPPORTED_PROP_BOOKS = [
   'espnbet',
   // sharp props (where available via API)
   'pinnacle',
-  'circa',
-  'bookmaker'
+  'circa'
 ]
 
 
@@ -126,7 +125,10 @@ export async function POST(request: Request) {
       const activeKeys = Array.isArray(bookmakerKeys) && bookmakerKeys.length > 0
         ? bookmakerKeys
         : DEFAULT_ODDS_BOOK_KEYS
-      const filteredBooks = allBooks.filter((b: any) => activeKeys.includes(b.key))
+      const filteredBooks = allBooks.filter((b: any) => {
+        const key = b.key === 'circasports' ? 'circa' : b.key
+        return activeKeys.includes(key)
+      })
       for (const bookmaker of filteredBooks) {
         const spreads = bookmaker.markets?.find((m: any) => m.key === 'spreads')
         const totals = bookmaker.markets?.find((m: any) => m.key === 'totals')
@@ -394,7 +396,10 @@ export async function POST(request: Request) {
         const activeKeys = Array.isArray(bookmakerKeys) && bookmakerKeys.length > 0
           ? bookmakerKeys
           : SUPPORTED_PROP_BOOKS
-        for (const bookmaker of (json.bookmakers || []).filter((b: any) => activeKeys.includes(b.key))) {
+        for (const bookmaker of (json.bookmakers || []).filter((b: any) => {
+          const key = b.key === 'circasports' ? 'circa' : b.key
+          return activeKeys.includes(key)
+        })) {
           const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
 
           const ONE_SIDED_MARKETS = new Set<string>([
