@@ -123,11 +123,10 @@ export default function BuildPageContent() {
     }
   }
 
-  function extractSportsbooksFromProps(props: PlayerProp[]) {
+  function extractSportsbooksFromData(props: PlayerProp[], odds: OddsData[]) {
     const books = new Set<string>(['best_odds'])
-    props.forEach(p => {
-      if (p.sportsbook) books.add((p.sportsbook as string).toLowerCase())
-    })
+    props.forEach(p => { if (p.sportsbook) books.add((p.sportsbook as string).toLowerCase()) })
+    odds.forEach(o => { if (o.sportsbook) books.add((o.sportsbook as string).toLowerCase()) })
     const list = Array.from(books)
     setAvailableSportsbooks(list)
     setSelectedSportsbook(prev => (list.includes(prev) ? prev : 'best_odds'))
@@ -249,14 +248,46 @@ export default function BuildPageContent() {
   async function selectGame(game: Game) {
     setSelectedGame(game)
 
-    const { data: props } = await supabase
-      .from('player_props')
-      .select('*')
-      .eq('game_id', game.id)
+    const [propsRes, v2Res] = await Promise.all([
+      supabase.from('player_props').select('*').eq('game_id', game.id),
+      supabase.from('odds_data_v2').select('*').eq('game_id', game.id),
+    ])
 
-    setGameOdds([]) // temporarily disable v1 odds usage while moving to v2
-    setPlayerProps(props || [])
-    extractSportsbooksFromProps(props || [])
+    const props = propsRes.data || []
+    const v2 = (v2Res.data || []) as any[]
+
+    // Aggregate v2 baseline markets into legacy OddsData per book
+    const byBook: Record<string, OddsData> = {}
+    v2.forEach((row: any) => {
+      if (!row || !['spread','total','moneyline'].includes(row.market)) return
+      const book = (row.book_name || row.book_key) as string
+      if (!byBook[book]) {
+        byBook[book] = {
+          id: `${game.id}-${book}`,
+          game_id: game.id,
+          sportsbook: book,
+        } as OddsData
+      }
+      const agg = byBook[book]
+      if (row.market === 'spread') {
+        agg.spread_home = row.spread_home
+        agg.spread_away = row.spread_away
+        agg.spread_home_odds = row.spread_home_odds
+        agg.spread_away_odds = row.spread_away_odds
+      } else if (row.market === 'total') {
+        agg.total = row.line
+        agg.over_odds = row.over_odds
+        agg.under_odds = row.under_odds
+      } else if (row.market === 'moneyline') {
+        agg.moneyline_home = row.moneyline_home
+        agg.moneyline_away = row.moneyline_away
+      }
+    })
+
+    const oddsArray = Object.values(byBook)
+    setGameOdds(oddsArray)
+    setPlayerProps(props)
+    extractSportsbooksFromData(props, oddsArray)
     setSearchQuery('')
     setSearchResults({ games: [], playerProps: [] })
   }

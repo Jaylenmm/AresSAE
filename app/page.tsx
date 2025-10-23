@@ -41,30 +41,18 @@ export default function Home() {
       setGames(uniqueGames)
       setOddsData(data.odds || {})
 
-      // Fetch player props directly from Supabase
+      // Fetch player props via server API to avoid client RLS issues
       if (uniqueGames.length > 0) {
-        const gameIds = uniqueGames.map((g: Game) => g.id)
-        
-        console.log('Fetching props for game IDs:', gameIds)
-        
-        const { data: props, error } = await supabase
-          .from('player_props')
-          .select('*')
-          .in('game_id', gameIds)
-          .order('updated_at', { ascending: false })
+        const gameIds = uniqueGames.map((g: Game) => g.id).join(',')
+        const propsResponse = await fetch(`/api/featured-props?game_ids=${encodeURIComponent(gameIds)}&limit=80`)
+        const propsJson = (await propsResponse.json().catch(() => ({ props: [] }))) as { props: PlayerProp[] }
+        const props = Array.isArray(propsJson?.props) ? (propsJson.props as PlayerProp[]) : []
 
-        console.log('Props fetched:', props?.length, 'Error:', error)
-        
-        if (error) {
-          console.error('Error fetching props:', error)
-        } else {
-          const uniqueProps = props ? Array.from(
-            new Map(props.map(prop => [prop.id, prop])).values()
-          ).slice(0, 20) : []
-          
-          console.log('Unique props after dedup:', uniqueProps.length)
-          setPlayerProps(uniqueProps)
-        }
+        const uniqueProps: PlayerProp[] = props ? Array.from(
+          new Map(props.map((prop: PlayerProp) => [prop.id, prop])).values()
+        ).slice(0, 20) as PlayerProp[] : []
+
+        setPlayerProps(uniqueProps)
       }
 
       // Fetch news
