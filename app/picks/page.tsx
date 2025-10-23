@@ -104,16 +104,19 @@ export default function PicksPage() {
     }
 
     if (pick.picks.player && pick.picks.prop_type) {
-      const { data: allLines } = await supabase
-        .from('player_props')
-        .select('*')
-        .eq('game_id', game.id)
-        .eq('player_name', pick.picks.player)
-        .eq('prop_type', pick.picks.prop_type)
-        .order('line', { ascending: true })
+      const params = new URLSearchParams()
+      params.set('game_ids', game.id)
+      params.set('limit', '200')
+      params.set('strict', '1')
+      const resp = await fetch(`/api/featured-props?${params.toString()}`)
+      const json = await resp.json().catch(() => ({ props: [] }))
+      const allLines = Array.isArray(json?.props) ? (json.props as PlayerProp[]) : []
+      const filtered = allLines
+        .filter(l => l.player_name === pick.picks.player && l.prop_type === pick.picks.prop_type)
+        .sort((a, b) => a.line - b.line)
 
-      if (allLines && allLines.length > 1) {
-        const formattedLines: AlternateLine[] = allLines.map(line => ({
+      if (filtered.length > 1) {
+        const formattedLines: AlternateLine[] = filtered.map(line => ({
           line: line.line,
           over_odds: line.over_odds,
           under_odds: line.under_odds,
@@ -234,10 +237,13 @@ export default function PicksPage() {
     let betOption: BetOption
 
     if (pick.picks.player) {
-      const { data: playerPropsData } = await supabase
-        .from('player_props')
-        .select('*')
-        .eq('game_id', game.id)
+      const params = new URLSearchParams()
+      params.set('game_ids', game.id)
+      params.set('limit', '200')
+      params.set('strict', '1')
+      const resp = await fetch(`/api/featured-props?${params.toString()}`)
+      const json = await resp.json().catch(() => ({ props: [] }))
+      const playerPropsData = Array.isArray(json?.props) ? (json.props as PlayerProp[]) : []
 
       if (!playerPropsData || playerPropsData.length === 0) {
         alert('No player props data available for analysis')
