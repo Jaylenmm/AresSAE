@@ -236,11 +236,21 @@ export default function BuildPageContent() {
         new Map(games.map(game => [game.id, game])).values()
       ).slice(0, 5) : []
 
-      const { data: props } = await supabase
-        .from('player_props')
+      // Try v2 first, fallback to legacy
+      let { data: props } = await supabase
+        .from('player_props_v2')
         .select('*')
         .ilike('player_name', `%${query}%`)
         .order('updated_at', { ascending: false })
+      
+      if (!props || props.length === 0) {
+        const legacy = await supabase
+          .from('player_props')
+          .select('*')
+          .ilike('player_name', `%${query}%`)
+          .order('updated_at', { ascending: false })
+        props = legacy.data
+      }
 
       const uniquePlayerNames = props ? Array.from(
         new Set(props.map(p => p.player_name))
