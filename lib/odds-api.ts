@@ -98,7 +98,7 @@ const PLAYER_PROP_MARKETS = {
     'pitcher_strikeouts',
     'pitcher_hits_allowed',
     'pitcher_earned_runs',
-    'pitcher_outs_recorded',
+    'pitcher_outs',
     'pitcher_walks'
   ]
 }
