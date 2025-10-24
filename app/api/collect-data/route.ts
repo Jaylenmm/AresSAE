@@ -490,12 +490,21 @@ export async function POST(request: Request) {
             for (const [playerName, outcomes] of playerOutcomes) {
               // Case 1: Curated one-sided markets (allow Over-only)
               if (ONE_SIDED_MARKETS.has(rawMarketKey)) {
-                if (!outcomes.over) continue
+                if (!outcomes.over) {
+                  console.log(`[Props Debug] Skipped ${playerName} - no over outcome`)
+                  continue
+                }
                 let line: number | null = typeof outcomes.over.point === 'number' ? outcomes.over.point : null
                 // For anytime TD, provider often omits a line; use synthetic 0
                 if (rawMarketKey === 'player_anytime_td' && line === null) line = 0
-                if (line === null) continue
-                if (typeof outcomes.over.price !== 'number') continue
+                if (line === null) {
+                  console.log(`[Props Debug] Skipped ${playerName} ${rawMarketKey} - no line`)
+                  continue
+                }
+                if (typeof outcomes.over.price !== 'number') {
+                  console.log(`[Props Debug] Skipped ${playerName} - invalid price`)
+                  continue
+                }
 
                 await supabase
                   .from('player_props_v2')
@@ -523,7 +532,10 @@ export async function POST(request: Request) {
                 const point = (outcomes.over?.point ?? outcomes.under?.point)
                 let line: number | null = typeof point === 'number' ? point : null
                 if (rawMarketKey === 'player_anytime_td' && line === null) line = 0
-                if (line === null) continue
+                if (line === null) {
+                  console.log(`[Props Debug] Skipped ${playerName} ${rawMarketKey} - partial market no line`)
+                  continue
+                }
                 const overOdds = typeof outcomes.over?.price === 'number' ? outcomes.over!.price : null
                 const underOdds = typeof outcomes.under?.price === 'number' ? outcomes.under!.price : null
 
@@ -549,8 +561,14 @@ export async function POST(request: Request) {
               const overPoint = outcomes.over.point
               const underPoint = outcomes.under.point
               const line = typeof overPoint === 'number' ? overPoint : (typeof underPoint === 'number' ? underPoint : null)
-              if (line === null) continue
-              if (typeof outcomes.over.price !== 'number' || typeof outcomes.under.price !== 'number') continue
+              if (line === null) {
+                console.log(`[Props Debug] Skipped ${playerName} ${rawMarketKey} - full market no line`)
+                continue
+              }
+              if (typeof outcomes.over.price !== 'number' || typeof outcomes.under.price !== 'number') {
+                console.log(`[Props Debug] Skipped ${playerName} - invalid prices in full market`)
+                continue
+              }
 
               await supabase
                 .from('player_props_v2')
