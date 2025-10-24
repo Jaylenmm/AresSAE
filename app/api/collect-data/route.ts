@@ -437,6 +437,7 @@ export async function POST(request: Request) {
 
         for (const bookmaker of filteredBooksForProps) {
           const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
+          console.log(`[Props Debug] Processing ${bookmaker.key}: ${bookmaker.markets?.length || 0} markets`)
 
           const ONE_SIDED_MARKETS = new Set<string>([
             'batter_home_runs',
@@ -444,6 +445,7 @@ export async function POST(request: Request) {
           ])
 
           for (const market of bookmaker.markets || []) {
+            console.log(`[Props Debug] Market: ${market.key}, Outcomes: ${market.outcomes?.length || 0}`)
             const isAlternate = market.key.includes('_alternate')
             const rawMarketKey = market.key.replace('_alternate', '')
 
@@ -483,6 +485,8 @@ export async function POST(request: Request) {
               }
             }
 
+            console.log(`[Props Debug] ${market.key}: Grouped ${playerOutcomes.size} players`)
+            
             for (const [playerName, outcomes] of playerOutcomes) {
               // Case 1: Curated one-sided markets (allow Over-only)
               if (ONE_SIDED_MARKETS.has(rawMarketKey)) {
