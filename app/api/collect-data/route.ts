@@ -357,6 +357,7 @@ export async function POST(request: Request) {
     // Fetch player props
     if (!skipProps) {
     const propMarkets = getPropMarketsForSportKey(sportKey)
+    console.log(`[Props Debug] Sport ${sportKey}: ${propMarkets.length} prop markets to fetch`)
     // Either use DB games (ignoring any time slicing), or fall back to the games we just saved
     let entries: Array<[string, string]> = []
     if (propsFromDb) {
@@ -376,6 +377,7 @@ export async function POST(request: Request) {
     if (entries.length === 0) {
       entries = Array.from(gameIdMap.entries())
     }
+    console.log(`[Props Debug] ${entries.length} games to fetch props for`)
     // Lightweight cache cleanup: drop stale props older than 10 days
     try {
       const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
@@ -394,7 +396,11 @@ export async function POST(request: Request) {
     async function processOne(eventId: string, gameId: string) {
       try {
         const resp = await fetchPropsForEvent(sportKey, eventId, propMarkets)
-        if (!resp.ok) return
+        if (!resp.ok) {
+          const errorText = await resp.text()
+          console.error(`[Props Error] Event ${eventId}: ${resp.status} - ${errorText}`)
+          return
+        }
         const json = await resp.json()
 
         // DEBUG: Log what API returns
