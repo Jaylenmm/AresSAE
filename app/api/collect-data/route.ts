@@ -47,12 +47,13 @@ const DEFAULT_ODDS_BOOK_KEYS = [...SOCIAL_BOOK_KEYS, ...SHARP_BOOK_KEYS]
 
 // Curated list of supported sportsbooks for props collection (v2)
 const SUPPORTED_PROP_BOOKS = [
+  // social
   'draftkings',
   'fanduel',
   'betmgm',
   'caesars',
   'espnbet',
-  // sharp props (where available via API)
+  // sharp (where available via API)
   'pinnacle',
   'circa'
 ]
