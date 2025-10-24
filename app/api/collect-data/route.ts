@@ -397,10 +397,22 @@ export async function POST(request: Request) {
         const activeKeys = Array.isArray(bookmakerKeys) && bookmakerKeys.length > 0
           ? bookmakerKeys
           : SUPPORTED_PROP_BOOKS
-        for (const bookmaker of (json.bookmakers || []).filter((b: any) => {
+
+        const filteredByActive = (json.bookmakers || []).filter((b: any) => {
           const key = b.key === 'circasports' ? 'circa' : b.key
           return activeKeys.includes(key)
-        })) {
+        })
+
+        const shouldFallbackToSocial = filteredByActive.length === 0 && activeKeys.every((k: string) => ['pinnacle','circa'].includes(k))
+
+        const filteredBooksForProps = shouldFallbackToSocial
+          ? (json.bookmakers || []).filter((b: any) => {
+              const key = b.key === 'circasports' ? 'circa' : b.key
+              return SUPPORTED_PROP_BOOKS.includes(key)
+            })
+          : filteredByActive
+
+        for (const bookmaker of filteredBooksForProps) {
           const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
 
           const ONE_SIDED_MARKETS = new Set<string>([
@@ -432,10 +444,18 @@ export async function POST(request: Request) {
                 playerOutcomes.set(playerName, { over: null, under: null })
               }
 
+              // Normalize Yes/No to Over/Under for anytime TD market
+              const outcomeName = outcome.name
+              let normalizedName = outcomeName
+              if (rawMarketKey === 'player_anytime_td') {
+                if (outcomeName === 'Yes') normalizedName = 'Over'
+                else if (outcomeName === 'No') normalizedName = 'Under'
+              }
+
               const player = playerOutcomes.get(playerName)!
-              if (outcome.name === 'Over') {
+              if (normalizedName === 'Over') {
                 player.over = outcome
-              } else if (outcome.name === 'Under') {
+              } else if (normalizedName === 'Under') {
                 player.under = outcome
               }
             }
@@ -444,7 +464,9 @@ export async function POST(request: Request) {
               // Case 1: Curated one-sided markets (allow Over-only)
               if (ONE_SIDED_MARKETS.has(rawMarketKey)) {
                 if (!outcomes.over) continue
-                const line = typeof outcomes.over.point === 'number' ? outcomes.over.point : null
+                let line: number | null = typeof outcomes.over.point === 'number' ? outcomes.over.point : null
+                // For anytime TD, provider often omits a line; use synthetic 0
+                if (rawMarketKey === 'player_anytime_td' && line === null) line = 0
                 if (line === null) continue
                 if (typeof outcomes.over.price !== 'number') continue
 
@@ -468,34 +490,33 @@ export async function POST(request: Request) {
                 continue
               }
 
-              // Case 2: Standard two-sided markets require both Over and Under
-              // For MLB only, allow partial markets (only Over or only Under) to avoid zero-prop ingestion
+              // Case 2: Standard two-sided markets
+              // Allow partial markets (only Over or only Under) for ALL sports
               if (!outcomes.over || !outcomes.under) {
-                if (sport === 'MLB') {
-                  const point = (outcomes.over?.point ?? outcomes.under?.point)
-                  const line = typeof point === 'number' ? point : null
-                  if (line === null) continue
-                  const overOdds = typeof outcomes.over?.price === 'number' ? outcomes.over!.price : null
-                  const underOdds = typeof outcomes.under?.price === 'number' ? outcomes.under!.price : null
+                const point = (outcomes.over?.point ?? outcomes.under?.point)
+                let line: number | null = typeof point === 'number' ? point : null
+                if (rawMarketKey === 'player_anytime_td' && line === null) line = 0
+                if (line === null) continue
+                const overOdds = typeof outcomes.over?.price === 'number' ? outcomes.over!.price : null
+                const underOdds = typeof outcomes.under?.price === 'number' ? outcomes.under!.price : null
 
-                  await supabase
-                    .from('player_props_v2')
-                    .upsert({
-                      game_id: gameId,
-                      player_name: playerName,
-                      prop_type: propType,
-                      line: line,
-                      over_odds: overOdds,
-                      under_odds: underOdds,
-                      sportsbook: displayName,
-                      is_alternate: isAlternate,
-                      updated_at: new Date().toISOString()
-                    }, {
-                      onConflict: 'game_id,player_name,prop_type,sportsbook,line,is_alternate'
-                    })
+                await supabase
+                  .from('player_props_v2')
+                  .upsert({
+                    game_id: gameId,
+                    player_name: playerName,
+                    prop_type: propType,
+                    line: line,
+                    over_odds: overOdds,
+                    under_odds: underOdds,
+                    sportsbook: displayName,
+                    is_alternate: isAlternate,
+                    updated_at: new Date().toISOString()
+                  }, {
+                    onConflict: 'game_id,player_name,prop_type,sportsbook,line,is_alternate'
+                  })
 
-                  propsCreated++
-                }
+                propsCreated++
                 continue
               }
               const overPoint = outcomes.over.point

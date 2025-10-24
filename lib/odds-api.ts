@@ -148,7 +148,7 @@ export async function fetchPropsForEvent(
   return fetchWithRetry(
     `${BASE_URL}/sports/${sportKey}/events/${eventId}/odds?` + new URLSearchParams({
       apiKey: API_KEY!,
-      regions: 'us,us2,eu',
+      regions: 'us,us2,eu,uk,au',
       markets: markets.join(','),
       oddsFormat: 'american'
     })
@@ -164,7 +164,7 @@ export async function fetchOdds(sportKey: string) {
   const response = await fetchWithRetry(
     `${BASE_URL}/sports/${sportKey}/odds?` + new URLSearchParams({
       apiKey: API_KEY!,
-      regions: 'us,us2,eu',
+      regions: 'us,us2,eu,uk,au',
       markets: markets,
       oddsFormat: 'american'
     })
@@ -188,7 +188,7 @@ export async function fetchAlternateOdds(sportKey: string, eventId: string) {
   const response = await fetchWithRetry(
     `${BASE_URL}/sports/${sportKey}/events/${eventId}/odds?` + new URLSearchParams({
       apiKey: API_KEY!,
-      regions: 'us,us2,eu',
+      regions: 'us,us2,eu,uk,au',
       markets: 'alternate_spreads,alternate_totals',
       oddsFormat: 'american'
     })
