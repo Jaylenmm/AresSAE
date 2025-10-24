@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   const booksParam = url.searchParams.get('books') || ''
   const books = booksParam
     ? booksParam.split(',').map(s => s.trim()).filter(Boolean)
-    : ['draftkings', 'fanduel', 'betmgm', 'caesars', 'espnbet', 'pinnacle', 'circa']
+    : ['fanduel', 'betonlineag', 'lowvig', 'draftkings', 'betmgm', 'caesars', 'espnbet']  // Sharp-ish + soft for consensus
   const resp = await fetch(`${origin}/api/collect-data`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

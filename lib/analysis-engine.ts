@@ -71,9 +71,126 @@ export interface AnalysisResult {
 
 const SHARP_BOOKMAKERS = ['pinnacle', 'betonline', 'bookmaker', 'circa', 'circasports'];
 
+// For player props: Sharp-ish books that actually offer props
+const SHARP_PROP_BOOKMAKERS = ['fanduel', 'betonlineag', 'lowvig', 'draftkings'];
+const SOFT_PROP_BOOKMAKERS = ['betmgm', 'caesars', 'espnbet'];
+
+// Weights for building sharp consensus from multiple sharp-ish books
+const PROP_BOOK_WEIGHTS: Record<string, number> = {
+  'fanduel': 1.0,
+  'betonlineag': 0.9,
+  'lowvig': 0.85,
+  'draftkings': 0.75
+};
+
 function isSharpBook(bookmakerKey: string): boolean {
   const normalized = bookmakerKey.toLowerCase().replace(/\s+/g, '');
   return SHARP_BOOKMAKERS.some(sharp => normalized.includes(sharp));
+}
+
+function isSharpPropBook(bookmakerKey: string): boolean {
+  const normalized = bookmakerKey.toLowerCase().replace(/\s+/g, '');
+  return SHARP_PROP_BOOKMAKERS.some(sharp => normalized.includes(sharp));
+}
+
+/**
+ * Build sharp consensus for player props from multiple sharp-ish books
+ * Returns weighted average of no-vig probabilities
+ */
+function buildPropSharpConsensus(
+  market: string,
+  selection: string,
+  requestedLine: number | undefined,
+  allBookmakerData: BookmakerOdds[]
+): {
+  odds: number;
+  opposingOdds: number;
+  trueProbability: number;
+  booksUsed: string[];
+  confidence: number;
+} | null {
+  const sharpPropOdds: Array<{
+    sportsbook: string;
+    odds: number;
+    opposingOdds: number;
+    line: number;
+    weight: number;
+  }> = [];
+
+  for (const bookmaker of allBookmakerData) {
+    const normalized = bookmaker.key.toLowerCase().replace(/\s+/g, '');
+    if (!isSharpPropBook(normalized)) continue;
+
+    const marketData = bookmaker.markets.find(m => m.key === market);
+    if (!marketData) continue;
+
+    const outcome = marketData.outcomes.find(o => o.name === selection);
+    if (!outcome) continue;
+
+    // For props, find opposing side
+    const opposingSelection = selection === 'Over' ? 'Under' : (selection === 'Under' ? 'Over' : null);
+    const opposingOutcome = opposingSelection 
+      ? marketData.outcomes.find(o => o.name === opposingSelection)
+      : null;
+
+    if (!opposingOutcome) continue;
+
+    // Check line match
+    const line = outcome.point ?? 0;
+    if (requestedLine !== undefined && Math.abs(line - requestedLine) > 0.5) continue;
+
+    const weight = PROP_BOOK_WEIGHTS[normalized] || 0.5;
+
+    sharpPropOdds.push({
+      sportsbook: bookmaker.title,
+      odds: outcome.price,
+      opposingOdds: opposingOutcome.price,
+      line,
+      weight
+    });
+  }
+
+  if (sharpPropOdds.length === 0) return null;
+
+  // Calculate weighted average of no-vig probabilities
+  let totalProb = 0;
+  let totalWeight = 0;
+
+  for (const book of sharpPropOdds) {
+    const { prob1 } = removeVig(book.odds, book.opposingOdds);
+    totalProb += prob1 * book.weight;
+    totalWeight += book.weight;
+  }
+
+  const consensusProb = totalProb / totalWeight;
+  const consensusOpposingProb = 1 - consensusProb;
+
+  // Convert back to American odds
+  const consensusOdds = consensusProb >= 0.5
+    ? Math.round(-100 * consensusProb / (1 - consensusProb))
+    : Math.round(100 * (1 - consensusProb) / consensusProb);
+
+  const consensusOpposingOdds = consensusOpposingProb >= 0.5
+    ? Math.round(-100 * consensusOpposingProb / (1 - consensusOpposingProb))
+    : Math.round(100 * (1 - consensusOpposingProb) / consensusOpposingProb);
+
+  // Calculate confidence based on agreement (lower variance = higher confidence)
+  const probs = sharpPropOdds.map(b => {
+    const { prob1 } = removeVig(b.odds, b.opposingOdds);
+    return prob1;
+  });
+  const avgProb = probs.reduce((a, b) => a + b, 0) / probs.length;
+  const variance = probs.reduce((sum, p) => sum + Math.pow(p - avgProb, 2), 0) / probs.length;
+  const stdDev = Math.sqrt(variance);
+  const confidence = Math.max(0, 1 - (stdDev * 20)); // 0-1 scale
+
+  return {
+    odds: consensusOdds,
+    opposingOdds: consensusOpposingOdds,
+    trueProbability: consensusProb,
+    booksUsed: sharpPropOdds.map(b => b.sportsbook),
+    confidence
+  };
 }
 
 function findSharpConsensus(
@@ -197,20 +314,42 @@ export function analyzeBet(
   const worst = sortedOdds[sortedOdds.length - 1];
   const oddsRange = best.odds - worst.odds;
   
-  const sharpConsensus = findSharpConsensus(
-    betOption.market,
-    betOption.selection,
-    betOption.line,
-    betOption.playerName,
-    allBookmakerData
-  );
+  // For player props, use sharp-ish consensus; for game lines, use traditional sharp books
+  const isPlayerProp = betOption.market === 'player_prop';
+  
+  let sharpConsensus: any = null;
+  let propConsensus: any = null;
+  
+  if (isPlayerProp) {
+    propConsensus = buildPropSharpConsensus(
+      betOption.market,
+      betOption.selection,
+      betOption.line,
+      allBookmakerData
+    );
+  } else {
+    sharpConsensus = findSharpConsensus(
+      betOption.market,
+      betOption.selection,
+      betOption.line,
+      betOption.playerName,
+      allBookmakerData
+    );
+  }
   
   let trueProbability: number | null = null;
   let edge = 0;
   let expectedValue = 0;
   let usingSoftFallback = false;
   
-  if (sharpConsensus) {
+  if (propConsensus) {
+    // Use prop consensus (weighted average of sharp-ish books)
+    trueProbability = propConsensus.trueProbability;
+    const impliedProbability = americanOddsToImpliedProbability(betOption.odds);
+    edge = (trueProbability! - impliedProbability) * 100;
+    expectedValue = calculateEV(trueProbability!, betOption.odds) * 100;
+  } else if (sharpConsensus) {
+    // Use traditional sharp book consensus
     if (sharpConsensus.opposingOdds !== null) {
       const { prob1 } = removeVig(sharpConsensus.odds, sharpConsensus.opposingOdds);
       trueProbability = prob1;
@@ -235,9 +374,17 @@ export function analyzeBet(
   
   const softBest = softOdds.length > 0 ? softOdds.reduce((a, b) => a.odds > b.odds ? a : b) : null;
   
-  let baseConfidence = sharpConsensus ? 100 : 40;
-  if (sharpConsensus && sharpConsensus.lineDistance === 1) baseConfidence -= 3;
-  if (sharpConsensus && sharpConsensus.lineDistance === 2) baseConfidence -= 5;
+  let baseConfidence = 100;
+  if (propConsensus) {
+    // Prop consensus confidence based on book agreement
+    baseConfidence = 85 + (propConsensus.confidence * 15); // 85-100 range
+  } else if (sharpConsensus) {
+    baseConfidence = 100;
+    if (sharpConsensus.lineDistance === 1) baseConfidence -= 3;
+    if (sharpConsensus.lineDistance === 2) baseConfidence -= 5;
+  } else {
+    baseConfidence = 40;
+  }
   
   const confidence = calculateConfidence(trueProbability, edge, oddsRange, sharpOdds.length, relevantOdds.length, baseConfidence);
   

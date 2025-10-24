@@ -45,18 +45,22 @@ const SHARP_BOOK_KEYS = [
 
 const DEFAULT_ODDS_BOOK_KEYS = [...SOCIAL_BOOK_KEYS, ...SHARP_BOOK_KEYS]
 
-// Curated list of supported sportsbooks for props collection (v2)
-const SUPPORTED_PROP_BOOKS = [
-  // social
-  'draftkings',
-  'fanduel',
+// For player props: Build synthetic sharp consensus from multiple sharp-ish books
+// Then compare soft books against this consensus for edge calculation
+const SHARP_PROP_BOOKS = [
+  'fanduel',      // Sharpest for props (owns NumberFire analytics)
+  'betonlineag',  // Sharp book with higher limits
+  'lowvig',       // Reduced juice, sharp
+  'draftkings'    // Reasonably efficient for props
+]
+
+const SOFT_PROP_BOOKS = [
   'betmgm',
   'caesars',
-  'espnbet',
-  // sharp (where available via API)
-  'pinnacle',
-  'circa'
+  'espnbet'
 ]
+
+const SUPPORTED_PROP_BOOKS = [...SHARP_PROP_BOOKS, ...SOFT_PROP_BOOKS]
 
 
 
@@ -393,17 +397,31 @@ export async function POST(request: Request) {
         if (!resp.ok) return
         const json = await resp.json()
 
+        // DEBUG: Log what API returns
+        console.log(`[Props Debug] Event ${eventId}: API returned ${json.bookmakers?.length || 0} bookmakers`)
+        if (json.bookmakers && json.bookmakers.length > 0) {
+          console.log(`[Props Debug] Bookmakers: ${json.bookmakers.map((b: any) => b.key).join(', ')}`)
+        }
+
         // Use curated supported books list for props v2 unless explicitly overridden
         const activeKeys = Array.isArray(bookmakerKeys) && bookmakerKeys.length > 0
           ? bookmakerKeys
           : SUPPORTED_PROP_BOOKS
+
+        console.log(`[Props Debug] Filtering for keys: ${activeKeys.join(', ')}`)
 
         const filteredByActive = (json.bookmakers || []).filter((b: any) => {
           const key = b.key === 'circasports' ? 'circa' : b.key
           return activeKeys.includes(key)
         })
 
+        console.log(`[Props Debug] After filtering: ${filteredByActive.length} bookmakers matched`)
+
         const shouldFallbackToSocial = filteredByActive.length === 0 && activeKeys.every((k: string) => ['pinnacle','circa'].includes(k))
+
+        if (shouldFallbackToSocial) {
+          console.log(`[Props Debug] No sharp props found, falling back to social books`)
+        }
 
         const filteredBooksForProps = shouldFallbackToSocial
           ? (json.bookmakers || []).filter((b: any) => {
@@ -411,6 +429,8 @@ export async function POST(request: Request) {
               return SUPPORTED_PROP_BOOKS.includes(key)
             })
           : filteredByActive
+
+        console.log(`[Props Debug] Final books to process: ${filteredBooksForProps.map((b: any) => b.key).join(', ')}`)
 
         for (const bookmaker of filteredBooksForProps) {
           const displayName = BOOKMAKER_NAMES[bookmaker.key] || bookmaker.title
