@@ -411,8 +411,11 @@ export async function POST(request: Request) {
         console.log(`[Props Debug] Filtering for keys: ${activeKeys.join(', ')}`)
 
         const filteredByActive = (json.bookmakers || []).filter((b: any) => {
-          const key = b.key === 'circasports' ? 'circa' : b.key
-          return activeKeys.includes(key)
+          let key = b.key === 'circasports' ? 'circa' : b.key
+          // Normalize underscores (betonline_ag -> betonlineag)
+          const normalizedKey = key.replace(/_/g, '')
+          return activeKeys.includes(key) || activeKeys.includes(normalizedKey) || 
+                 activeKeys.map(k => k.replace(/_/g, '')).includes(normalizedKey)
         })
 
         console.log(`[Props Debug] After filtering: ${filteredByActive.length} bookmakers matched`)

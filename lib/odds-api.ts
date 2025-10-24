@@ -113,19 +113,7 @@ const PLAYER_PROP_MARKETS = {
     'pitcher_hits_allowed',
     'pitcher_earned_runs',
     'pitcher_outs_recorded',
-    'pitcher_walks',
-    // Alternates
-    'batter_home_runs_alternate',
-    'batter_hits_alternate',
-    'batter_total_bases_alternate',
-    'batter_rbis_alternate',
-    'batter_runs_scored_alternate',
-    'batter_strikeouts_alternate',
-    'pitcher_strikeouts_alternate',
-    'pitcher_hits_allowed_alternate',
-    'pitcher_earned_runs_alternate',
-    'pitcher_outs_recorded_alternate',
-    'pitcher_walks_alternate'
+    'pitcher_walks'
   ]
 }
 
