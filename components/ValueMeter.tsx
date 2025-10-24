@@ -39,25 +39,28 @@ export default function ValueMeterTEST({ edge }: ValueMeterProps) {
   
   return (
     <div className="my-4">
-      <p className="text-xs text-gray-600 mb-2 font-medium">Value Meter: Analyze your pick's value. Sharp bettors tend to look for +2%-5% edges. Fair value is also a good pick though!</p>
+      <p className="text-xs text-gray-400 mb-2 font-medium">Value Meter: Analyze your pick's value. Sharp bettors tend to look for +2%-5% edges. Fair value is also a good pick though!</p>
       
-      <div className="relative h-16 rounded-lg overflow-hidden border border-blue-500 bg-gray-50">
+      <div className="relative h-16 rounded-lg overflow-hidden border border-blue-500/30 bg-white/5 backdrop-blur-sm">
         {/* Zone labels */}
-        <div className="absolute inset-x-0 top-1 flex justify-between px-2 text-xs text-gray-600 font-medium">
+        <div className="absolute inset-x-0 top-1 flex justify-between px-2 text-xs text-gray-400 font-medium">
           <span>Overpriced</span>
           <span>Fair</span>
           <span>Sharp Value</span>
         </div>
         
         {/* Center line */}
-        <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gray-400" />
+        <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gray-600" />
         
         {/* Bar visualization */}
         <div 
-          className={`absolute top-1/2 transform -translate-y-1/2 h-3 ${barColor} transition-all duration-300`}
+          className={`absolute top-1/2 transform -translate-y-1/2 h-2 ${barColor} transition-all duration-300`}
           style={{
             left: `${barLeft}%`,
-            width: `${barWidth}%`
+            width: `${barWidth}%`,
+            clipPath: position > 50 
+              ? 'polygon(0 0, 95% 0, 100% 50%, 95% 100%, 0 100%)' 
+              : 'polygon(5% 0, 100% 0, 100% 100%, 5% 100%, 0 50%)'
           }}
         />
         
@@ -74,9 +77,9 @@ export default function ValueMeterTEST({ edge }: ValueMeterProps) {
       {/* Edge label below meter */}
       <div className="text-center mt-2">
         <span className={`text-lg font-bold ${
-          isPositive ? 'text-green-600' : 
-          isNegative ? 'text-red-600' : 
-          'text-gray-600'
+          isPositive ? 'text-green-400' : 
+          isNegative ? 'text-red-400' : 
+          'text-gray-400'
         }`}>
           {displayLabel}
         </span>

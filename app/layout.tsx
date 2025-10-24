@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import '../public/vscode-dark.css'
 import BottomNav from '@/components/BottomNav'
+import Footer from '@/components/Footer'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -23,8 +24,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <div className="pb-20 min-h-screen">
-          {children}
+        <div className="flex flex-col min-h-screen">
+          <div className="flex-1 pb-20">
+            {children}
+          </div>
+          <Footer />
         </div>
         <BottomNav />
       </body>

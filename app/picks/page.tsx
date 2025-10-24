@@ -11,6 +11,7 @@ import { transformGameToAnalysisFormat, transformPlayerPropsToAnalysisFormat, cr
 import AnalyzeConfirmationModal from '@/components/AnalyzeConfirmationModal'
 import LineSelector from '@/components/LineSelector'
 import ValueMeter from '@/components/ValueMeter'
+import LegalFooter from '@/components/LegalFooter'
 
 interface AlternateLine {
   line: number
@@ -39,7 +40,7 @@ export default function PicksPage() {
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      router.push('/login')
+      router.push('/login?redirect=/picks')
       return
     }
 
@@ -410,14 +411,17 @@ export default function PicksPage() {
 
   if (loading) {
     return (
-      <main className="max-w-4xl mx-auto p-4">
-        <p className="text-center text-gray-500">Loading picks...</p>
+      <main className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
+        <div className="max-w-4xl mx-auto p-4">
+          <p className="text-center text-gray-500">Loading picks...</p>
+        </div>
       </main>
     )
   }
 
   return (
-    <main className="max-w-4xl mx-auto p-4 pb-24">
+    <main className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
+      <div className="max-w-4xl mx-auto p-4 pb-24">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-white">Your Picks</h1>
         {picks.length > 0 && (
@@ -439,7 +443,7 @@ export default function PicksPage() {
         </div>
       ) : (
         <>
-          <div className="bg-gradient-to-br from-blue-600 to-blue-900 rounded-lg p-6 mb-6 text-white">
+          <div className="bg-gradient-to-br from-blue-900 to-blue rounded-lg p-6 mb-6 text-white">
             <h2 className="text-xl font-bold mb-2">Your Active Bets</h2>
             <div className="flex gap-4">
               <div>
@@ -461,45 +465,14 @@ export default function PicksPage() {
               const game = pick.picks?.game_id ? games[pick.picks.game_id] : null
               
               return (
-                <div key={pick.id} className="bg-white rounded-lg shadow-md border-2 overflow-hidden">
+                <div key={pick.id} className="bg-gray-900 rounded-xl shadow-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
                   <div className="p-4">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <p 
-                          className="font-bold text-gray-900 mb-1 cursor-pointer hover:underline"
-                          onClick={() => {
-                            if (game) {
-                              const player = pick.picks?.player
-                              const qs = player ? `&player=${encodeURIComponent(player)}` : ''
-                              router.push(`/build?game_id=${game.id}${qs}`)
-                            }
-                          }}
-                        >
-                          {pick.picks?.player 
-                            ? `${pick.picks.player}`
-                            : `${pick.picks?.team || pick.picks?.selection}`
-                          }
-                        </p>
-                        <p className="text-sm text-gray-600 mb-2">
-                          {pick.picks?.player 
-                            ? `${pick.picks.selection} ${pick.picks.line} ${pick.picks.prop_type}`
-                            : `${pick.picks?.selection} ${pick.picks?.line || ''}`
-                          }
-                        </p>
-
-                        <div className="flex gap-2 mb-3">
-                          <span className="text-white bg-gradient-to-r from-blue-600 to-blue-900 px-3 py-1 rounded text-sm font-bold">
-                            {pick.picks?.odds > 0 ? '+' : ''}{pick.picks?.odds}
-                          </span>
-                          <span className="text-gray-700 bg-gray-100 px-3 py-1 rounded text-sm font-semibold">
-                            {getBookmakerDisplayName(pick.picks?.sportsbook || 'N/A')}
-                          </span>
-                        </div>
-
                         {game && (
-                          <div className="text-xs text-gray-600 bg-gray-50 rounded p-2">
-                            <div className="font-semibold mb-1">{game.away_team} @ {game.home_team}</div>
-                            <div className="flex gap-2">
+                          <div className="text-xs text-gray-300">
+                            <div className="font-semibold mb-1 text-white">{game.away_team} @ {game.home_team}</div>
+                            <div className="flex gap-2 text-gray-400">
                               <span>
                                 {new Date(game.game_date).toLocaleDateString('en-US', {
                                   month: 'short',
@@ -517,6 +490,37 @@ export default function PicksPage() {
                             </div>
                           </div>
                         )}
+
+                        <p 
+                          className="font-bold text-white text-lg mb-1 cursor-pointer hover:text-blue-400 transition-colors"
+                          onClick={() => {
+                            if (game) {
+                              const player = pick.picks?.player
+                              const qs = player ? `&player=${encodeURIComponent(player)}` : ''
+                              router.push(`/build?game_id=${game.id}${qs}`)
+                            }
+                          }}
+                        >
+                          {pick.picks?.player 
+                            ? `${pick.picks.player}`
+                            : `${pick.picks?.team || pick.picks?.selection}`
+                          }
+                        </p>
+                        <p className="text-sm text-gray-400 mb-3">
+                          {pick.picks?.player 
+                            ? `${pick.picks.selection} ${pick.picks.line} ${pick.picks.prop_type}`
+                            : `${pick.picks?.selection} ${pick.picks?.line || ''}`
+                          }
+                        </p>
+
+                        <div className="flex gap-2 mb-3">
+                          <span className="text-white bg-gradient-to-r from-blue-900 to-blue-400 px-3 py-1.5 rounded-lg text-sm shadow-lg">
+                            {pick.picks?.odds > 0 ? '+' : ''}{pick.picks?.odds}
+                          </span>
+                          <span className="text-white bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg text-sm font-semibold border border-white/20">
+                            {getBookmakerDisplayName(pick.picks?.sportsbook || 'N/A')}
+                          </span>
+                        </div>
                       </div>
 
                       <button
@@ -530,16 +534,16 @@ export default function PicksPage() {
                   </div>
 
                   {analysis ? (
-                    <div className="border-t border-gray-200 p-4 bg-gray-50">
+                    <div className="border-t border-white/10 p-4 bg-black/30 backdrop-blur-sm">
                       <div className="mb-3">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-gray-400">
                             Latest Analysis: {new Date(analysis.timestamp).toLocaleString()}
                           </span>
                           {analysis.history && analysis.history.length > 1 && (
                             <button
                               onClick={() => toggleAnalysisHistory(pick.id)}
-                              className="text-xs text-blue-600 hover:text-blue-800 font-semibold"
+                              className="text-xs text-blue-400 hover:text-blue-300 font-semibold"
                             >
                               {expandedAnalyses[pick.id] ? '▼' : '▶'} View History ({analysis.history.length})
                             </button>
@@ -547,31 +551,31 @@ export default function PicksPage() {
                         </div>
 
                         {analysis.analyzedLine && (
-                          <div className="text-xs text-blue-600 bg-blue-50 rounded px-2 py-1 mb-2 inline-block">
+                          <div className="text-xs text-blue-400 bg-blue-500/20 backdrop-blur-sm rounded-lg px-3 py-1.5 mb-2 inline-block border border-blue-500/30">
                             Analyzed at line: {analysis.analyzedLine} ({analysis.analyzedOdds > 0 ? '+' : ''}{analysis.analyzedOdds})
                           </div>
                         )}
 
                         <div className="grid grid-cols-3 gap-2 mb-3">
-                          <div className="bg-white rounded p-2 text-center border border-gray-200">
-                            <p className="text-xs text-gray-500">EV ($/1)</p>
-                            <p className={`font-bold ${((analysis.expectedValue ?? 0) / 100) > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <div className="bg-white/5 backdrop-blur-sm rounded-lg p-3 text-center border border-white/10">
+                            <p className="text-xs text-gray-200">EV ($/1)</p>
+                            <p className={`font-bold ${((analysis.expectedValue ?? 0) / 100) > 0 ? 'text-green-400' : 'text-red-400'}`}>
                               {analysis.expectedValue !== undefined && analysis.expectedValue !== null 
                                 ? `${(((analysis.expectedValue) / 100) > 0 ? '+' : '')}$${((analysis.expectedValue) / 100).toFixed(2)}` 
                                 : '$0.00'}
                             </p>
                           </div>
-                          <div className="bg-white rounded p-2 text-center border border-gray-200">
-                            <p className="text-xs text-gray-500">Edge</p>
-                            <p className={`font-bold ${(analysis.edge ?? 0) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                          <div className="bg-white/5 backdrop-blur-sm rounded-lg p-3 text-center border border-white/10">
+                            <p className="text-xs text-gray-200">Edge</p>
+                            <p className={`font-bold ${(analysis.edge ?? 0) > 0 ? 'text-green-400' : 'text-gray-200'}`}>
                               {analysis.edge !== undefined && analysis.edge !== null 
                                 ? `${analysis.edge > 0 ? '+' : ''}${analysis.edge.toFixed(1)}%` 
                                 : '0.0%'}
                             </p>
                           </div>
-                          <div className="bg-white rounded p-2 text-center border border-gray-200">
-                            <p className="text-xs text-gray-500">Confidence</p>
-                            <p className="font-bold text-gray-900">
+                          <div className="bg-white/5 backdrop-blur-sm rounded-lg p-3 text-center border border-white/10">
+                            <p className="text-xs text-gray-200">Confidence</p>
+                            <p className="font-bold text-white">
                               {analysis.confidence ?? 0}%
                             </p>
                           </div>
@@ -581,7 +585,7 @@ export default function PicksPage() {
                         <ValueMeter edge={analysis.edge ?? 0} />
 
                         {analysis.bestSportsbook && analysis.bestOdds && (
-                          <div className="text-xs text-gray-600 mb-2 flex items-center gap-3">
+                          <div className="text-xs text-gray-300 mb-2 flex items-center gap-3">
                             <div>
                               <p className="font-semibold">Best available:</p>
                               <p>{analysis.bestOdds > 0 ? '+' : ''}{analysis.bestOdds} @ {getBookmakerDisplayName(analysis.bestSportsbook)}</p>
@@ -601,7 +605,7 @@ export default function PicksPage() {
                         )}
 
                         {analysis.reasons && analysis.reasons.length > 0 && (
-                          <div className="text-xs text-gray-700 bg-blue-50 rounded p-2 mb-2">
+                          <div className="text-xs text-gray-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 mb-2 border border-blue-500/30">
                             <p className="font-semibold mb-1">Why this pick:</p>
                             <ul className="list-disc list-inside space-y-1">
                               {analysis.reasons.map((reason: string, i: number) => (
@@ -612,7 +616,7 @@ export default function PicksPage() {
                         )}
 
                         {analysis.warnings && analysis.warnings.length > 0 && (
-                          <div className="text-xs text-blue-700 bg-blue-50 rounded p-2 border border-blue-200">
+                          <div className="text-xs text-blue-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 border border-blue-500/30">
                             <p className="font-semibold mb-1">ℹ️ Analysis Notes:</p>
                             <ul className="list-disc list-inside space-y-1">
                               {analysis.warnings.map((warning: string, i: number) => (
@@ -624,17 +628,17 @@ export default function PicksPage() {
                       </div>
 
                       {expandedAnalyses[pick.id] && analysis.history && analysis.history.length > 1 && (
-                        <div className="border-t border-gray-300 pt-3 mt-3">
-                          <p className="text-xs font-semibold text-gray-600 mb-2">Previous Analyses:</p>
+                        <div className="border-t border-white/10 pt-3 mt-3">
+                          <p className="text-xs font-semibold text-gray-400 mb-2">Previous Analyses:</p>
                           <div className="space-y-3 max-h-96 overflow-y-auto">
                             {analysis.history.slice(0, -1).reverse().map((oldAnalysis: any, idx: number) => (
-                              <div key={idx} className="bg-white rounded p-3 border border-gray-200">
-                                <p className="text-xs text-gray-500 mb-2">
+                              <div key={idx} className="bg-white/5 backdrop-blur-sm rounded-lg p-3 border border-white/10">
+                                <p className="text-xs text-gray-400 mb-2">
                                   {new Date(oldAnalysis.timestamp).toLocaleString()}
                                 </p>
                                 
                                 {oldAnalysis.analyzedLine && (
-                                  <div className="text-xs text-blue-600 mb-2">
+                                  <div className="text-xs text-blue-400 mb-2">
                                     Line: {oldAnalysis.analyzedLine} ({oldAnalysis.analyzedOdds > 0 ? '+' : ''}{oldAnalysis.analyzedOdds})
                                   </div>
                                 )}
@@ -691,7 +695,7 @@ export default function PicksPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="border-t border-gray-200 p-4 bg-gray-50">
+                    <div className="border-t border-white/10 p-4 bg-black/30 backdrop-blur-sm">
                       <div className="space-y-2">
                         <button
                           onClick={() => promptAnalysis(pick)}
@@ -709,7 +713,7 @@ export default function PicksPage() {
                     </div>
                   )}
 
-                  <div className="bg-gray-100 px-4 py-2 text-xs text-gray-500">
+                  <div className="bg-gradient-to-r from-blue-900 to-blue-400 px-4 py-2 text-xs text-gray-200">
                     Saved {new Date(pick.created_at).toLocaleString()}
                   </div>
                 </div>
@@ -753,6 +757,8 @@ export default function PicksPage() {
           betDetails={selectedPickForAnalysis.picks}
         />
       )}
+      <LegalFooter />
+      </div>
     </main>
   )
 }

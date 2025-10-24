@@ -1,9 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import GameCard from '@/components/GameCard'
-import PropCard from '@/components/PropCard'
+// import GameCard from '@/components/GameCard'
+import GameCard from '@/components/GameCardV2'
+// import PropCard from '@/components/PropCard'
+import PropCard from '@/components/PropCardV2'
 import FeaturedPicks from '@/components/FeaturedPicks'
+import LegalFooter from '@/components/LegalFooter'
 import { Game, OddsData, PlayerProp } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
 
@@ -108,7 +111,7 @@ export default function Home() {
         <>
           {/* Featured Games */}
           <section className="mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Featured Games</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Upcoming Games</h2>
             {games.length === 0 ? (
               <div className="bg-white rounded-lg shadow-md p-6 text-center">
                 <p className="text-gray-600 mb-2">No games available</p>
@@ -124,7 +127,7 @@ export default function Home() {
 
           {/* Featured Player Props */}
           <section className="mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Featured Props</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Upcoming Props</h2>
             {playerProps.length === 0 ? (
               <div className="bg-white rounded-lg shadow-md p-6 text-center">
                 <p className="text-gray-600 mb-2">No player props available</p>
@@ -166,17 +169,18 @@ export default function Home() {
                     href={article.link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block bg-white rounded-lg shadow-sm p-4 hover:bg-gray-50 transition-colors border border-gray-200"
+                    className="block bg-gradient-to-br from-black to-blue-900 rounded-lg shadow-sm p-4 transition-colors border border-white/20 relative"
+
                   >
-                    <div className="font-semibold text-gray-900 mb-2">
+                    <div className="font-semibold text-white mb-2">
                       {article.title}
                     </div>
                     {article.description && (
-                      <div className="text-sm text-gray-700 mb-2">
+                      <div className="text-sm text-white mb-2">
                         {article.description}
                       </div>
                     )}
-                    <div className="text-xs text-gray-600">
+                    <div className="text-xs text-white">
                       {new Date(article.pubDate).toLocaleDateString('en-US', { 
                         weekday: 'short', 
                         day: 'numeric', 
@@ -191,6 +195,7 @@ export default function Home() {
           </section>
         </>
       )}
+      <LegalFooter />
     </main>
   )
 }

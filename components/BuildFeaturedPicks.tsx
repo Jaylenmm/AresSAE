@@ -116,7 +116,7 @@ export default function BuildFeaturedPicks() {
           <div
             key={bet.id}
             onClick={() => handleCardClick(bet)}
-            className="flex-shrink-0 w-[280px] snap-start bg-gradient-to-br from-blue-600 to-blue-900 rounded-lg p-4 text-white cursor-pointer hover:shadow-xl transition-all"
+            className="flex-shrink-0 w-[280px] snap-start bg-gradient-to-br from-black to-blue-900 rounded-lg p-4 text-white cursor-pointer hover:shadow-xl transition-all"
           >
             <div className="flex justify-between items-start mb-3">
               <div className="flex-1 min-w-0">

@@ -6,9 +6,12 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import BettingOptions from '@/components/BettingOptions'
 import BuildFeaturedPicks from '@/components/BuildFeaturedPicks'
+import GameCardV2 from '@/components/GameCardV2'
+import PlayerPropDisplay from '@/components/PlayerPropDisplay'
 import { Game, OddsData, PlayerProp } from '@/lib/types'
 import { Search } from 'lucide-react'
 import BetConfirmationModal from '@/components/BetConfirmationModal'
+import LegalFooter from '@/components/LegalFooter'
 import { getBookmakerDisplayName } from '@/lib/bookmakers'
 
 export default function BuildPageContent() {
@@ -24,7 +27,7 @@ export default function BuildPageContent() {
   const [gameOdds, setGameOdds] = useState<OddsData[]>([])
   const [playerProps, setPlayerProps] = useState<PlayerProp[]>([])
   const [searching, setSearching] = useState(false)
-  const [selectedSportsbook, setSelectedSportsbook] = useState('best_odds')
+  const [selectedSportsbook] = useState('best_odds') // Always use best odds
   const [availableSportsbooks, setAvailableSportsbooks] = useState<string[]>([])
   const [sportsbookPropCounts, setSportsbookPropCounts] = useState<Record<string, number>>({})
   const [selectedPropType, setSelectedPropType] = useState<string>('all')
@@ -106,10 +109,6 @@ export default function BuildPageContent() {
         if (game) {
           await selectGame(game)
           
-          if (prop.sportsbook) {
-            setSelectedSportsbook((prop.sportsbook as string).toLowerCase())
-          }
-          
           setTimeout(() => {
             if (prop.player_name) {
               setOpenPlayers(prev => ({
@@ -145,7 +144,7 @@ export default function BuildPageContent() {
     const list = ['best_odds', ...Object.keys(counts).sort()]
     setSportsbookPropCounts(counts)
     setAvailableSportsbooks(list)
-    setSelectedSportsbook(prev => (list.includes(prev) ? prev : 'best_odds'))
+    // Always use best_odds, no need to set
   }
 
   function getOddsForSportsbook(allOdds: OddsData[]) {
@@ -455,25 +454,25 @@ export default function BuildPageContent() {
           placeholder="Search teams or players..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+          className="w-full pl-10 pr-4 py-3 bg-gray-900 border border-white/20 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-gray-400"
         />
       </div>
 
       {(searchResults.games.length > 0 || searchResults.playerProps.length > 0) && (
-        <div className="bg-white rounded-lg shadow-lg mb-6 max-h-96 overflow-y-auto">
+        <div className="bg-gray-900 border border-white/20 rounded-lg shadow-lg mb-6 max-h-96 overflow-y-auto">
           {searchResults.games.length > 0 && (
             <div className="p-2">
-              <p className="text-xs font-semibold text-gray-400 px-3 py-2">GAMES</p>
+              <p className="text-xs font-semibold text-gray-500 px-3 py-2">GAMES</p>
               {searchResults.games.map((game) => (
                 <button
                   key={game.id}
                   onClick={() => selectGame(game)}
-                  className="w-full text-left px-3 py-2 hover:bg-gray-200 rounded transition-colors"
+                  className="w-full text-left px-3 py-2 hover:bg-gray-800 rounded transition-colors"
                 >
                   <p className="font-semibold text-sm text-white">
                     {game.away_team} @ {game.home_team}
                   </p>
-                  <p className="text-xs text-gray-500 pb-2">
+                  <p className="text-xs text-gray-400 pb-2">
                     {new Date(game.game_date).toLocaleDateString()} • {game.sport}
                   </p>
                 </button>
@@ -481,8 +480,8 @@ export default function BuildPageContent() {
             </div>
           )}
           {searchResults.playerProps.length > 0 && (
-            <div className="p-2 border-t border-gray-200">
-              <p className="text-xs font-semibold text-gray-400 px-3 py-2">PLAYERS</p>
+            <div className="p-2 border-t border-white/20">
+              <p className="text-xs font-semibold text-gray-500 px-3 py-2">PLAYERS</p>
               {searchResults.playerProps.map((prop) => (
                 <button
                   key={prop.id}
@@ -494,10 +493,10 @@ export default function BuildPageContent() {
                       .single()
                     if (game) await selectGame(game)
                   }}
-                  className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded transition-colors"
+                  className="w-full text-left px-3 py-2 hover:bg-gray-800 rounded transition-colors"
                 >
                   <p className="font-semibold text-sm text-white">{prop.player_name}</p>
-                  <p className="text-xs text-gray-500">{prop.prop_type}</p>
+                  <p className="text-xs text-gray-400">{prop.prop_type}</p>
                 </button>
               ))}
             </div>
@@ -505,76 +504,16 @@ export default function BuildPageContent() {
         </div>
       )}
 
-      {selectedGame && availableSportsbooks.length > 0 && (
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Select Sportsbook
-          </label>
-          <select
-            value={selectedSportsbook}
-            onChange={(e) => setSelectedSportsbook(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            {availableSportsbooks.map(book => (
-              <option key={book} value={book}>
-                {book === 'best_odds' 
-                  ? 'Best Odds'
-                  : `${getBookmakerDisplayName(book)}${sportsbookPropCounts[book] ? ` (${sportsbookPropCounts[book]})` : ''}`}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
 
       {selectedGame && (
         <div className="space-y-4">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-900 rounded-lg p-4 text-white">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-xs font-semibold bg-white/20 px-2 py-1 rounded">
-                {selectedGame.sport}
-              </span>
-              <div className="text-right">
-                <div className="text-xs">
-                  {new Date(selectedGame.game_date).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric'
-                  })}
-                </div>
-                <div className="text-xs opacity-90">
-                  {new Date(selectedGame.game_date).toLocaleTimeString('en-US', {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    timeZoneName: 'short'
-                  })}
-                </div>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-lg">{selectedGame.away_team}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-lg">{selectedGame.home_team}</span>
-              </div>
-            </div>
-          </div>
-
-          {gameOdds.length > 0 && (
-            <div className="text-black p-4"> 
-              <h3 className="!text-white font-semibold text-lg mb-3">Game Lines</h3>
-              <BettingOptions
-                odds={displayOdds}
-                homeTeam={selectedGame.home_team}
-                awayTeam={selectedGame.away_team}
-                onSelectBet={handleSelectBet}
-              />
-            </div>
-          )}
+          {/* Game Card */}
+          <GameCardV2 game={selectedGame} odds={displayOdds} />
 
           {filteredPlayerProps.length > 0 && (
-            <div className="p-4">
+            <div>
               <h3 className="!text-white font-semibold text-lg mb-3">Player Props</h3>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {Array.from(new Set(filteredPlayerProps.map(p => p.player_name))).map(playerName => {
                   const playerPropsForName = filteredPlayerProps.filter(p => p.player_name === playerName)
                   const isOpen = openPlayers[playerName]
@@ -582,19 +521,20 @@ export default function BuildPageContent() {
                   return (
                     <div 
                       key={playerName} 
-                      className="text-gray-700 overflow-hidden"
+                      className="bg-gray-900 rounded-lg border-1 border-white/20 overflow-hidden transition-all"
                       ref={(el) => { playerSectionRefs.current[playerName] = el }}
                     >
                       <button
                         onClick={() => togglePlayer(playerName)}
-                        className="!bg-white border-2 border-gray-200 rounded-lg w-full flex items-center justify-between p-3"
+                        className="w-full flex items-center justify-between px-5 py-1.5 transition-colors"
+                        style={{ background: 'linear-gradient(to right, rgba(30, 58, 138, 0.3), rgba(96, 165, 250, 0.3))' }}
                       >
                         <div className="text-left">
-                          <p className="text-black">{playerName}</p>
-                          <p className="text-xs text-blue-700">{playerPropsForName.length} props available</p>
+                          <p className="text-white font-semibold text-base">{playerName}</p>
+                          <p className="text-xs text-blue-300">{playerPropsForName.length} props available</p>
                         </div>
                         <svg
-                          className={`w-5 h-5 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                          className={`w-5 h-5 text-gray-300 transition-transform ${isOpen ? 'rotate-180' : ''}`}
                           fill="none"
                           strokeLinecap="round"
                           strokeLinejoin="round"
@@ -607,59 +547,13 @@ export default function BuildPageContent() {
                       </button>
 
                       {isOpen && (
-                        <div className="p-3">
-                          <div className="grid grid-cols-2 gap-2">
-                            {playerPropsForName.map(prop => (
-                              <React.Fragment key={prop.id}>
-                                <button
-                                  onClick={() => handleSelectBet({
-                                    type: 'player_prop',
-                                    player: prop.player_name,
-                                    propType: prop.prop_type,
-                                    selection: 'over',
-                                    line: prop.line,
-                                    odds: prop.over_odds ?? 0,
-                                    sportsbook: prop.sportsbook
-                                  })}
-                                  className="!bg-white border-2 border-gray-200 rounded-lg p-3 hover:border-blue-500 hover:bg-blue-50 transition-all text-left active:scale-[0.98]"
-                                >
-                                  <div className="flex justify-between items-start mb-1">
-                                    <span className="text-xs font-semibold text-blue-600 uppercase tracking-wide">
-                                      {prop.prop_type}
-                                    </span>
-                                    <span className="text-base font-bold text-black">
-                                      {prop.over_odds ? `${prop.over_odds > 0 ? '+' : ''}${prop.over_odds}` : '--'}
-                                    </span>
-                                  </div>
-                                  <p className="text-sm font-semibold text-black leading-tight">Over {prop.line}</p>
-                                  <p className="text-xs text-black mt-1">Over the line</p>
-                                </button>
-                                
-                                <button
-                                  onClick={() => handleSelectBet({
-                                    type: 'player_prop',
-                                    player: prop.player_name,
-                                    propType: prop.prop_type,
-                                    selection: 'under',
-                                    line: prop.line,
-                                    odds: prop.under_odds ?? 0,
-                                    sportsbook: prop.sportsbook
-                                  })}
-                                  className="!bg-white border-2 border-gray-200 rounded-lg p-3 hover:border-blue-500 hover:bg-blue-50 transition-all text-left active:scale-[0.98]"
-                                >
-                                  <div className="flex justify-between items-start mb-1">
-                                    <span className="text-xs font-semibold text-blue-600 uppercase tracking-wide">
-                                      {prop.prop_type}
-                                    </span>
-                                    <span className="text-base font-bold text-black">
-                                      {prop.under_odds ? `${prop.under_odds > 0 ? '+' : ''}${prop.under_odds}` : '--'}
-                                    </span>
-                                  </div>
-                                  <p className="text-sm font-semibold text-black leading-tight">Under {prop.line}</p>
-                                  <p className="text-xs text-black mt-1">Under the line</p>
-                                </button>
-                              </React.Fragment>
-                            ))}
+                        <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-500">
+                          <div className="border-t border-white/20 pt-4">
+                            <PlayerPropDisplay
+                              playerName={playerName}
+                              props={playerPropsForName}
+                              onSelectBet={handleSelectBet}
+                            />
                           </div>
                         </div>
                       )}
@@ -680,6 +574,7 @@ export default function BuildPageContent() {
           betDetails={modalData.betDetails}
         />
       )}
+      <LegalFooter />
     </main>
   )
 }

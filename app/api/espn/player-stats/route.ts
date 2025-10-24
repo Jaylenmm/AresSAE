@@ -1,4 +1,4 @@
-// app/api/espn/player-stats/route.ts - FIXED ROSTER PARSING
+// app/api/espn/player-stats/route.ts - SIMPLE SEARCH API VERSION
 
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -17,63 +17,52 @@ export async function GET(request: NextRequest) {
     const sportPath = sport === 'basketball' ? 'basketball/nba' : 
                      sport === 'football' ? 'football/nfl' : 'baseball/mlb'
     
-    const teamsUrl = `https://site.api.espn.com/apis/site/v2/sports/${sportPath}/teams`
-    const teamsRes = await fetch(teamsUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
+    // Use core API to get all athletes, then filter
+    const athletesUrl = `https://sports.core.api.espn.com/v2/sports/${sportPath.split('/')[0]}/leagues/${sportPath.split('/')[1]}/athletes?limit=10000`
+    
+    const athletesRes = await fetch(athletesUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(5000),
+      next: { revalidate: 3600 } // Cache for 1 hour
     })
     
-    if (!teamsRes.ok) {
-      throw new Error(`Teams fetch failed: ${teamsRes.status}`)
+    if (!athletesRes.ok) {
+      console.log(`Athletes fetch failed: ${athletesRes.status}`)
+      return NextResponse.json({ error: 'Failed to fetch athletes' }, { status: 500 })
     }
     
-    const teamsData = await teamsRes.json()
-    const teams = teamsData.sports?.[0]?.leagues?.[0]?.teams || []
+    const athletesData = await athletesRes.json()
+    const athletes = athletesData.items || []
     
-    console.log(`Searching ${teams.length} teams...`)
-    
-    let foundPlayer: any = null
+    // Search for player by name
     const nameLower = playerName.toLowerCase().trim()
+    let foundPlayer: any = null
     
-    for (const teamWrapper of teams) {
-      const team = teamWrapper.team
-      if (!team?.id) continue
+    for (const athleteRef of athletes) {
+      const athleteUrl = athleteRef.$ref
+      if (!athleteUrl) continue
       
       try {
-        const rosterUrl = `https://site.api.espn.com/apis/site/v2/sports/${sportPath}/teams/${team.id}/roster`
-        const rosterRes = await fetch(rosterUrl, {
+        const athleteRes = await fetch(athleteUrl, {
           headers: { 'User-Agent': 'Mozilla/5.0' },
-          signal: AbortSignal.timeout(3000)
+          signal: AbortSignal.timeout(2000)
         })
         
-        if (!rosterRes.ok) continue
+        if (!athleteRes.ok) continue
         
-        const rosterData = await rosterRes.json()
+        const athlete = await athleteRes.json()
+        const fullName = (athlete.fullName || '').toLowerCase()
+        const displayName = (athlete.displayName || '').toLowerCase()
         
-        // FIXED: Athletes are nested under position groups
-        const athleteGroups = rosterData.athletes || []
-        
-        for (const group of athleteGroups) {
-          const athletes = group.items || []
-          
-          for (const athlete of athletes) {
-            const fullName = (athlete.fullName || '').toLowerCase()
-            const displayName = (athlete.displayName || '').toLowerCase()
-            
-            if (fullName.includes(nameLower) || displayName.includes(nameLower)) {
-              foundPlayer = {
-                id: athlete.id,
-                name: athlete.displayName || athlete.fullName,
-                team: team.displayName,
-                position: group.position || ''
-              }
-              break
-            }
+        if (fullName.includes(nameLower) || displayName.includes(nameLower) || nameLower.includes(fullName) || nameLower.includes(displayName)) {
+          foundPlayer = {
+            id: athlete.id,
+            name: athlete.displayName || athlete.fullName,
+            team: 'Unknown',
+            position: athlete.position?.abbreviation || ''
           }
-          
-          if (foundPlayer) break
+          break
         }
-        
-        if (foundPlayer) break
       } catch (err) {
         continue
       }
