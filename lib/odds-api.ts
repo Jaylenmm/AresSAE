@@ -60,22 +60,8 @@ const PLAYER_PROP_MARKETS = {
     'player_receptions',
     'player_reception_yds',
     'player_rush_tds',
-    'player_receiving_tds',
-    // Longest props
-    'player_longest_reception',
-    'player_longest_rush',
     // TDs
-    'player_anytime_td',
-    // Alternates
-    'player_pass_yds_alternate',
-    'player_pass_tds_alternate',
-    'player_pass_completions_alternate',
-    'player_pass_attempts_alternate',
-    'player_pass_interceptions_alternate',
-    'player_rush_yds_alternate',
-    'player_rush_attempts_alternate',
-    'player_receptions_alternate',
-    'player_reception_yds_alternate'
+    'player_anytime_td'
   ],
   
   basketball: [
