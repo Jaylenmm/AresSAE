@@ -47,7 +47,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
     timeZoneName: 'short'
   })
 
-  const handlePickClick = (pickType: string, team: string, odds: number, line?: number, e?: React.MouseEvent) => {
+  const handlePickClick = (pickType: string, team: string, odds: number, sportsbook: string, line?: number, e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault()
       e.stopPropagation()
@@ -69,7 +69,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
       selection,
       line,
       odds,
-      sportsbook: 'Best Available'
+      sportsbook
     })
     setIsModalOpen(true)
   }
@@ -164,7 +164,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
             const bestSpread = getBestOdds('spread_away')
             return bestSpread && (
               <button
-                onClick={(e) => handlePickClick('spread', game.away_team, bestSpread.spread_away_odds!, bestSpread.spread_away!, e)}
+                onClick={(e) => handlePickClick('spread', game.away_team, bestSpread.spread_away_odds!, bestSpread.sportsbook, bestSpread.spread_away!, e)}
                 className={buttonClass}
               >
                 {bestSpread.spread_away > 0 ? '+' : ''}{bestSpread.spread_away} ({bestSpread.spread_away_odds})
@@ -177,7 +177,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
             const bestML = getBestOdds('moneyline_away')
             return bestML && (
               <button
-                onClick={(e) => handlePickClick('ml', game.away_team, bestML.moneyline_away!, undefined, e)}
+                onClick={(e) => handlePickClick('ml', game.away_team, bestML.moneyline_away!, bestML.sportsbook, undefined, e)}
                 className={buttonClass}
               >
                 {bestML.moneyline_away > 0 ? '+' : ''}{bestML.moneyline_away}
@@ -190,7 +190,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
             const bestOver = getBestOdds('over')
             return bestOver && (
               <button
-                onClick={(e) => handlePickClick('over', game.away_team, bestOver.over_odds!, bestOver.total!, e)}
+                onClick={(e) => handlePickClick('over', game.away_team, bestOver.over_odds!, bestOver.sportsbook, bestOver.total!, e)}
                 className={buttonClass}
               >
                 O{bestOver.total} ({bestOver.over_odds})
@@ -209,7 +209,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
             const bestSpread = getBestOdds('spread_home')
             return bestSpread && (
               <button
-                onClick={(e) => handlePickClick('spread', game.home_team, bestSpread.spread_home_odds!, bestSpread.spread_home!, e)}
+                onClick={(e) => handlePickClick('spread', game.home_team, bestSpread.spread_home_odds!, bestSpread.sportsbook, bestSpread.spread_home!, e)}
                 className={buttonClass}
               >
                 {bestSpread.spread_home > 0 ? '+' : ''}{bestSpread.spread_home} ({bestSpread.spread_home_odds})
@@ -222,7 +222,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
             const bestML = getBestOdds('moneyline_home')
             return bestML && (
               <button
-                onClick={(e) => handlePickClick('ml', game.home_team, bestML.moneyline_home!, undefined, e)}
+                onClick={(e) => handlePickClick('ml', game.home_team, bestML.moneyline_home!, bestML.sportsbook, undefined, e)}
                 className={buttonClass}
               >
                 {bestML.moneyline_home > 0 ? '+' : ''}{bestML.moneyline_home}
@@ -235,7 +235,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
             const bestUnder = getBestOdds('under')
             return bestUnder && (
               <button
-                onClick={(e) => handlePickClick('under', game.home_team, bestUnder.under_odds!, bestUnder.total!, e)}
+                onClick={(e) => handlePickClick('under', game.home_team, bestUnder.under_odds!, bestUnder.sportsbook, bestUnder.total!, e)}
                 className={buttonClass}
               >
                 U{bestUnder.total} ({bestUnder.under_odds})
