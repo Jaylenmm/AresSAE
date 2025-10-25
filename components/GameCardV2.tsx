@@ -169,7 +169,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
 
       {/* Away Team Row */}
       <div className="flex justify-between items-center mb-4">
-        <span className="font-bold text-white text-sm sm:text-base md:text-lg flex-1 truncate pr-2">{game.away_team}</span>
+        <span className="font-bold text-white text-sm sm:text-base md:text-lg flex-1 pr-2">{game.away_team}</span>
         <div className="flex gap-1.5 sm:gap-2">
           {/* Spread */}
           {(() => {
@@ -217,7 +217,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
 
       {/* Home Team Row */}
       <div className="flex justify-between items-center mb-5">
-        <span className="font-bold text-white text-sm sm:text-base md:text-lg flex-1 truncate pr-2">{game.home_team}</span>
+        <span className="font-bold text-white text-sm sm:text-base md:text-lg flex-1 pr-2">{game.home_team}</span>
         <div className="flex gap-1.5 sm:gap-2">
           {/* Spread */}
           {(() => {
