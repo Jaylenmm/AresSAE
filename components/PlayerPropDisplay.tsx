@@ -186,11 +186,11 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
               </div>
 
               {/* Book, Line Selector, and Odds */}
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center justify-between gap-2 sm:gap-4">
                 {/* Left: Sportsbook */}
-                <div className="flex-shrink-0 min-w-[60px]">
+                <div className="flex-shrink-0 min-w-[50px] sm:min-w-[60px]">
                   {currentLine.sportsbook && (
-                    <span className="text-xs text-gray-500">
+                    <span className="text-[10px] sm:text-xs text-gray-500 truncate">
                       {currentLine.sportsbook}
                     </span>
                   )}
@@ -234,8 +234,8 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
                     </button>
                   )}
 
-                  <div className="text-center min-w-[60px] px-2">
-                    <span className="text-lg font-bold text-white">{currentLine.line}</span>
+                  <div className="text-center min-w-[50px] sm:min-w-[60px] px-1 sm:px-2">
+                    <span className="text-base sm:text-lg font-bold text-white">{currentLine.line}</span>
                   </div>
 
                   {hasMultipleLines && (
@@ -255,14 +255,14 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
                 </div>
 
                 {/* Right: Over/Under Buttons */}
-                <div className="flex gap-2 flex-shrink-0">
+                <div className="flex gap-1.5 sm:gap-2 flex-shrink-0">
                   {currentLine.over_odds !== undefined && (
                     <button
                       onClick={() => handleSelectBet(group.propType, 'over', currentLine)}
-                      className="bg-black text-white border border-green-600 rounded px-3 py-1.5 hover:bg-green-900/20 transition-all active:scale-95 min-w-[60px]"
+                      className="bg-black text-white border border-green-600 rounded px-2 sm:px-3 py-1 sm:py-1.5 hover:bg-green-900/20 transition-all active:scale-95 min-w-[55px] sm:min-w-[60px]"
                     >
-                      <div className="text-xs text-green-500 font-semibold">O</div>
-                      <div className="text-sm font-bold">
+                      <div className="text-[10px] sm:text-xs text-green-500 font-semibold">O</div>
+                      <div className="text-xs sm:text-sm font-bold">
                         {currentLine.over_odds > 0 ? '+' : ''}{currentLine.over_odds}
                       </div>
                     </button>
@@ -271,10 +271,10 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
                   {currentLine.under_odds !== undefined && (
                     <button
                       onClick={() => handleSelectBet(group.propType, 'under', currentLine)}
-                      className="bg-black text-white border border-red-600 rounded px-3 py-1.5 hover:bg-red-900/20 transition-all active:scale-95 min-w-[60px]"
+                      className="bg-black text-white border border-red-600 rounded px-2 sm:px-3 py-1 sm:py-1.5 hover:bg-red-900/20 transition-all active:scale-95 min-w-[55px] sm:min-w-[60px]"
                     >
-                      <div className="text-xs text-red-500 font-semibold">U</div>
-                      <div className="text-sm font-bold">
+                      <div className="text-[10px] sm:text-xs text-red-500 font-semibold">U</div>
+                      <div className="text-xs sm:text-sm font-bold">
                         {currentLine.under_odds > 0 ? '+' : ''}{currentLine.under_odds}
                       </div>
                     </button>
