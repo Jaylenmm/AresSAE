@@ -406,16 +406,23 @@ export default function BuildPageContent() {
       status: 'pending'
     }
 
-    const { error } = await supabase
+    console.log('Attempting to save pick:', pickData)
+
+    const { data, error } = await supabase
       .from('user_picks')
       .insert([pickData])
+      .select()
+
+    console.log('Save result - data:', data, 'error:', error)
 
     setShowModal(false)
     setModalData(null)
 
     if (error) {
+      console.error('Error saving pick:', error)
       alert(`Error saving bet: ${error.message}`)
     } else {
+      console.log('Pick saved successfully:', data)
       alert('Bet saved successfully!')
     }
   }

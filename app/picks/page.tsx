@@ -44,13 +44,19 @@ export default function PicksPage() {
       return
     }
 
-    const { data } = await supabase
+    console.log('Loading picks for user:', user.id)
+
+    const { data, error } = await supabase
       .from('user_picks')
       .select('*')
       .eq('status', 'pending')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
+    
+    console.log('Picks query result - data:', data, 'error:', error)
+    
     if (data) {
+      console.log('Setting picks:', data.length, 'picks found')
       setPicks(data)
       
       const gameIds = data
