@@ -400,14 +400,14 @@ export function PlayerPropCard({
   
   return (
     <div 
-      className="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-blue-500 transition-all cursor-pointer"
+      className="bg-gray-800 rounded-lg p-3 sm:p-4 border border-gray-700 hover:border-blue-500 transition-all cursor-pointer"
       onClick={onClick}
     >
       {/* Header */}
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <h4 className="text-white font-bold">{playerName}</h4>
-          <p className="text-sm text-gray-400">{marketLabel}</p>
+      <div className="flex items-start justify-between mb-2 sm:mb-3">
+        <div className="flex-1 min-w-0 pr-2">
+          <h4 className="text-sm sm:text-base text-white font-bold truncate">{playerName}</h4>
+          <p className="text-xs sm:text-sm text-gray-400 truncate">{marketLabel}</p>
         </div>
         {recommendation && (
           <RecommendationBadge recommendation={recommendation} size="sm" />
@@ -415,25 +415,25 @@ export function PlayerPropCard({
       </div>
       
       {/* Line */}
-      <div className="text-center mb-3">
-        <span className="text-2xl font-bold text-blue-400">{line}</span>
+      <div className="text-center mb-2 sm:mb-3">
+        <span className="text-xl sm:text-2xl font-bold text-blue-400">{line}</span>
       </div>
       
       {/* Odds */}
-      <div className="grid grid-cols-2 gap-3 mb-3">
-        <div className="text-center p-2 bg-gray-700/50 rounded">
-          <p className="text-xs text-gray-400 mb-1">OVER</p>
-          <span className="text-lg font-bold text-green-400">{formatOdds(odds.over)}</span>
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-2 sm:mb-3">
+        <div className="text-center p-1.5 sm:p-2 bg-gray-700/50 rounded">
+          <p className="text-[10px] sm:text-xs text-gray-400 mb-0.5 sm:mb-1">OVER</p>
+          <span className="text-sm sm:text-lg font-bold text-green-400">{formatOdds(odds.over)}</span>
         </div>
-        <div className="text-center p-2 bg-gray-700/50 rounded">
-          <p className="text-xs text-gray-400 mb-1">UNDER</p>
-          <span className="text-lg font-bold text-white">{formatOdds(odds.under)}</span>
+        <div className="text-center p-1.5 sm:p-2 bg-gray-700/50 rounded">
+          <p className="text-[10px] sm:text-xs text-gray-400 mb-0.5 sm:mb-1">UNDER</p>
+          <span className="text-sm sm:text-lg font-bold text-white">{formatOdds(odds.under)}</span>
         </div>
       </div>
       
       {/* Footer */}
-      <div className="flex items-center justify-between text-sm border-t border-gray-700 pt-3">
-        <span className="text-gray-400">{getBookmakerDisplayName(sportsbook)}</span>
+      <div className="flex items-center justify-between text-xs sm:text-sm border-t border-gray-700 pt-2 sm:pt-3">
+        <span className="text-gray-400 truncate flex-1 min-w-0 pr-2">{getBookmakerDisplayName(sportsbook)}</span>
         {confidence !== undefined && (
           <ConfidenceIndicator confidence={confidence} showLabel={false} size="sm" />
         )}
