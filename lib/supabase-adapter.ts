@@ -18,59 +18,176 @@ export function transformGameToAnalysisFormat(
   commenceTime: string;
   bookmakers: BookmakerOdds[];
 } {
-  // Transform odds from your database into bookmaker format
+  // Check if this is v2 format (has 'market' field) or legacy format
+  const isV2Format = oddsData.some((row: any) => row.market !== undefined)
+  
+  if (isV2Format) {
+    // Group v2 rows by book
+    const byBook = new Map<string, any>()
+    
+    oddsData.forEach((row: any) => {
+      const bookKey = row.book_key || row.sportsbook?.toLowerCase() || 'unknown'
+      const bookName = row.book_name || row.sportsbook || 'Unknown'
+      
+      if (!byBook.has(bookKey)) {
+        byBook.set(bookKey, {
+          key: bookKey,
+          title: bookName,
+          lastUpdate: row.updated_at || new Date().toISOString(),
+          spread: {},
+          total: {},
+          moneyline: {}
+        })
+      }
+      
+      const book = byBook.get(bookKey)!
+      
+      if (row.market === 'spread') {
+        book.spread = {
+          home: row.spread_home,
+          away: row.spread_away,
+          home_odds: row.spread_home_odds,
+          away_odds: row.spread_away_odds
+        }
+      } else if (row.market === 'total') {
+        book.total = {
+          line: row.line,
+          over_odds: row.over_odds,
+          under_odds: row.under_odds
+        }
+      } else if (row.market === 'moneyline') {
+        book.moneyline = {
+          home: row.moneyline_home,
+          away: row.moneyline_away
+        }
+      }
+    })
+    
+    // Convert to bookmaker format
+    const bookmakers: BookmakerOdds[] = Array.from(byBook.values()).map(book => {
+      const markets = []
+      
+      // Only add markets that have data
+      if (book.spread.home_odds !== undefined) {
+        markets.push({
+          key: 'spreads',
+          outcomes: [
+            {
+              name: game.home_team,
+              price: Number(book.spread.home_odds),
+              point: Number(book.spread.home)
+            },
+            {
+              name: game.away_team,
+              price: Number(book.spread.away_odds),
+              point: Number(book.spread.away)
+            }
+          ]
+        })
+      }
+      
+      if (book.total.over_odds !== undefined) {
+        markets.push({
+          key: 'totals',
+          outcomes: [
+            {
+              name: 'Over',
+              price: Number(book.total.over_odds),
+              point: Number(book.total.line)
+            },
+            {
+              name: 'Under',
+              price: Number(book.total.under_odds),
+              point: Number(book.total.line)
+            }
+          ]
+        })
+      }
+      
+      if (book.moneyline.home !== undefined) {
+        markets.push({
+          key: 'h2h',
+          outcomes: [
+            {
+              name: game.home_team,
+              price: Number(book.moneyline.home)
+            },
+            {
+              name: game.away_team,
+              price: Number(book.moneyline.away)
+            }
+          ]
+        })
+      }
+      
+      return {
+        key: book.key,
+        title: book.title,
+        lastUpdate: book.lastUpdate,
+        markets
+      }
+    })
+    
+    return {
+      eventId: game.id,
+      sport: game.sport,
+      homeTeam: game.home_team,
+      awayTeam: game.away_team,
+      commenceTime: game.game_date,
+      bookmakers
+    }
+  }
+  
+  // Legacy format - keep existing logic
   const bookmakers: BookmakerOdds[] = oddsData.map(odd => ({
     key: odd.sportsbook?.toLowerCase() || 'unknown',
     title: odd.sportsbook || 'Unknown',
     lastUpdate: (odd as any).last_update || (odd as any).updated_at || new Date().toISOString(),
     markets: [
-      // Spreads market
       {
         key: 'spreads',
         outcomes: [
           {
             name: game.home_team,
-            price: Number(odd.spread_home_odds) || -110,
-            point: Number(odd.spread_home) || 0
+            price: Number(odd.spread_home_odds),
+            point: Number(odd.spread_home)
           },
           {
             name: game.away_team,
-            price: Number(odd.spread_away_odds) || -110,
-            point: Number(odd.spread_away) || 0
+            price: Number(odd.spread_away_odds),
+            point: Number(odd.spread_away)
           }
-        ]
+        ].filter(o => o.price)
       },
-      // Totals market
       {
         key: 'totals',
         outcomes: [
           {
             name: 'Over',
-            price: Number(odd.over_odds) || -110,
-            point: Number(odd.total) || 0
+            price: Number(odd.over_odds),
+            point: Number(odd.total)
           },
           {
             name: 'Under',
-            price: Number(odd.under_odds) || -110,
-            point: Number(odd.total) || 0
+            price: Number(odd.under_odds),
+            point: Number(odd.total)
           }
-        ]
+        ].filter(o => o.price)
       },
-      // Moneyline market
       {
         key: 'h2h',
         outcomes: [
           {
             name: game.home_team,
-            price: Number(odd.moneyline_home) || -110
+            price: Number(odd.moneyline_home)
           },
           {
             name: game.away_team,
-            price: Number(odd.moneyline_away) || -110
+            price: Number(odd.moneyline_away)
           }
-        ]
+        ].filter(o => o.price)
       }
-    ]
+    ].filter(m => m.outcomes.length > 0)
   }));
 
   return {
