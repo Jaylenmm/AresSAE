@@ -7,6 +7,7 @@ import {
   removeVig,
   calculateEV,
 } from './odds-calculations'
+import { getBookmakerDisplayName } from './bookmakers'
 
 export type BetType = 'h2h' | 'spreads' | 'totals' | 'player_prop' | 'futures';
 
@@ -418,9 +419,9 @@ export function analyzeBet(
   
   return {
     bestOdds: best.odds,
-    bestSportsbook: best.sportsbook,
+    bestSportsbook: getBookmakerDisplayName(best.sportsbook),
     worstOdds: worst.odds,
-    worstSportsbook: worst.sportsbook,
+    worstSportsbook: getBookmakerDisplayName(worst.sportsbook),
     oddsRange,
     expectedValue,
     edge,
@@ -429,12 +430,12 @@ export function analyzeBet(
     sharpConsensus: sharpConsensusLabel,
     lineMovement: 'unknown',
     sharpBookOdds: sharpConsensus?.odds ?? null,
-    sharpBookName: sharpConsensus?.sportsbook ?? null,
+    sharpBookName: sharpConsensus?.sportsbook ? getBookmakerDisplayName(sharpConsensus.sportsbook) : null,
     sharpLine: sharpConsensus?.line ?? null,
     sharpLineDistance: sharpConsensus?.lineDistance ?? 0,
     trueProbability,
     softBookBestOdds: softBest?.odds ?? null,
-    softBookBestName: softBest?.sportsbook ?? null,
+    softBookBestName: softBest?.sportsbook ? getBookmakerDisplayName(softBest.sportsbook) : null,
     recommendation,
     reasons,
     warnings,
