@@ -283,13 +283,19 @@ export function createBetOptionFromSelection(bet: any, game: Game): BetOption {
   let selection = bet.team || bet.selection;
   let line: number | undefined;
 
-  if (bet.type === 'spread' || bet.bet_type === 'spread') {
+  // Check both 'type' and 'bet_type' fields
+  const betTypeValue = bet.type || bet.bet_type
+  
+  if (betTypeValue === 'spread') {
     market = 'spreads';
     line = Number(bet.line);
-  } else if (bet.type === 'total' || bet.bet_type === 'total') {
+  } else if (betTypeValue === 'total') {
     market = 'totals';
     selection = bet.selection; // 'Over' or 'Under'
     line = Number(bet.line);
+  } else if (betTypeValue === 'moneyline' || betTypeValue === 'ml') {
+    market = 'h2h';
+    // selection already set to team
   }
 
   return {

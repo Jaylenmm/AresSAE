@@ -69,7 +69,8 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
       selection,
       line,
       odds,
-      sportsbook
+      sportsbook,
+      pickType
     })
     setIsModalOpen(true)
   }
@@ -86,11 +87,22 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
       return
     }
 
+    // Map pickType to bet_type
+    let betType = 'game'
+    if (pendingBet.pickType === 'spread') {
+      betType = 'spread'
+    } else if (pendingBet.pickType === 'ml') {
+      betType = 'moneyline'
+    } else if (pendingBet.pickType === 'over' || pendingBet.pickType === 'under') {
+      betType = 'total'
+    }
+
     const pickData = {
       user_id: user.id,
       pick_type: 'straight',
       picks: {
-        bet_type: 'game',
+        bet_type: betType,
+        type: pendingBet.pickType,
         selection: pendingBet.selection,
         team: pendingBet.team,
         line: pendingBet.line,
