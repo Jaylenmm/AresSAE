@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { fetchOdds, SPORT_KEYS } from '@/lib/odds-api'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const sport = searchParams.get('sport') || 'NFL'
@@ -54,7 +57,15 @@ export async function GET(request: Request) {
         }
       })
       Object.entries(byGameBook).forEach(([g, books]) => {
-        oddsMap[g] = Object.values(books)
+        const booksArray = Object.values(books)
+        // Sort by best moneyline odds (highest positive or least negative)
+        booksArray.sort((a: any, b: any) => {
+          // Prioritize books with moneyline data
+          const aML = a.moneyline_away || a.moneyline_home || -Infinity
+          const bML = b.moneyline_away || b.moneyline_home || -Infinity
+          return bML - aML // Descending order (best odds first)
+        })
+        oddsMap[g] = booksArray
       })
     }
 

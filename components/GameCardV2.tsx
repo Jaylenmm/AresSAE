@@ -14,9 +14,26 @@ interface GameCardV2Props {
 
 export default function GameCardV2({ game, odds }: GameCardV2Props) {
   const router = useRouter()
-  const mainOdds = odds?.[0]
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [pendingBet, setPendingBet] = useState<any>(null)
+  
+  // Helper to find best odds for a specific bet type
+  const getBestOdds = (betType: 'spread_away' | 'spread_home' | 'moneyline_away' | 'moneyline_home' | 'over' | 'under') => {
+    if (!odds || odds.length === 0) return null
+    
+    let best: any = null
+    let bestOddsValue = -Infinity
+    
+    for (const book of odds) {
+      const oddsValue = book[betType === 'over' ? 'over_odds' : betType === 'under' ? 'under_odds' : betType]
+      if (typeof oddsValue === 'number' && oddsValue > bestOddsValue) {
+        bestOddsValue = oddsValue
+        best = { ...book, selectedOdds: oddsValue }
+      }
+    }
+    
+    return best
+  }
   
   // Format date and time with timezone
   const gameDate = new Date(game.game_date)
@@ -52,7 +69,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
       selection,
       line,
       odds,
-      sportsbook: mainOdds?.sportsbook || 'Best Available'
+      sportsbook: 'Best Available'
     })
     setIsModalOpen(true)
   }
@@ -126,13 +143,13 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
       <div className="flex justify-between items-center mb-2">
         <span className="flex-1"></span>
         <div className="flex gap-2 text-center">
-          {mainOdds?.spread_away !== undefined && (
+          {getBestOdds('spread_away') && (
             <div className="text-[10px] text-gray-500 uppercase font-semibold flex-1">Spread</div>
           )}
-          {mainOdds?.moneyline_away !== undefined && (
+          {getBestOdds('moneyline_away') && (
             <div className="text-[10px] text-gray-500 uppercase font-semibold flex-1">ML</div>
           )}
-          {mainOdds?.total !== undefined && (
+          {getBestOdds('over') && (
             <div className="text-[10px] text-gray-500 uppercase font-semibold flex-1">Total</div>
           )}
         </div>
@@ -143,34 +160,43 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
         <span className="font-bold text-white text-lg flex-1">{game.away_team}</span>
         <div className="flex gap-2">
           {/* Spread */}
-          {mainOdds?.spread_away !== undefined && (
-            <button
-              onClick={(e) => handlePickClick('spread', game.away_team, mainOdds.spread_away_odds!, mainOdds.spread_away!, e)}
-              className={buttonClass}
-            >
-              {mainOdds.spread_away > 0 ? '+' : ''}{mainOdds.spread_away} ({mainOdds.spread_away_odds})
-            </button>
-          )}
+          {(() => {
+            const bestSpread = getBestOdds('spread_away')
+            return bestSpread && (
+              <button
+                onClick={(e) => handlePickClick('spread', game.away_team, bestSpread.spread_away_odds!, bestSpread.spread_away!, e)}
+                className={buttonClass}
+              >
+                {bestSpread.spread_away > 0 ? '+' : ''}{bestSpread.spread_away} ({bestSpread.spread_away_odds})
+              </button>
+            )
+          })()}
           
           {/* Moneyline */}
-          {mainOdds?.moneyline_away !== undefined && (
-            <button
-              onClick={(e) => handlePickClick('ml', game.away_team, mainOdds.moneyline_away!, undefined, e)}
-              className={buttonClass}
-            >
-              {mainOdds.moneyline_away > 0 ? '+' : ''}{mainOdds.moneyline_away}
-            </button>
-          )}
+          {(() => {
+            const bestML = getBestOdds('moneyline_away')
+            return bestML && (
+              <button
+                onClick={(e) => handlePickClick('ml', game.away_team, bestML.moneyline_away!, undefined, e)}
+                className={buttonClass}
+              >
+                {bestML.moneyline_away > 0 ? '+' : ''}{bestML.moneyline_away}
+              </button>
+            )
+          })()}
           
           {/* Total Over */}
-          {mainOdds?.total !== undefined && mainOdds?.over_odds !== undefined && (
-            <button
-              onClick={(e) => handlePickClick('over', game.away_team, mainOdds.over_odds!, mainOdds.total!, e)}
-              className={buttonClass}
-            >
-              O{mainOdds.total} ({mainOdds.over_odds})
-            </button>
-          )}
+          {(() => {
+            const bestOver = getBestOdds('over')
+            return bestOver && (
+              <button
+                onClick={(e) => handlePickClick('over', game.away_team, bestOver.over_odds!, bestOver.total!, e)}
+                className={buttonClass}
+              >
+                O{bestOver.total} ({bestOver.over_odds})
+              </button>
+            )
+          })()}
         </div>
       </div>
 
@@ -179,34 +205,43 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
         <span className="font-bold text-white text-lg flex-1">{game.home_team}</span>
         <div className="flex gap-2">
           {/* Spread */}
-          {mainOdds?.spread_home !== undefined && (
-            <button
-              onClick={(e) => handlePickClick('spread', game.home_team, mainOdds.spread_home_odds!, mainOdds.spread_home!, e)}
-              className={buttonClass}
-            >
-              {mainOdds.spread_home > 0 ? '+' : ''}{mainOdds.spread_home} ({mainOdds.spread_home_odds})
-            </button>
-          )}
+          {(() => {
+            const bestSpread = getBestOdds('spread_home')
+            return bestSpread && (
+              <button
+                onClick={(e) => handlePickClick('spread', game.home_team, bestSpread.spread_home_odds!, bestSpread.spread_home!, e)}
+                className={buttonClass}
+              >
+                {bestSpread.spread_home > 0 ? '+' : ''}{bestSpread.spread_home} ({bestSpread.spread_home_odds})
+              </button>
+            )
+          })()}
           
           {/* Moneyline */}
-          {mainOdds?.moneyline_home !== undefined && (
-            <button
-              onClick={(e) => handlePickClick('ml', game.home_team, mainOdds.moneyline_home!, undefined, e)}
-              className={buttonClass}
-            >
-              {mainOdds.moneyline_home > 0 ? '+' : ''}{mainOdds.moneyline_home}
-            </button>
-          )}
+          {(() => {
+            const bestML = getBestOdds('moneyline_home')
+            return bestML && (
+              <button
+                onClick={(e) => handlePickClick('ml', game.home_team, bestML.moneyline_home!, undefined, e)}
+                className={buttonClass}
+              >
+                {bestML.moneyline_home > 0 ? '+' : ''}{bestML.moneyline_home}
+              </button>
+            )
+          })()}
           
           {/* Total Under */}
-          {mainOdds?.total !== undefined && mainOdds?.under_odds !== undefined && (
-            <button
-              onClick={(e) => handlePickClick('under', game.home_team, mainOdds.under_odds!, mainOdds.total!, e)}
-              className={buttonClass}
-            >
-              U{mainOdds.total} ({mainOdds.under_odds})
-            </button>
-          )}
+          {(() => {
+            const bestUnder = getBestOdds('under')
+            return bestUnder && (
+              <button
+                onClick={(e) => handlePickClick('under', game.home_team, bestUnder.under_odds!, bestUnder.total!, e)}
+                className={buttonClass}
+              >
+                U{bestUnder.total} ({bestUnder.under_odds})
+              </button>
+            )
+          })()}
         </div>
       </div>
 
