@@ -3,7 +3,9 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { PlayerProp } from '@/lib/types'
+import { supabase } from '@/lib/supabase'
 import BetConfirmationModal from './BetConfirmationModal'
 
 interface PropCardV2Props {
@@ -11,6 +13,7 @@ interface PropCardV2Props {
 }
 
 export default function PropCardV2({ prop }: PropCardV2Props) {
+  const router = useRouter()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [pendingBet, setPendingBet] = useState<any>(null)
 
@@ -31,11 +34,54 @@ export default function PropCardV2({ prop }: PropCardV2Props) {
     setIsModalOpen(true)
   }
 
-  const handleConfirmBet = () => {
-    // TODO: Save to picks page/state management
-    console.log('Prop bet confirmed:', pendingBet)
+  const handleConfirmBet = async () => {
+    if (!pendingBet) return
+
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      const redirectUrl = `/build?prop_id=${prop.id}`
+      sessionStorage.setItem('pending_bet', JSON.stringify(pendingBet))
+      router.push(`/login?redirect=${encodeURIComponent(redirectUrl)}`)
+      return
+    }
+
+    const pickData = {
+      user_id: user.id,
+      pick_type: 'straight',
+      picks: {
+        bet_type: 'player_prop',
+        selection: pendingBet.selection,
+        player: pendingBet.player,
+        prop_type: pendingBet.propType,
+        line: pendingBet.line,
+        odds: pendingBet.odds,
+        sportsbook: pendingBet.sportsbook,
+        game_id: prop.game_id
+      },
+      total_odds: pendingBet.odds,
+      status: 'pending'
+    }
+
+    console.log('Attempting to save pick:', pickData)
+
+    const { data, error } = await supabase
+      .from('user_picks')
+      .insert([pickData])
+      .select()
+
+    console.log('Save result - data:', data, 'error:', error)
+
     setIsModalOpen(false)
     setPendingBet(null)
+
+    if (error) {
+      console.error('Error saving pick:', error)
+      alert(`Error saving bet: ${error.message}`)
+    } else {
+      console.log('Pick saved successfully:', data)
+      alert('Bet saved successfully!')
+    }
   }
 
   const handleCloseModal = () => {
