@@ -406,8 +406,8 @@ export function PlayerPropCard({
       {/* Header */}
       <div className="flex items-start justify-between mb-2 sm:mb-3">
         <div className="flex-1 min-w-0 pr-2">
-          <h4 className="text-sm sm:text-base text-white font-bold truncate">{playerName}</h4>
           <p className="text-xs sm:text-sm text-gray-400 truncate">{marketLabel}</p>
+          <h4 className="text-sm sm:text-base text-white font-bold truncate">{playerName}</h4>
         </div>
         {recommendation && (
           <RecommendationBadge recommendation={recommendation} size="sm" />
@@ -421,13 +421,13 @@ export function PlayerPropCard({
       
       {/* Odds */}
       <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-2 sm:mb-3">
-        <div className="text-center p-1.5 sm:p-2 bg-gray-700/50 rounded">
+        <div className="text-center p-1.5 sm:p-2 bg-gray-700/50 rounded min-w-0">
           <p className="text-[10px] sm:text-xs text-gray-400 mb-0.5 sm:mb-1">OVER</p>
-          <span className="text-sm sm:text-lg font-bold text-green-400">{formatOdds(odds.over)}</span>
+          <span className="text-xs sm:text-base md:text-lg font-bold text-green-400 block truncate">{formatOdds(odds.over)}</span>
         </div>
-        <div className="text-center p-1.5 sm:p-2 bg-gray-700/50 rounded">
+        <div className="text-center p-1.5 sm:p-2 bg-gray-700/50 rounded min-w-0">
           <p className="text-[10px] sm:text-xs text-gray-400 mb-0.5 sm:mb-1">UNDER</p>
-          <span className="text-sm sm:text-lg font-bold text-white">{formatOdds(odds.under)}</span>
+          <span className="text-xs sm:text-base md:text-lg font-bold text-white block truncate">{formatOdds(odds.under)}</span>
         </div>
       </div>
       
