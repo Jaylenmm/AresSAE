@@ -83,21 +83,11 @@ export default function BuildPageContent() {
   async function loadGameByPropId(propId: string) {
     try {
       // Try v2 first
-      let { data: prop, error: v2Err } = await supabase
+      const { data: prop } = await supabase
         .from('player_props_v2')
         .select('*')
         .eq('id', propId)
         .maybeSingle()
-
-      // Fallback to legacy if not found
-      if (!prop) {
-        const { data: legacyProp } = await supabase
-          .from('player_props')
-          .select('*')
-          .eq('id', propId)
-          .maybeSingle()
-        prop = legacyProp as any
-      }
 
       if (prop && prop.game_id) {
         const { data: game } = await supabase
@@ -235,22 +225,12 @@ export default function BuildPageContent() {
         new Map(games.map(game => [game.id, game])).values()
       ).slice(0, 5) : []
 
-      // Try v2 first, fallback to legacy
-      let { data: props } = await supabase
+      const { data: props } = await supabase
         .from('player_props_v2')
         .select('*')
         .ilike('player_name', `%${query}%`)
         .order('updated_at', { ascending: false })
       
-      if (!props || props.length === 0) {
-        const legacy = await supabase
-          .from('player_props')
-          .select('*')
-          .ilike('player_name', `%${query}%`)
-          .order('updated_at', { ascending: false })
-        props = legacy.data
-      }
-
       const uniquePlayerNames = props ? Array.from(
         new Set(props.map(p => p.player_name))
       ).slice(0, 10) : []

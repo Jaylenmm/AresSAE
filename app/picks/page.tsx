@@ -140,7 +140,7 @@ export default function PicksPage() {
     } 
     
     const { data: oddsData } = await supabase
-      .from('odds_data')
+      .from('odds_data_v2')
       .select('*')
       .eq('game_id', game.id)
 
@@ -262,7 +262,7 @@ export default function PicksPage() {
       
     } else {
       const { data: oddsData } = await supabase
-        .from('odds_data')
+        .from('odds_data_v2')
         .select('*')
         .eq('game_id', game.id)
 
@@ -341,7 +341,7 @@ export default function PicksPage() {
       transformed = { bookmakers }
     } else {
       const { data: oddsData } = await supabase
-        .from('odds_data')
+        .from('odds_data_v2')
         .select('*')
         .eq('game_id', game.id)
 

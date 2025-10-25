@@ -59,12 +59,6 @@ async function analyzeGameBetByType(gameId: string, betType: string) {
       }
     }
     oddsData = Object.values(byBook)
-  } else {
-    const legacy = await supabase
-      .from('odds_data')
-      .select('*')
-      .eq('game_id', gameId)
-    oddsData = legacy.data || []
   }
 
   if (!oddsData || oddsData.length === 0) {
@@ -295,14 +289,6 @@ async function analyzePlayerPropBet(propId: string) {
     .select('*')
     .eq('id', propId)
     .maybeSingle()
-  if (!mainProp) {
-    const legacy = await supabase
-      .from('player_props')
-      .select('*')
-      .eq('id', propId)
-      .maybeSingle()
-    mainProp = legacy.data
-  }
 
   if (!mainProp) {
     return NextResponse.json({ error: 'Prop not found' }, { status: 404 })
@@ -314,15 +300,6 @@ async function analyzePlayerPropBet(propId: string) {
     .eq('game_id', mainProp.game_id)
     .eq('player_name', mainProp.player_name)
     .eq('prop_type', mainProp.prop_type)
-  if (!allProps || allProps.length === 0) {
-    const legacyAll = await supabase
-      .from('player_props')
-      .select('*')
-      .eq('game_id', mainProp.game_id)
-      .eq('player_name', mainProp.player_name)
-      .eq('prop_type', mainProp.prop_type)
-    allProps = legacyAll.data || []
-  }
 
   if (!allProps || allProps.length === 0) {
     return NextResponse.json({ error: 'No prop data available' }, { status: 404 })

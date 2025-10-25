@@ -54,7 +54,7 @@ export async function generateFeaturedPicks(): Promise<{ success: boolean; picks
     
     // Fetch all odds (v2-first)
     let { data: allOdds, error: oddsError } = await supabase
-      .from('odds_data')
+      .from('odds_data_v2')
       .select('*')
       .in('game_id', gameIds)
     if (oddsError) throw oddsError
@@ -96,13 +96,6 @@ export async function generateFeaturedPicks(): Promise<{ success: boolean; picks
       .select('*')
       .in('game_id', gameIds)
     if (propsError) throw propsError
-    if (!allProps || allProps.length === 0) {
-      const legacy = await supabase
-        .from('player_props')
-        .select('*')
-        .in('game_id', gameIds)
-      allProps = legacy.data || []
-    }
     
     console.log(`📈 Analyzing ${allOdds?.length || 0} odds entries and ${allProps?.length || 0} props`)
     
