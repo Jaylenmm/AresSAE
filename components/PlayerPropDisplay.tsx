@@ -168,9 +168,9 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 overflow-hidden">
       {/* Markets List */}
-      <div className="space-y-3">
+      <div className="space-y-3 overflow-x-hidden">
         {groupedProps.map(group => {
           const currentIndex = selectedLineIndex[group.propType] || 0
           const currentLine = group.lines[currentIndex]
@@ -196,23 +196,45 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
                   )}
                 </div>
 
-                {/* Center: Line Selector */}
-                <div className="flex items-center gap-2 flex-1 justify-center">
+                {/* Center: Line Selector with Swipe Support */}
+                <div 
+                  className="flex items-center flex-1 justify-center touch-pan-x"
+                  onTouchStart={(e) => {
+                    if (!hasMultipleLines) return
+                    const touch = e.touches[0]
+                    ;(e.currentTarget as any).touchStartX = touch.clientX
+                  }}
+                  onTouchEnd={(e) => {
+                    if (!hasMultipleLines) return
+                    const touch = e.changedTouches[0]
+                    const startX = (e.currentTarget as any).touchStartX
+                    const diff = touch.clientX - startX
+                    
+                    if (Math.abs(diff) > 50) {
+                      if (diff > 0 && currentIndex > 0) {
+                        handlePrevLine(group.propType, currentIndex)
+                      } else if (diff < 0 && currentIndex < group.lines.length - 1) {
+                        handleNextLine(group.propType, currentIndex, group.lines.length - 1)
+                      }
+                    }
+                  }}
+                >
                   {hasMultipleLines && (
                     <button
                       onClick={() => handlePrevLine(group.propType, currentIndex)}
                       disabled={currentIndex === 0}
-                      className={`p-1 ${
+                      style={{ background: 'none', border: 'none', padding: 0, margin: 0 }}
+                      className={`${
                         currentIndex === 0 
-                          ? 'text-gray-600 cursor-not-allowed' 
-                          : 'text-blue-400 hover:text-blue-300'
-                      }`}
+                          ? 'text-gray-700 cursor-not-allowed' 
+                          : 'text-blue-400 hover:text-blue-300 active:scale-90'
+                      } transition-all`}
                     >
-                      <ChevronLeft size={16} />
+                      <ChevronLeft size={20} />
                     </button>
                   )}
 
-                  <div className="text-center min-w-[60px]">
+                  <div className="text-center min-w-[60px] px-2">
                     <span className="text-lg font-bold text-white">{currentLine.line}</span>
                   </div>
 
@@ -220,13 +242,14 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
                     <button
                       onClick={() => handleNextLine(group.propType, currentIndex, group.lines.length - 1)}
                       disabled={currentIndex === group.lines.length - 1}
-                      className={`p-1 ${
+                      style={{ background: 'none', border: 'none', padding: 0, margin: 0 }}
+                      className={`${
                         currentIndex === group.lines.length - 1
-                          ? 'text-gray-600 cursor-not-allowed'
-                          : 'text-blue-400 hover:text-blue-300'
-                      }`}
+                          ? 'text-gray-700 cursor-not-allowed'
+                          : 'text-blue-400 hover:text-blue-300 active:scale-90'
+                      } transition-all`}
                     >
-                      <ChevronRight size={16} />
+                      <ChevronRight size={20} />
                     </button>
                   )}
                 </div>

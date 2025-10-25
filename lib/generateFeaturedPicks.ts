@@ -39,7 +39,7 @@ export async function generateFeaturedPicks(): Promise<{ success: boolean; picks
     const { data: games, error: gamesError } = await supabase
       .from('games')
       .select('*')
-      .gte('game_date', new Date().toISOString())
+      .gte('game_date', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()) // Show games up to 4 hours after start
       .order('game_date', { ascending: true })
     
     if (gamesError) throw gamesError

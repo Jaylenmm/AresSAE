@@ -218,7 +218,7 @@ export default function BuildPageContent() {
         .from('games')
         .select('*')
         .or(`home_team.ilike.%${query}%,away_team.ilike.%${query}%`)
-        .gte('game_date', new Date().toISOString())
+        .gte('game_date', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()) // Show games up to 4 hours after start
         .order('game_date', { ascending: true })
 
       const uniqueGames = games ? Array.from(

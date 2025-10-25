@@ -15,7 +15,7 @@ export async function GET(request: Request) {
       .from('games')
       .select('*')
       .eq('sport', sport)
-      .gte('game_date', new Date().toISOString())
+      .gte('game_date', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()) // Show games up to 4 hours after start
       .order('game_date', { ascending: true })
       .limit(sport === 'NCAAF' ? 100 : 20) // More games for NCAAF
 
