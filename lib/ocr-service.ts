@@ -16,16 +16,17 @@ export interface TextBlock {
 /**
  * Extract text from image using Google Cloud Vision API
  */
-export async function extractTextFromImage(imageBase64: string): Promise<OCRResult> {
-  const apiKey = process.env.GOOGLE_VISION_API_KEY
+export async function extractTextFromImage(imageBase64: string, apiKey?: string): Promise<OCRResult> {
+  const key = apiKey || process.env.GOOGLE_VISION_API_KEY
   
-  if (!apiKey) {
-    throw new Error('Google Vision API key not configured')
+  if (!key) {
+    console.error('Available env vars:', Object.keys(process.env))
+    throw new Error('Google Vision API key not configured. Add GOOGLE_VISION_API_KEY to .env.local')
   }
 
   try {
     const response = await fetch(
-      `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`,
+      `https://vision.googleapis.com/v1/images:annotate?key=${key}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
