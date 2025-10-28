@@ -26,10 +26,18 @@ export async function POST(request: NextRequest) {
     let ocrText = ''
     let parsingMethod = 'unknown'
 
+    // Check which parsing method will be used
+    const hasOpenAI = !!process.env.OPENAI_API_KEY
+    const hasGoogleVision = !!process.env.GOOGLE_VISION_API_KEY
+    
+    console.log('🔍 Parsing Configuration:')
+    console.log('  - OpenAI API Key:', hasOpenAI ? '✅ Available (will use GPT-4 Vision)' : '❌ Not set')
+    console.log('  - Google Vision API Key:', hasGoogleVision ? '✅ Available (fallback)' : '❌ Not set')
+
     // Try GPT-4 Vision first (most accurate)
-    if (process.env.OPENAI_API_KEY) {
+    if (hasOpenAI) {
       try {
-        console.log('Attempting GPT-4 Vision parsing...')
+        console.log('🚀 Attempting GPT-4 Vision parsing...')
         const gptResult = await parseWithGPTVision(image)
         
         // Convert GPT result to ParsedBet format
@@ -49,15 +57,17 @@ export async function POST(request: NextRequest) {
         
         ocrText = `GPT-4 Vision parsed ${gptResult.totalBets} bets from ${gptResult.sportsbook || 'unknown sportsbook'}`
         parsingMethod = 'gpt-vision'
-        console.log('GPT-4 Vision found', parsedBets.length, 'bets')
+        console.log('✅ GPT-4 Vision found', parsedBets.length, 'bets')
       } catch (gptError: any) {
-        console.log('GPT-4 Vision failed, falling back to OCR:', gptError.message)
+        console.log('❌ GPT-4 Vision failed, falling back to OCR:', gptError.message)
       }
+    } else {
+      console.log('⚠️ Skipping GPT-4 Vision (no OpenAI API key)')
     }
 
     // Fallback to Google Vision OCR + custom parsing
     if (parsedBets.length === 0) {
-      console.log('Using Google Vision OCR...')
+      console.log('📸 Using Google Vision OCR + custom parsers...')
       const ocrResult = await extractTextFromImage(image)
       
       if (!ocrResult.text) {

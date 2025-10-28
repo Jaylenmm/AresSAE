@@ -144,12 +144,13 @@ export function parsePrizePicks(lines: string[]): ParsedBet[] {
     
     // Also check for combined patterns in single line
     // Pattern 1: "More/Higher/Over 25.5 Pts" or "Less/Lower/Under 8.5 Assists"
-    const pattern1 = lowerLine.match(/(more|less|higher|lower|over|under|o|u)\s+(\d+\.?\d*)\s*(pts|points|yds|yards|assists?|rebounds?|receptions?|rec)/i)
+    const pattern1 = lowerLine.match(/(more|less|higher|lower|over|under|o|u)\s+(\d+\.?\d*)\s*(pts|points?|yds|yards?|assists?|rebounds?|receptions?|rec)/i)
     
     // Pattern 2: "25.5 Pts More/Higher/Over" or "8.5 Assists Less/Lower/Under"
-    const pattern2 = lowerLine.match(/(\d+\.?\d*)\s*(pts|points|yds|yards|assists?|rebounds?|receptions?|rec)\s+(more|less|higher|lower|over|under|o|u)/i)
+    const pattern2 = lowerLine.match(/(\d+\.?\d*)\s*(pts|points?|yds|yards?|assists?|rebounds?|receptions?|rec)\s+(more|less|higher|lower|over|under|o|u)/i)
     
     if (pattern1 || pattern2) {
+      console.log('Found combined pattern at line', i, ':', line, '→ pattern1:', !!pattern1, 'pattern2:', !!pattern2)
       const match = (pattern1 || pattern2)!
       const selectionWord = (pattern1 ? match[1] : match[3]).toLowerCase()
       const lineValue = pattern1 ? parseFloat(match[2]) : parseFloat(match[1])
@@ -159,16 +160,37 @@ export function parsePrizePicks(lines: string[]): ParsedBet[] {
       const isUnder = selectionWord === 'less' || selectionWord === 'lower' || selectionWord === 'under' || selectionWord === 'u'
       const selection = isUnder ? 'under' : 'over'
       
-      // Look for player name in nearby lines
+      // Look for player name and team in nearby lines
       let playerName = ''
+      let teamAbbr: string | undefined
+      let matchup: { team1: string; team2: string } | undefined
       
-      // Check previous 3 lines for player name
-      for (let j = Math.max(0, i - 3); j < i; j++) {
+      // Check previous 5 lines for player name, team, and matchup
+      for (let j = Math.max(0, i - 5); j < i; j++) {
         const prevLine = lines[j]
-        // Player names are usually capitalized words
-        const nameMatch = prevLine.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/)
-        if (nameMatch) {
+        
+        // Look for matchup (e.g., "76ers @ Wizards" or "Bucks vs Knicks")
+        if (!matchup) {
+          matchup = extractMatchup(prevLine)
+          if (matchup) {
+            console.log(`Found matchup at line ${j}:`, matchup)
+          }
+        }
+        
+        // Look for team abbreviation
+        if (!teamAbbr) {
+          teamAbbr = extractTeamAbbreviation(prevLine)
+          if (teamAbbr) {
+            console.log(`Found team at line ${j}:`, teamAbbr)
+          }
+        }
+        
+        // Player names are usually capitalized words (2-3 words)
+        // But be more flexible with the pattern
+        const nameMatch = prevLine.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z']+)+)$/)
+        if (nameMatch && !playerName) {
           playerName = nameMatch[1]
+          console.log(`Found player at line ${j}:`, playerName)
           break
         }
       }
@@ -176,9 +198,10 @@ export function parsePrizePicks(lines: string[]): ParsedBet[] {
       // If not found, check next line
       if (!playerName && i + 1 < lines.length) {
         const nextLine = lines[i + 1]
-        const nameMatch = nextLine.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/)
+        const nameMatch = nextLine.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z']+)+)$/)
         if (nameMatch) {
           playerName = nameMatch[1]
+          console.log(`Found player at line ${i + 1}:`, playerName)
         }
       }
       
@@ -199,7 +222,18 @@ export function parsePrizePicks(lines: string[]): ParsedBet[] {
       }
       
       if (playerName && lineValue && propType) {
-        console.log('Found PrizePicks bet:', { playerName, lineValue, selection, propType })
+        const sport = detectSport(lines.slice(Math.max(0, i - 5), i + 1).join(' '))
+        const teamName = teamAbbr ? getFullTeamName(teamAbbr, sport) : undefined
+        
+        console.log('✅ Found bet (combined pattern):', { 
+          playerName, 
+          lineValue, 
+          selection, 
+          propType,
+          team: teamName || teamAbbr,
+          matchup
+        })
+        
         bets.push({
           type: 'player_prop',
           player: playerName,
@@ -208,9 +242,14 @@ export function parsePrizePicks(lines: string[]): ParsedBet[] {
           selection, // Already normalized to 'over' or 'under'
           odds: -110,
           sportsbook: 'prizepicks',
-          rawText: `${lines[i - 1] || ''} ${line}`.trim(),
+          sport,
+          team1: matchup?.team1 ? getFullTeamName(matchup.team1, sport) : teamName,
+          team2: matchup?.team2 ? getFullTeamName(matchup.team2, sport) : undefined,
+          rawText: lines.slice(Math.max(0, i - 5), i + 1).join(' | '),
           confidence: 0.85
         })
+      } else {
+        console.log('⚠️ Missing data (combined pattern):', { playerName, lineValue, propType, teamAbbr, matchup })
       }
     }
   }

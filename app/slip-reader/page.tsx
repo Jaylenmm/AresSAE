@@ -241,9 +241,24 @@ function SlipReaderInterface() {
                     {results.betsMatched} of {results.betsFound} bets matched
                   </p>
                   {results.parsingMethod && (
-                    <p className="text-gray-500 text-xs mt-1">
-                      Method: {results.parsingMethod}
-                    </p>
+                    <div className="mt-2 inline-flex items-center gap-2">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        results.parsingMethod === 'gpt-vision' 
+                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/50' 
+                          : 'bg-blue-500/20 text-blue-300 border border-blue-500/50'
+                      }`}>
+                        {results.parsingMethod === 'gpt-vision' ? '✨ GPT-4 Vision' : 
+                         results.parsingMethod === 'prizepicks-parser' ? '🎯 PrizePicks Parser' :
+                         results.parsingMethod === 'underdog-parser' ? '🐶 Underdog Parser' :
+                         results.parsingMethod === 'fanduel-parser' ? '📱 FanDuel Parser' :
+                         `📊 ${results.parsingMethod}`}
+                      </span>
+                      {results.parsingMethod !== 'gpt-vision' && (
+                        <span className="text-xs text-gray-500">
+                          (Add OPENAI_API_KEY for GPT-4 Vision)
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
                 <button

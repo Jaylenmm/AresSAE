@@ -200,15 +200,67 @@ export function detectSport(text: string): 'NBA' | 'NFL' | undefined {
 }
 
 /**
- * Extract matchup from text (e.g., "OKC vs SAC" or "MIL vs NYK")
+ * Extract matchup from text (e.g., "OKC vs SAC", "MIL vs NYK", "76ers @ Wizards")
  */
 export function extractMatchup(text: string): { team1: string; team2: string } | undefined {
-  const pattern = text.match(/\b([A-Z]{2,3})\s+vs\s+([A-Z]{2,3})\b/)
+  // Pattern 1: "OKC vs SAC" or "Bucks vs Knicks"
+  let pattern = text.match(/\b([A-Z]{2,3})\s+vs\s+([A-Z]{2,3})\b/i)
   if (pattern) {
     return {
       team1: pattern[1],
       team2: pattern[2]
     }
   }
+  
+  // Pattern 2: "76ers @ Wizards" or "Bucks @ Knicks"
+  pattern = text.match(/\b([A-Za-z0-9]+)\s+@\s+([A-Za-z]+)\b/)
+  if (pattern) {
+    // Try to map team names to abbreviations
+    const team1 = pattern[1]
+    const team2 = pattern[2]
+    
+    // Check if they're already abbreviations
+    if (team1.length <= 3 && team2.length <= 3) {
+      return { team1: team1.toUpperCase(), team2: team2.toUpperCase() }
+    }
+    
+    // Try to find abbreviations from full names
+    const team1Abbr = findTeamAbbreviation(team1)
+    const team2Abbr = findTeamAbbreviation(team2)
+    
+    if (team1Abbr && team2Abbr) {
+      return { team1: team1Abbr, team2: team2Abbr }
+    }
+  }
+  
+  return undefined
+}
+
+/**
+ * Find team abbreviation from partial name
+ */
+function findTeamAbbreviation(name: string): string | undefined {
+  const lower = name.toLowerCase()
+  
+  // Check NBA teams
+  for (const [key, value] of Object.entries(NBA_TEAMS)) {
+    if (key.toLowerCase().includes(lower) || value.toLowerCase().includes(lower)) {
+      // Return the abbreviation (uppercase keys that are 2-3 chars)
+      if (key.length <= 3) return key
+      // Find the abbreviation value
+      const abbr = Object.keys(NBA_TEAMS).find(k => k.length <= 3 && NBA_TEAMS[k] === value)
+      if (abbr) return abbr
+    }
+  }
+  
+  // Check NFL teams
+  for (const [key, value] of Object.entries(NFL_TEAMS)) {
+    if (key.toLowerCase().includes(lower) || value.toLowerCase().includes(lower)) {
+      if (key.length <= 3) return key
+      const abbr = Object.keys(NFL_TEAMS).find(k => k.length <= 3 && NFL_TEAMS[k] === value)
+      if (abbr) return abbr
+    }
+  }
+  
   return undefined
 }
