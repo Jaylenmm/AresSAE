@@ -127,7 +127,10 @@ function SlipReaderInterface() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to analyze slip')
+        // Show debug info in error
+        const errorMsg = data.error || 'Failed to analyze slip'
+        const debugInfo = data.ocrText ? `\n\nExtracted text:\n${data.ocrText}` : ''
+        throw new Error(errorMsg + debugInfo)
       }
 
       setResults(data)
@@ -219,7 +222,7 @@ function SlipReaderInterface() {
 
             {error && (
               <div className="bg-red-900/30 border border-red-500 rounded-lg p-4">
-                <p className="text-red-400">{error}</p>
+                <p className="text-red-400 whitespace-pre-wrap">{error}</p>
               </div>
             )}
           </div>

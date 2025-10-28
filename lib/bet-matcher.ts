@@ -42,16 +42,25 @@ async function matchPlayerProp(bet: ParsedBet): Promise<MatchedBet> {
     return { ...bet, matchConfidence: 0 }
   }
 
-  // Search for player in props
-  const { data: props } = await supabase
+  // Build query - if we have team info, use it to narrow search
+  let query = supabase
     .from('player_props_v2')
-    .select('*')
+    .select('*, games!inner(*)')
     .ilike('player_name', `%${bet.player}%`)
-    .limit(10)
+  
+  // If we have team info, filter by team
+  if (bet.team1) {
+    query = query.or(`home_team.ilike.%${bet.team1}%,away_team.ilike.%${bet.team1}%`, { foreignTable: 'games' })
+  }
+  
+  const { data: props } = await query.limit(20)
 
   if (!props || props.length === 0) {
+    console.log('No props found for player:', bet.player, 'team:', bet.team1)
     return { ...bet, matchConfidence: 0 }
   }
+  
+  console.log(`Found ${props.length} props for ${bet.player}`)
 
   // Find best match
   let bestMatch = props[0]
