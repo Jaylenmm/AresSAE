@@ -1,12 +1,14 @@
 // app/api/analyze-slip/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { extractTextFromImage } from '@/lib/ocr-service'
-import { parseBetSlip } from '@/lib/bet-parser'
+import { parseBetSlip, ParsedBet } from '@/lib/bet-parser'
 import { matchBetsToDatabase, MatchedBet } from '@/lib/bet-matcher'
 import { analyzeBet, BetOption } from '@/lib/analysis-engine'
 import { supabase } from '@/lib/supabase'
 import { transformGameToAnalysisFormat, transformPlayerPropsToAnalysisFormat, createBetOptionFromSelection } from '@/lib/supabase-adapter'
 import { Game, OddsData, PlayerProp } from '@/lib/types'
+import { parseWithGPTVision, parseWithGPTFromText } from '@/lib/gpt-vision-service'
+import { detectSportsbook, parsePrizePicks, parseUnderdog, parseFanDuel } from '@/lib/sportsbook-parsers'
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,28 +22,91 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 1: Extract text from image
-    console.log('Extracting text from image...')
-    const ocrResult = await extractTextFromImage(image)
-    
-    if (!ocrResult.text) {
-      return NextResponse.json(
-        { error: 'No text found in image' },
-        { status: 400 }
-      )
+    let parsedBets: ParsedBet[] = []
+    let ocrText = ''
+    let parsingMethod = 'unknown'
+
+    // Try GPT-4 Vision first (most accurate)
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        console.log('Attempting GPT-4 Vision parsing...')
+        const gptResult = await parseWithGPTVision(image)
+        
+        // Convert GPT result to ParsedBet format
+        parsedBets = gptResult.bets.map(bet => ({
+          type: bet.betType,
+          player: bet.player,
+          team1: bet.team1,
+          team2: bet.team2,
+          propType: bet.propType,
+          line: bet.line,
+          selection: bet.selection,
+          odds: bet.odds || -110,
+          sportsbook: bet.sportsbook || gptResult.sportsbook,
+          rawText: JSON.stringify(bet),
+          confidence: bet.confidence
+        }))
+        
+        ocrText = `GPT-4 Vision parsed ${gptResult.totalBets} bets from ${gptResult.sportsbook || 'unknown sportsbook'}`
+        parsingMethod = 'gpt-vision'
+        console.log('GPT-4 Vision found', parsedBets.length, 'bets')
+      } catch (gptError: any) {
+        console.log('GPT-4 Vision failed, falling back to OCR:', gptError.message)
+      }
     }
 
-    console.log('OCR Text:', ocrResult.text)
-    console.log('OCR Confidence:', ocrResult.confidence)
+    // Fallback to Google Vision OCR + custom parsing
+    if (parsedBets.length === 0) {
+      console.log('Using Google Vision OCR...')
+      const ocrResult = await extractTextFromImage(image)
+      
+      if (!ocrResult.text) {
+        return NextResponse.json(
+          { error: 'No text found in image' },
+          { status: 400 }
+        )
+      }
 
-    // Step 2: Parse bets from text
-    console.log('Parsing bets...')
-    const parsedBets = parseBetSlip(ocrResult.text)
-    console.log('Parsed bets count:', parsedBets.length)
+      ocrText = ocrResult.text
+      console.log('OCR Text:', ocrText)
+      console.log('OCR Confidence:', ocrResult.confidence)
+
+      // Detect sportsbook
+      const sportsbook = detectSportsbook(ocrText)
+      console.log('Detected sportsbook:', sportsbook)
+
+      // Use sportsbook-specific parser
+      const lines = ocrText.split('\n').map(l => l.trim()).filter(Boolean)
+      
+      if (sportsbook === 'prizepicks') {
+        console.log('Using PrizePicks parser...')
+        parsedBets = parsePrizePicks(lines)
+        parsingMethod = 'prizepicks-parser'
+      } else if (sportsbook === 'underdog') {
+        console.log('Using Underdog parser...')
+        parsedBets = parseUnderdog(lines)
+        parsingMethod = 'underdog-parser'
+      } else if (sportsbook === 'fanduel') {
+        console.log('Using FanDuel parser...')
+        parsedBets = parseFanDuel(lines)
+        parsingMethod = 'fanduel-parser'
+      } else {
+        console.log('Using generic parser...')
+        parsedBets = parseBetSlip(ocrText)
+        parsingMethod = 'generic-parser'
+      }
+      
+      console.log('Parsed bets count:', parsedBets.length)
+    }
     
     if (parsedBets.length === 0) {
       return NextResponse.json(
-        { error: 'No bets found in image' },
+        { 
+          error: 'No bets found in image',
+          ocrText,
+          parsingMethod,
+          debug: 'Try using a clearer image or different angle'
+        },
         { status: 400 }
       )
     }
@@ -86,7 +151,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      ocrText: ocrResult.text,
+      ocrText,
+      parsingMethod,
       betsFound: parsedBets.length,
       betsMatched: matchedBets.filter(b => b.matchConfidence >= 0.5).length,
       isParlay,

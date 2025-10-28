@@ -237,6 +237,11 @@ function SlipReaderInterface() {
                   <p className="text-gray-400 text-sm">
                     {results.betsMatched} of {results.betsFound} bets matched
                   </p>
+                  {results.parsingMethod && (
+                    <p className="text-gray-500 text-xs mt-1">
+                      Method: {results.parsingMethod}
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={reset}
