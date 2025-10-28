@@ -32,10 +32,12 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('OCR Text:', ocrResult.text)
+    console.log('OCR Confidence:', ocrResult.confidence)
 
     // Step 2: Parse bets from text
     console.log('Parsing bets...')
     const parsedBets = parseBetSlip(ocrResult.text)
+    console.log('Parsed bets count:', parsedBets.length)
     
     if (parsedBets.length === 0) {
       return NextResponse.json(

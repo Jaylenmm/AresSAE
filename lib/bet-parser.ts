@@ -44,7 +44,8 @@ const PROP_TYPE_KEYWORDS = {
 
 const SPORTSBOOK_KEYWORDS = [
   'fanduel', 'draftkings', 'betmgm', 'caesars', 'espnbet',
-  'pinnacle', 'betonline', 'bovada', 'mybookie', 'bet365'
+  'pinnacle', 'betonline', 'bovada', 'mybookie', 'bet365',
+  'prizepicks', 'underdog', 'sleeper', 'parlayplay', 'betr'
 ]
 
 /**
@@ -68,7 +69,16 @@ export function parseBetSlip(ocrText: string): ParsedBet[] {
     }
   }
 
-  // Second pass: parse bets
+  // Check if this is PrizePicks/DFS format (no odds, just over/under)
+  const isPrizePicks = sportsbook === 'prizepicks' || sportsbook === 'underdog' || 
+                       ocrText.toLowerCase().includes('more') || 
+                       ocrText.toLowerCase().includes('less')
+  
+  if (isPrizePicks) {
+    return parsePrizePicksFormat(lines, sportsbook)
+  }
+
+  // Second pass: parse traditional sportsbook bets
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
     const lowerLine = line.toLowerCase()
@@ -94,6 +104,70 @@ export function parseBetSlip(ocrText: string): ParsedBet[] {
     }
   }
 
+  return bets
+}
+
+/**
+ * Parse PrizePicks/DFS format (More/Less instead of odds)
+ */
+function parsePrizePicksFormat(lines: string[], sportsbook?: string): ParsedBet[] {
+  const bets: ParsedBet[] = []
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const lowerLine = line.toLowerCase()
+    
+    // Look for "More" or "Less" indicators
+    if (lowerLine.includes('more') || lowerLine.includes('less')) {
+      const selection = lowerLine.includes('more') ? 'over' : 'under'
+      
+      // Look for player name (usually 1-2 lines before)
+      const playerLine = lines[i - 1] || lines[i - 2] || ''
+      
+      // Look for stat type and line value
+      const statMatch = line.match(/(\d+\.?\d*)\s*(pts|yds|yards|assists|rebounds|receptions)/i)
+      const lineValue = statMatch ? parseFloat(statMatch[1]) : undefined
+      const statType = statMatch ? statMatch[2].toLowerCase() : undefined
+      
+      // Determine prop type
+      let propType: string | undefined
+      if (statType) {
+        if (statType.includes('pt')) propType = 'player_points'
+        else if (statType.includes('yd') || statType.includes('yard')) {
+          // Need more context to determine pass/rush/rec
+          if (lowerLine.includes('pass')) propType = 'player_pass_yds'
+          else if (lowerLine.includes('rush')) propType = 'player_rush_yds'
+          else if (lowerLine.includes('rec')) propType = 'player_reception_yds'
+          else propType = 'player_pass_yds' // default to passing
+        }
+        else if (statType.includes('assist')) propType = 'player_assists'
+        else if (statType.includes('rebound')) propType = 'player_rebounds'
+      }
+      
+      // Extract player name (capitalize each word)
+      const playerName = playerLine
+        .replace(/[^\w\s]/g, '')
+        .split(/\s+/)
+        .filter(w => w.length > 1 && /^[A-Z]/.test(w))
+        .slice(0, 2)
+        .join(' ')
+      
+      if (playerName && lineValue) {
+        bets.push({
+          type: 'player_prop',
+          player: playerName,
+          propType,
+          line: lineValue,
+          selection,
+          odds: -110, // PrizePicks doesn't show odds, assume standard
+          sportsbook: sportsbook || 'prizepicks',
+          rawText: `${lines[i - 2] || ''} ${lines[i - 1] || ''} ${line}`.trim(),
+          confidence: 0.8
+        })
+      }
+    }
+  }
+  
   return bets
 }
 

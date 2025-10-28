@@ -245,6 +245,18 @@ function SlipReaderInterface() {
                   New Slip
                 </button>
               </div>
+
+              {/* Debug: Show OCR Text */}
+              {results.ocrText && (
+                <details className="mt-4">
+                  <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">
+                    🔍 Show extracted text (debug)
+                  </summary>
+                  <pre className="mt-2 p-3 bg-gray-900 rounded text-xs text-gray-300 overflow-auto max-h-40">
+                    {results.ocrText}
+                  </pre>
+                </details>
+              )}
             </div>
 
             {/* Bet Results */}
