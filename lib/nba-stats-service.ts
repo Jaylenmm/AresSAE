@@ -6,9 +6,8 @@
 
 const NBA_STATS_BASE = 'https://stats.nba.com/stats';
 
-// Use CORS proxy in production to avoid IP blocking
+// Use AllOrigins proxy in production - faster and more reliable
 const USE_PROXY = process.env.NODE_ENV === 'production';
-const PROXY_URL = 'https://corsproxy.io/?';
 
 // Required headers to avoid 403 errors
 const NBA_HEADERS = {
@@ -21,7 +20,11 @@ const NBA_HEADERS = {
 
 function buildUrl(endpoint: string): string {
   const fullUrl = `${NBA_STATS_BASE}${endpoint}`;
-  return USE_PROXY ? `${PROXY_URL}${encodeURIComponent(fullUrl)}` : fullUrl;
+  if (USE_PROXY) {
+    // Use AllOrigins which is faster
+    return `https://api.allorigins.win/raw?url=${encodeURIComponent(fullUrl)}`;
+  }
+  return fullUrl;
 }
 
 export interface PlayerSeasonStats {

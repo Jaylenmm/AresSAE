@@ -6,7 +6,7 @@ const cache = new Map<string, { data: any; timestamp: number }>()
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
 // Vercel timeout is 10s for hobby plan, 60s for pro
-export const maxDuration = 10
+export const maxDuration = 15
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -28,15 +28,28 @@ export async function GET(request: NextRequest) {
   try {
     console.log(`Fetching NBA stats for ${playerName}...`)
     
-    // Race against timeout
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Request timeout')), 8000)
-    )
+    // Try with retries
+    let stats = null
+    let attempts = 0
+    const maxAttempts = 2
     
-    const stats = await Promise.race([
-      getPlayerStats(playerName, 5),
-      timeoutPromise
-    ]) as any
+    while (!stats && attempts < maxAttempts) {
+      attempts++
+      try {
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout')), 12000)
+        )
+        
+        stats = await Promise.race([
+          getPlayerStats(playerName, 5),
+          timeoutPromise
+        ]) as any
+      } catch (err: any) {
+        if (attempts >= maxAttempts) throw err
+        console.log(`Retry ${attempts} for ${playerName}...`)
+        await new Promise(r => setTimeout(r, 500))
+      }
+    }
     
     if (!stats) {
       return NextResponse.json({ error: 'Player not found' }, { status: 404 })
