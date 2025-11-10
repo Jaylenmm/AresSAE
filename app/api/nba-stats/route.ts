@@ -5,6 +5,9 @@ import { getPlayerStats } from '@/lib/nba-stats-service'
 const cache = new Map<string, { data: any; timestamp: number }>()
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
+// Vercel timeout is 10s for hobby plan, 60s for pro
+export const maxDuration = 10
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const playerName = searchParams.get('player')
@@ -24,7 +27,16 @@ export async function GET(request: NextRequest) {
   
   try {
     console.log(`Fetching NBA stats for ${playerName}...`)
-    const stats = await getPlayerStats(playerName, 5)
+    
+    // Race against timeout
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Request timeout')), 8000)
+    )
+    
+    const stats = await Promise.race([
+      getPlayerStats(playerName, 5),
+      timeoutPromise
+    ]) as any
     
     if (!stats) {
       return NextResponse.json({ error: 'Player not found' }, { status: 404 })
@@ -37,8 +49,17 @@ export async function GET(request: NextRequest) {
     })
     
     return NextResponse.json(stats)
-  } catch (error) {
-    console.error('Error fetching NBA stats:', error)
-    return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 })
+  } catch (error: any) {
+    console.error('Error fetching NBA stats:', error?.message || error)
+    
+    if (error?.message === 'Request timeout') {
+      return NextResponse.json({ 
+        error: 'NBA stats service timeout - try again' 
+      }, { status: 504 })
+    }
+    
+    return NextResponse.json({ 
+      error: 'Failed to fetch stats' 
+    }, { status: 500 })
   }
 }

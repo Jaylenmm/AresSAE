@@ -6,6 +6,10 @@
 
 const NBA_STATS_BASE = 'https://stats.nba.com/stats';
 
+// Use CORS proxy in production to avoid IP blocking
+const USE_PROXY = process.env.NODE_ENV === 'production';
+const PROXY_URL = 'https://corsproxy.io/?';
+
 // Required headers to avoid 403 errors
 const NBA_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -14,6 +18,11 @@ const NBA_HEADERS = {
   'Referer': 'https://www.nba.com/',
   'Origin': 'https://www.nba.com',
 };
+
+function buildUrl(endpoint: string): string {
+  const fullUrl = `${NBA_STATS_BASE}${endpoint}`;
+  return USE_PROXY ? `${PROXY_URL}${encodeURIComponent(fullUrl)}` : fullUrl;
+}
 
 export interface PlayerSeasonStats {
   playerId: string;
@@ -60,9 +69,12 @@ export interface PlayerGameLog {
 export async function searchPlayer(playerName: string): Promise<{ id: string; name: string; team: string } | null> {
   try {
     // Search all players for current season (2025-26)
-    const url = `${NBA_STATS_BASE}/commonallplayers?LeagueID=00&Season=2025-26&IsOnlyCurrentSeason=0`;
+    const url = buildUrl('/commonallplayers?LeagueID=00&Season=2025-26&IsOnlyCurrentSeason=0');
     
-    const response = await fetch(url, { headers: NBA_HEADERS });
+    const response = await fetch(url, { 
+      headers: USE_PROXY ? {} : NBA_HEADERS,
+      cache: 'no-store'
+    });
     const data = await response.json();
     
     // Response format: { resultSets: [{ headers: [...], rowSet: [[...]] }] }
@@ -122,9 +134,12 @@ export async function searchPlayer(playerName: string): Promise<{ id: string; na
  */
 export async function getPlayerSeasonStats(playerId: string, season: string = '2025-26'): Promise<PlayerSeasonStats | null> {
   try {
-    const url = `${NBA_STATS_BASE}/playercareerstats?PlayerID=${playerId}&PerMode=PerGame`;
+    const url = buildUrl(`/playercareerstats?PlayerID=${playerId}&PerMode=PerGame`);
     
-    const response = await fetch(url, { headers: NBA_HEADERS });
+    const response = await fetch(url, { 
+      headers: USE_PROXY ? {} : NBA_HEADERS,
+      cache: 'no-store'
+    });
     const data = await response.json();
     
     // Get season totals per game
@@ -179,9 +194,12 @@ export async function getPlayerGameLogs(
   lastNGames: number = 10
 ): Promise<PlayerGameLog[]> {
   try {
-    const url = `${NBA_STATS_BASE}/playergamelog?PlayerID=${playerId}&Season=${season}&SeasonType=Regular+Season`;
+    const url = buildUrl(`/playergamelog?PlayerID=${playerId}&Season=${season}&SeasonType=Regular+Season`);
     
-    const response = await fetch(url, { headers: NBA_HEADERS });
+    const response = await fetch(url, { 
+      headers: USE_PROXY ? {} : NBA_HEADERS,
+      cache: 'no-store'
+    });
     const data = await response.json();
     
     const gameLog = data.resultSets[0];

@@ -48,20 +48,33 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
         
         // ONLY support NBA for now
         if (sport === 'basketball') {
-          const response = await fetch(`/api/nba-stats?player=${encodeURIComponent(playerName)}`)
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout
+          
+          const response = await fetch(
+            `/api/nba-stats?player=${encodeURIComponent(playerName)}`,
+            { signal: controller.signal }
+          )
+          
+          clearTimeout(timeoutId)
           
           if (response.ok) {
             const stats = await response.json()
-            setNbaGameLogs(stats.recentGames)
-            console.log(`✅ Loaded ${stats.recentGames.length} games for ${playerName}`)
+            setNbaGameLogs(stats.recentGames || [])
+            console.log(`✅ Loaded ${stats.recentGames?.length || 0} games for ${playerName}`)
           } else {
-            console.log(`❌ No NBA stats found for ${playerName}`)
+            const error = await response.json()
+            console.log(`❌ ${error.error || 'No NBA stats found'} for ${playerName}`)
           }
         } else {
           console.log(`Stats not yet available for ${sport}`)
         }
       } catch (error: any) {
-        console.log(`Stats unavailable for ${playerName}`)
+        if (error.name === 'AbortError') {
+          console.log(`⏱️ Stats request timeout for ${playerName}`)
+        } else {
+          console.log(`❌ Stats unavailable for ${playerName}`)
+        }
       } finally {
         setLoadingStats(false)
       }
