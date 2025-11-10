@@ -1,7 +1,5 @@
-// ===== CLEAN: lib/espn-api.ts =====
-
-import axios from 'axios'
-import { getFromCache, cacheHistoricalData, generatePlayerPropCacheKey } from './cache-manager'
+// DELETED - ESPN API removed from codebase
+// Use NBA Stats Service (lib/nba-stats-service.ts) instead
 
 export interface PlayerSeasonStats {
   playerId: string

@@ -4,11 +4,13 @@ import { extractTextFromImage } from '@/lib/ocr-service'
 import { parseBetSlip, ParsedBet } from '@/lib/bet-parser'
 import { matchBetsToDatabase, MatchedBet } from '@/lib/bet-matcher'
 import { analyzeBet, BetOption } from '@/lib/analysis-engine'
+import { parseWithGPTVision, parseWithGPTFromText } from '@/lib/gpt-vision-service'
+import { detectSportsbook, parsePrizePicks, parseUnderdog, parseFanDuel } from '@/lib/sportsbook-parsers'
+import { parseUniversal } from '@/lib/universal-bet-parser'
+import { parseStructured } from '@/lib/structured-bet-parser'
 import { supabase } from '@/lib/supabase'
 import { transformGameToAnalysisFormat, transformPlayerPropsToAnalysisFormat, createBetOptionFromSelection } from '@/lib/supabase-adapter'
 import { Game, OddsData, PlayerProp } from '@/lib/types'
-import { parseWithGPTVision, parseWithGPTFromText } from '@/lib/gpt-vision-service'
-import { detectSportsbook, parsePrizePicks, parseUnderdog, parseFanDuel } from '@/lib/sportsbook-parsers'
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,88 +28,33 @@ export async function POST(request: NextRequest) {
     let ocrText = ''
     let parsingMethod = 'unknown'
 
-    // Check which parsing method will be used
-    const hasOpenAI = !!process.env.OPENAI_API_KEY
-    const hasGoogleVision = !!process.env.GOOGLE_VISION_API_KEY
+    // Use Google Vision OCR + custom parsing (GPT-4 Vision disabled - unnecessary)
+    console.log('📸 Using Google Vision OCR + custom parsers...')
+    const ocrResult = await extractTextFromImage(image)
     
-    console.log('🔍 Parsing Configuration:')
-    console.log('  - OpenAI API Key:', hasOpenAI ? '✅ Available (will use GPT-4 Vision)' : '❌ Not set')
-    console.log('  - Google Vision API Key:', hasGoogleVision ? '✅ Available (fallback)' : '❌ Not set')
-
-    // Try GPT-4 Vision first (most accurate)
-    if (hasOpenAI) {
-      try {
-        console.log('🚀 Attempting GPT-4 Vision parsing...')
-        const gptResult = await parseWithGPTVision(image)
-        
-        // Convert GPT result to ParsedBet format
-        parsedBets = gptResult.bets.map(bet => ({
-          type: bet.betType,
-          player: bet.player,
-          team1: bet.team1,
-          team2: bet.team2,
-          propType: bet.propType,
-          line: bet.line,
-          selection: bet.selection,
-          odds: bet.odds || -110,
-          sportsbook: bet.sportsbook || gptResult.sportsbook,
-          rawText: JSON.stringify(bet),
-          confidence: bet.confidence
-        }))
-        
-        ocrText = `GPT-4 Vision parsed ${gptResult.totalBets} bets from ${gptResult.sportsbook || 'unknown sportsbook'}`
-        parsingMethod = 'gpt-vision'
-        console.log('✅ GPT-4 Vision found', parsedBets.length, 'bets')
-      } catch (gptError: any) {
-        console.log('❌ GPT-4 Vision failed, falling back to OCR:', gptError.message)
-      }
-    } else {
-      console.log('⚠️ Skipping GPT-4 Vision (no OpenAI API key)')
+    if (!ocrResult.text) {
+      return NextResponse.json(
+        { error: 'No text found in image' },
+        { status: 400 }
+      )
     }
 
-    // Fallback to Google Vision OCR + custom parsing
-    if (parsedBets.length === 0) {
-      console.log('📸 Using Google Vision OCR + custom parsers...')
-      const ocrResult = await extractTextFromImage(image)
-      
-      if (!ocrResult.text) {
-        return NextResponse.json(
-          { error: 'No text found in image' },
-          { status: 400 }
-        )
-      }
+    ocrText = ocrResult.text
+    console.log('OCR Text:', ocrText)
+    console.log('OCR Confidence:', ocrResult.confidence)
 
-      ocrText = ocrResult.text
-      console.log('OCR Text:', ocrText)
-      console.log('OCR Confidence:', ocrResult.confidence)
+    // Detect sportsbook
+    const sportsbook = detectSportsbook(ocrText)
+    console.log('Detected sportsbook:', sportsbook)
 
-      // Detect sportsbook
-      const sportsbook = detectSportsbook(ocrText)
-      console.log('Detected sportsbook:', sportsbook)
-
-      // Use sportsbook-specific parser
-      const lines = ocrText.split('\n').map(l => l.trim()).filter(Boolean)
-      
-      if (sportsbook === 'prizepicks') {
-        console.log('Using PrizePicks parser...')
-        parsedBets = parsePrizePicks(lines)
-        parsingMethod = 'prizepicks-parser'
-      } else if (sportsbook === 'underdog') {
-        console.log('Using Underdog parser...')
-        parsedBets = parseUnderdog(lines)
-        parsingMethod = 'underdog-parser'
-      } else if (sportsbook === 'fanduel') {
-        console.log('Using FanDuel parser...')
-        parsedBets = parseFanDuel(lines)
-        parsingMethod = 'fanduel-parser'
-      } else {
-        console.log('Using generic parser...')
-        parsedBets = parseBetSlip(ocrText)
-        parsingMethod = 'generic-parser'
-      }
-      
-      console.log('Parsed bets count:', parsedBets.length)
-    }
+    // Use structured parser (follows slip format)
+    const lines = ocrText.split('\n').map(l => l.trim()).filter(Boolean)
+    
+    console.log('Using STRUCTURED parser (follows slip format)...')
+    parsedBets = parseStructured(lines)
+    parsingMethod = sportsbook ? `structured-${sportsbook}` : 'structured-parser'
+    
+    console.log('Parsed bets count:', parsedBets.length)
     
     if (parsedBets.length === 0) {
       return NextResponse.json(
@@ -125,7 +72,17 @@ export async function POST(request: NextRequest) {
 
     // Step 3: Match bets to database
     console.log('Matching bets to database...')
-    const matchedBets = await matchBetsToDatabase(parsedBets)
+    const allMatchedBets = await matchBetsToDatabase(parsedBets)
+    
+    // Filter out garbage bets - only keep ones that matched to database with confidence > 30%
+    // Lower threshold to show more results, analysis will handle low confidence
+    const matchedBets = allMatchedBets.filter(bet => bet.matchConfidence > 0.3)
+    console.log(`Filtered to ${matchedBets.length} valid bets (from ${allMatchedBets.length} total)`)
+    
+    // If no bets matched, show what we parsed for debugging
+    if (matchedBets.length === 0 && parsedBets.length > 0) {
+      console.log('⚠️ No bets matched to database. Parsed bets were:', parsedBets.map(b => `${b.player} - ${b.propType} ${b.line}`))
+    }
     
     console.log('Matched bets:', matchedBets)
 

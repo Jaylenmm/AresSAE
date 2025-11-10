@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { PlayerProp } from '@/lib/types'
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react'
+import { getPlayerStats } from '@/lib/nba-stats-service'
+import type { PlayerGameLog } from '@/lib/nba-stats-service'
 
 interface PlayerPropDisplayProps {
   playerName: string
@@ -35,36 +37,30 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
   const [selectedLineIndex, setSelectedLineIndex] = useState<Record<string, number>>({})
   const [playerStats, setPlayerStats] = useState<PlayerStats | null>(null)
   const [loadingStats, setLoadingStats] = useState(false)
+  const [nbaGameLogs, setNbaGameLogs] = useState<PlayerGameLog[]>([])
 
-  // Fetch real stats - simplified approach
+  // Fetch NBA stats via API route (with caching)
   useEffect(() => {
     const fetchStats = async () => {
       setLoadingStats(true)
       try {
         const sport = determineSport(props[0]?.prop_type || '')
         
-        // Try to get stats with aggressive timeout
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 3000)
-        
-        const response = await fetch(
-          `/api/scrape-player-stats?player=${encodeURIComponent(playerName)}&sport=${sport}`,
-          { signal: controller.signal }
-        )
-        
-        clearTimeout(timeoutId)
-        
-        if (response.ok) {
-          const statsData = await response.json()
+        // ONLY support NBA for now
+        if (sport === 'basketball') {
+          const response = await fetch(`/api/nba-stats?player=${encodeURIComponent(playerName)}`)
           
-          // Use scraped data directly
-          setPlayerStats({
-            recentGames: statsData.recentGames || [],
-            seasonAverages: statsData.seasonAverages || {}
-          })
+          if (response.ok) {
+            const stats = await response.json()
+            setNbaGameLogs(stats.recentGames)
+            console.log(`✅ Loaded ${stats.recentGames.length} games for ${playerName}`)
+          } else {
+            console.log(`❌ No NBA stats found for ${playerName}`)
+          }
+        } else {
+          console.log(`Stats not yet available for ${sport}`)
         }
       } catch (error: any) {
-        // Stats failed - that's okay, just don't show them
         console.log(`Stats unavailable for ${playerName}`)
       } finally {
         setLoadingStats(false)
@@ -134,16 +130,16 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
 
   // Helper: Determine sport from prop type
   function determineSport(propType: string): 'football' | 'basketball' | 'baseball' {
+    if (propType.includes('points') || propType.includes('rebounds') || propType.includes('assists') || propType.includes('threes') || propType.includes('steals') || propType.includes('blocks')) {
+      return 'basketball'
+    }
     if (propType.includes('pass') || propType.includes('rush') || propType.includes('reception')) {
       return 'football'
-    }
-    if (propType.includes('points') || propType.includes('rebounds') || propType.includes('assists')) {
-      return 'basketball'
     }
     if (propType.includes('batter') || propType.includes('pitcher') || propType.includes('hits')) {
       return 'baseball'
     }
-    return 'football' // default
+    return 'basketball' // default to basketball since that's what we support
   }
 
   // Helper: Get stat value from recent games for a specific prop type
@@ -299,6 +295,74 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
               <div className="h-3 w-24 bg-gray-700 rounded"></div>
             </div>
           </div>
+        ) : nbaGameLogs.length > 0 ? (
+          <div className="overflow-x-auto -mx-4 px-4 touch-pan-x [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-blue-500 [&::-webkit-scrollbar-thumb]:rounded-full [scrollbar-color:rgb(59_130_246)_transparent]">
+            <table className="w-full text-xs sm:text-sm min-w-[800px]">
+              <thead>
+                <tr className="border-b border-white/10">
+                  <th className="text-left py-2 px-2 text-gray-400 font-semibold sticky left-0 bg-black/30 backdrop-blur-sm z-20 min-w-[50px] shadow-[4px_0_8px_rgba(0,0,0,0.5)]">Date</th>
+                  <th className="text-left py-2 px-2 text-blue-400 font-semibold sticky left-[50px] bg-black/30 backdrop-blur-sm z-20 min-w-[55px] shadow-[4px_0_8px_rgba(0,0,0,0.5)]">Opp</th>
+                  <th className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap">MIN</th>
+                  <th className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap">PTS</th>
+                  <th className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap">REB</th>
+                  <th className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap">AST</th>
+                  <th className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap">STL</th>
+                  <th className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap">BLK</th>
+                  <th className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap">TO</th>
+                  <th className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap">FGM</th>
+                  <th className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap">FGA</th>
+                  <th className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap">FG%</th>
+                  <th className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap">3PM</th>
+                  <th className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap">3PA</th>
+                  <th className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap">3P%</th>
+                  <th className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap">FTM</th>
+                  <th className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap">FTA</th>
+                  <th className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap">FT%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {nbaGameLogs.map((game, index) => {
+                  // Format date as M/D
+                  const date = new Date(game.gameDate)
+                  const formattedDate = `${date.getMonth() + 1}/${date.getDate()}`
+                  
+                  // Calculate percentages
+                  const fgPct = game.fieldGoalsAttempted > 0 
+                    ? ((game.fieldGoalsMade / game.fieldGoalsAttempted) * 100).toFixed(1)
+                    : '0.0'
+                  const threePct = game.threePointsAttempted > 0
+                    ? ((game.threePointsMade / game.threePointsAttempted) * 100).toFixed(1)
+                    : '0.0'
+                  const ftPct = game.freeThrowsAttempted > 0
+                    ? ((game.freeThrowsMade / game.freeThrowsAttempted) * 100).toFixed(1)
+                    : '0.0'
+                  
+                  return (
+                    <tr key={index} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                      <td className="py-2 px-2 text-gray-300 sticky left-0 bg-black/30 backdrop-blur-sm z-20 whitespace-nowrap shadow-[4px_0_8px_rgba(0,0,0,0.5)]">{formattedDate}</td>
+                      <td className="py-2 px-2 text-blue-400 font-medium sticky left-[50px] bg-black/30 backdrop-blur-sm z-20 whitespace-nowrap shadow-[4px_0_8px_rgba(0,0,0,0.5)]">{game.opponent}</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-white whitespace-nowrap">{game.minutesPlayed}</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-white font-bold whitespace-nowrap">{game.points}</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-white whitespace-nowrap">{game.rebounds}</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-white whitespace-nowrap">{game.assists}</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-white whitespace-nowrap">{game.steals}</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-white whitespace-nowrap">{game.blocks}</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-red-400 whitespace-nowrap">{game.turnovers}</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-gray-300 whitespace-nowrap">{game.fieldGoalsMade}</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-gray-400 whitespace-nowrap">{game.fieldGoalsAttempted}</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-gray-300 whitespace-nowrap">{fgPct}%</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-blue-300 whitespace-nowrap">{game.threePointsMade}</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-gray-400 whitespace-nowrap">{game.threePointsAttempted}</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-blue-300 whitespace-nowrap">{threePct}%</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-gray-300 whitespace-nowrap">{game.freeThrowsMade}</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-gray-400 whitespace-nowrap">{game.freeThrowsAttempted}</td>
+                      <td className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-gray-300 whitespace-nowrap">{ftPct}%</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         ) : playerStats && playerStats.recentGames.length > 0 ? (
           <div className="space-y-2">
             {playerStats.recentGames.map((game, index) => (
@@ -311,7 +375,7 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
         ) : (
           <div className="text-center text-gray-500 py-6">
             <p className="text-sm">No recent games</p>
-            <p className="text-xs mt-1 text-gray-600">We're working on integrating player statistics</p>
+            <p className="text-xs mt-1 text-gray-600">Stats will load when available</p>
           </div>
         )}
       </div>

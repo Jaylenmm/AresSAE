@@ -11,8 +11,11 @@ import { extractTeamAbbreviation, getFullTeamName, detectSport, extractMatchup }
 export function parsePrizePicks(lines: string[]): ParsedBet[] {
   const bets: ParsedBet[] = []
   
-  console.log('Parsing PrizePicks format, total lines:', lines.length)
-  console.log('First 20 lines:', lines.slice(0, 20))
+  console.log('========================================')
+  console.log('🎯 PRIZEPICKS PARSER STARTING')
+  console.log('========================================')
+  console.log('Total lines:', lines.length)
+  console.log('First 20 lines:', JSON.stringify(lines.slice(0, 20), null, 2))
   
   // PrizePicks structure: Player Name, Team/Position, Line + Stat, More/Less button
   // We need to look for the pattern across multiple lines
@@ -22,26 +25,48 @@ export function parsePrizePicks(lines: string[]): ParsedBet[] {
     const lowerLine = line.toLowerCase()
     
     // Look for selection indicators (More/Less, Higher/Lower, Over/Under, O/U)
-    const isSelection = 
-      lowerLine === 'more' || lowerLine === 'less' ||
-      lowerLine === 'higher' || lowerLine === 'lower' ||
-      lowerLine === 'over' || lowerLine === 'under' ||
-      lowerLine === 'o' || lowerLine === 'u' ||
-      lowerLine.includes('↑ more') || lowerLine.includes('↓ less') ||
-      lowerLine.includes('↑ higher') || lowerLine.includes('↓ lower') ||
-      lowerLine.includes('↑ over') || lowerLine.includes('↓ under')
+    // PrizePicks shows both buttons but we need to detect which is selected
+    const hasMoreLess = lowerLine.includes('more') || lowerLine.includes('less')
+    const hasHigherLower = lowerLine.includes('higher') || lowerLine.includes('lower')
+    const hasOverUnder = lowerLine.includes('over') || lowerLine.includes('under')
+    
+    const isSelection = hasMoreLess || hasHigherLower || hasOverUnder ||
+      lowerLine === 'o' || lowerLine === 'u'
     
     if (isSelection) {
-      // Determine if over or under
-      const isUnder = 
-        lowerLine.includes('less') || 
-        lowerLine.includes('lower') || 
-        lowerLine.includes('under') ||
-        lowerLine === 'u' ||
-        lowerLine.includes('↓')
+      // For PrizePicks, both buttons appear on same line: "↓ Less ↑ More"
+      // We need to look at the PREVIOUS line to see the actual selection
+      // Or detect if only one button is present
       
-      const selection = isUnder ? 'under' : 'over'
-      console.log(`Found ${selection} at line ${i}:`, line)
+      let selection: 'over' | 'under' | undefined
+      
+      // Check if it's a single button (selected one)
+      if ((lowerLine === 'more' || lowerLine === 'less' || 
+           lowerLine === 'higher' || lowerLine === 'lower' ||
+           lowerLine === 'over' || lowerLine === 'under') &&
+          !lowerLine.includes(' ')) {
+        // Single word = this is the selected button
+        const isUnder = lowerLine === 'less' || lowerLine === 'lower' || lowerLine === 'under'
+        selection = isUnder ? 'under' : 'over'
+        console.log(`Found standalone selection at line ${i}: ${selection} ("${line}")`)
+      } else if (lowerLine.includes('less') && lowerLine.includes('more')) {
+        // Both buttons on same line - skip this, we'll catch individual ones
+        console.log(`Skipping line ${i} (has both buttons): "${line}"`)
+        continue
+      } else {
+        // Determine from context
+        const isUnder = 
+          lowerLine.includes('less') || 
+          lowerLine.includes('lower') || 
+          lowerLine.includes('under') ||
+          lowerLine === 'u' ||
+          lowerLine.includes('↓')
+        
+        selection = isUnder ? 'under' : 'over'
+        console.log(`Found ${selection} at line ${i}:`, line)
+      }
+      
+      if (!selection) continue
       
       // Look backwards for line value, stat type, player name, and team
       let lineValue: number | undefined
@@ -80,12 +105,29 @@ export function parsePrizePicks(lines: string[]): ParsedBet[] {
           }
         }
         
-        // Look for line value + stat (e.g., "21.5 Points", "6.2 PT Ast")
+        // Look for line value + stat (e.g., "21.5 Points", "10 Rebounds", "🔥 13.5")
+        // Sometimes the stat is on a separate line from the number
         const statMatch = prevLine.match(/(\d+\.?\d*)\s*(points?|pts?|pt|assists?|ast|rebounds?|reb|receptions?|rec|yards?|yds)/i)
         if (statMatch && !lineValue) {
           lineValue = parseFloat(statMatch[1])
           statType = statMatch[2].toLowerCase()
           console.log(`Found stat at line ${j}:`, prevLine, '→', lineValue, statType)
+        }
+        
+        // Also check for just a number (stat type might be on next line)
+        if (!lineValue) {
+          const numberMatch = prevLine.match(/^(\d+\.?\d*)$/)
+          if (numberMatch) {
+            // Check next line for stat type
+            if (j + 1 < lines.length) {
+              const nextLine = lines[j + 1].toLowerCase()
+              if (nextLine.match(/^(points?|pts?|rebounds?|reb|assists?|ast)/)) {
+                lineValue = parseFloat(numberMatch[1])
+                statType = nextLine
+                console.log(`Found split stat at lines ${j}-${j+1}:`, lineValue, statType)
+              }
+            }
+          }
         }
         
         // Look for player name (capitalized words, usually 2-3 words)
@@ -149,8 +191,16 @@ export function parsePrizePicks(lines: string[]): ParsedBet[] {
     // Pattern 2: "25.5 Pts More/Higher/Over" or "8.5 Assists Less/Lower/Under"
     const pattern2 = lowerLine.match(/(\d+\.?\d*)\s*(pts|points?|yds|yards?|assists?|rebounds?|receptions?|rec)\s+(more|less|higher|lower|over|under|o|u)/i)
     
+    // Debug: Log every line that contains a number
+    if (lowerLine.match(/\d+\.?\d*/)) {
+      console.log(`Line ${i} (has number): "${line}"`)
+      console.log(`  Lower: "${lowerLine}"`)
+      console.log(`  Pattern1 match:`, pattern1)
+      console.log(`  Pattern2 match:`, pattern2)
+    }
+    
     if (pattern1 || pattern2) {
-      console.log('Found combined pattern at line', i, ':', line, '→ pattern1:', !!pattern1, 'pattern2:', !!pattern2)
+      console.log('✅ Found combined pattern at line', i, ':', line, '→ pattern1:', !!pattern1, 'pattern2:', !!pattern2)
       const match = (pattern1 || pattern2)!
       const selectionWord = (pattern1 ? match[1] : match[3]).toLowerCase()
       const lineValue = pattern1 ? parseFloat(match[2]) : parseFloat(match[1])
@@ -406,22 +456,41 @@ export function parseDraftKings(lines: string[]): ParsedBet[] {
 export function detectSportsbook(text: string): string | undefined {
   const lower = text.toLowerCase()
   
-  // PrizePicks detection - be more aggressive
+  console.log('🔍 Detecting sportsbook from text...')
+  
+  // Underdog detection - check for "Higher/Lower" pattern (unique to Underdog)
+  if (lower.includes('underdog') || 
+      (lower.includes('higher') && lower.includes('lower') && lower.includes('pick'))) {
+    console.log('✅ Detected: Underdog (Higher/Lower pattern)')
+    return 'underdog'
+  }
+  
+  // PrizePicks detection - check for "More/Less" pattern
   if (lower.includes('prizepicks') || lower.includes('prize picks') || 
       lower.includes('prizepi') || lower.includes('power play') ||
       (lower.includes('more') && lower.includes('less') && lower.includes('pick'))) {
+    console.log('✅ Detected: PrizePicks (More/Less pattern)')
     return 'prizepicks'
   }
   
-  if (lower.includes('underdog')) return 'underdog'
-  if (lower.includes('fanduel') || lower.includes('fan duel')) return 'fanduel'
-  if (lower.includes('draftkings') || lower.includes('draft kings')) return 'draftkings'
-  if (lower.includes('betmgm') || lower.includes('bet mgm')) return 'betmgm'
+  if (lower.includes('fanduel') || lower.includes('fan duel')) {
+    console.log('✅ Detected: FanDuel')
+    return 'fanduel'
+  }
+  if (lower.includes('draftkings') || lower.includes('draft kings')) {
+    console.log('✅ Detected: DraftKings')
+    return 'draftkings'
+  }
+  if (lower.includes('betmgm') || lower.includes('bet mgm')) {
+    console.log('✅ Detected: BetMGM')
+    return 'betmgm'
+  }
   if (lower.includes('caesars')) return 'caesars'
   if (lower.includes('espnbet') || lower.includes('espn bet')) return 'espnbet'
   if (lower.includes('sleeper')) return 'sleeper'
   if (lower.includes('betr')) return 'betr'
   if (lower.includes('parlayplay') || lower.includes('parlay play')) return 'parlayplay'
   
+  console.log('⚠️ No sportsbook detected')
   return undefined
 }

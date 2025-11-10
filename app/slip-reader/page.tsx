@@ -288,17 +288,36 @@ function SlipReaderInterface() {
                 key={idx}
                 className="bg-gray-800 rounded-lg p-6 border border-blue-500/30"
               >
+                {/* Bet Header */}
                 <div className="mb-4">
-                  <h3 className="text-xl font-bold text-white mb-2">
-                    Bet #{idx + 1}
+                  {/* Game/Team Info */}
+                  {result.bet.team1 && result.bet.team2 && (
+                    <div className="text-sm text-gray-400 mb-2">
+                      {result.bet.dbTeam1 || result.bet.team1} vs {result.bet.dbTeam2 || result.bet.team2}
+                    </div>
+                  )}
+                  
+                  {/* Player Name */}
+                  <h3 className="text-2xl font-bold text-white mb-2">
+                    {result.bet.dbPlayer || result.bet.player}
                   </h3>
-                  <div className="text-sm text-gray-400 space-y-1">
-                    <p>Type: {result.bet.type}</p>
-                    {result.bet.player && <p>Player: {result.bet.dbPlayer || result.bet.player}</p>}
-                    {result.bet.team1 && <p>Teams: {result.bet.dbTeam1 || result.bet.team1} vs {result.bet.dbTeam2 || result.bet.team2}</p>}
-                    {result.bet.line && <p>Line: {result.bet.line}</p>}
-                    <p>Odds: {result.bet.odds > 0 ? '+' : ''}{result.bet.odds}</p>
-                    <p>Match Confidence: {(result.bet.matchConfidence * 100).toFixed(0)}%</p>
+                  
+                  {/* Prop, Line, Selection, Odds */}
+                  <div className="flex items-center gap-4 text-lg">
+                    <span className="text-blue-400 font-semibold">
+                      {result.bet.propType?.replace('player_', '').replace('_', ' ').toUpperCase()}
+                    </span>
+                    <span className="text-white font-bold">
+                      {result.bet.selection === 'over' ? 'Over' : 'Under'} {result.bet.line}
+                    </span>
+                    <span className="text-gray-400">
+                      ({result.bet.odds > 0 ? '+' : ''}{result.bet.odds})
+                    </span>
+                  </div>
+                  
+                  {/* Match Confidence (small) */}
+                  <div className="text-xs text-gray-500 mt-2">
+                    Match confidence: {(result.bet.matchConfidence * 100).toFixed(0)}%
                   </div>
                 </div>
 

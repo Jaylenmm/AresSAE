@@ -8,6 +8,7 @@ import {
   calculateEV,
 } from './odds-calculations'
 import { getBookmakerDisplayName } from './bookmakers'
+import { analyzeNBAProp, type PropAnalysis } from './nba-prop-analyzer'
 
 export type BetType = 'h2h' | 'spreads' | 'totals' | 'player_prop' | 'futures';
 
@@ -68,6 +69,8 @@ export interface AnalysisResult {
     odds: number;
     isSharp: boolean;
   }>;
+  // NBA Stats Analysis (when available)
+  nbaAnalysis?: PropAnalysis;
 }
 
 const SHARP_BOOKMAKERS = ['pinnacle', 'betonline', 'bookmaker', 'circa', 'circasports'];
@@ -276,10 +279,10 @@ function findSharpConsensus(
   return sharpBookOdds[0];
 }
 
-export function analyzeBet(
+export async function analyzeBet(
   betOption: BetOption,
   allBookmakerData: BookmakerOdds[]
-): AnalysisResult {
+): Promise<AnalysisResult> {
   
   const relevantOdds = allBookmakerData
     .map(bookmaker => {
@@ -417,6 +420,88 @@ export function analyzeBet(
     usingSoftFallback
   );
   
+  // NBA Stats Analysis Integration
+  let nbaAnalysis: PropAnalysis | undefined;
+  
+  if (betOption.sport === 'NBA' && betOption.betType === 'player_prop' && betOption.playerName) {
+    console.log(`\n🏀 Fetching NBA stats for ${betOption.playerName}...`);
+    
+    // Convert BetOption to ParsedBet format for NBA analyzer
+    const parsedBet = {
+      type: 'player_prop' as const,
+      player: betOption.playerName,
+      propType: betOption.market,
+      line: betOption.line,
+      selection: betOption.selection.toLowerCase() as 'over' | 'under',
+      odds: betOption.odds,
+      sportsbook: betOption.sportsbook,
+      sport: 'NBA',
+      rawText: `${betOption.playerName} ${betOption.selection} ${betOption.line}`,
+      confidence: 0.9
+    };
+    
+    try {
+      const result = await analyzeNBAProp(parsedBet);
+      nbaAnalysis = result ?? undefined;
+      
+      if (nbaAnalysis) {
+        console.log(`✅ NBA analysis complete: ${nbaAnalysis.recommendation} (${nbaAnalysis.confidence}% confidence)`);
+        
+        // Merge NBA analysis into existing analysis
+        // NBA stats-based edge takes priority over odds-based edge
+        const statsEdge = nbaAnalysis.edge;
+        const combinedEdge = (statsEdge * 0.7) + (edge * 0.3); // Weight stats more heavily
+        const combinedConfidence = Math.max(nbaAnalysis.confidence, confidence);
+        
+        // Add NBA reasoning to existing reasons
+        reasons.unshift(...nbaAnalysis.reasoning.map(r => `📊 ${r}`));
+        warnings.unshift(...nbaAnalysis.warnings.map(w => `⚠️ ${w}`));
+        
+        // Update recommendation based on NBA analysis
+        const nbaRec = nbaAnalysis.recommendation;
+        let finalRecommendation = recommendation;
+        
+        if (nbaRec === 'bet' && combinedEdge > 2) {
+          finalRecommendation = 'strong_bet';
+        } else if (nbaRec === 'lean_bet' && combinedEdge > 1) {
+          finalRecommendation = 'bet';
+        } else if (nbaRec === 'pass' || nbaRec === 'lean_pass') {
+          finalRecommendation = 'avoid';
+        }
+        
+        return {
+          bestOdds: best.odds,
+          bestSportsbook: getBookmakerDisplayName(best.sportsbook),
+          worstOdds: worst.odds,
+          worstSportsbook: getBookmakerDisplayName(worst.sportsbook),
+          oddsRange,
+          expectedValue,
+          edge: combinedEdge,
+          confidence: combinedConfidence,
+          marketEfficiency,
+          sharpConsensus: sharpConsensusLabel,
+          lineMovement: 'unknown',
+          sharpBookOdds: sharpConsensus?.odds ?? null,
+          sharpBookName: sharpConsensus?.sportsbook ? getBookmakerDisplayName(sharpConsensus.sportsbook) : null,
+          sharpLine: sharpConsensus?.line ?? null,
+          sharpLineDistance: sharpConsensus?.lineDistance ?? 0,
+          trueProbability,
+          softBookBestOdds: softBest?.odds ?? null,
+          softBookBestName: softBest?.sportsbook ? getBookmakerDisplayName(softBest.sportsbook) : null,
+          recommendation: finalRecommendation,
+          reasons,
+          warnings,
+          allOdds: relevantOdds,
+          nbaAnalysis
+        };
+      }
+    } catch (error) {
+      console.error('Error fetching NBA stats:', error);
+      warnings.push('NBA stats unavailable - using odds-only analysis');
+    }
+  }
+  
+  // Return standard analysis (no NBA stats)
   return {
     bestOdds: best.odds,
     bestSportsbook: getBookmakerDisplayName(best.sportsbook),
@@ -439,7 +524,8 @@ export function analyzeBet(
     recommendation,
     reasons,
     warnings,
-    allOdds: relevantOdds
+    allOdds: relevantOdds,
+    nbaAnalysis
   };
 }
 
@@ -596,14 +682,16 @@ export function getRecommendationColor(recommendation: string): string {
   }
 }
 
-export function compareBets(
+export async function compareBets(
   betOptions: BetOption[],
   allBookmakerData: BookmakerOdds[]
-): Array<BetOption & { analysis: AnalysisResult }> {
-  const analyzed = betOptions.map(bet => ({
-    ...bet,
-    analysis: analyzeBet(bet, allBookmakerData)
-  }));
+): Promise<Array<BetOption & { analysis: AnalysisResult }>> {
+  const analyzed = await Promise.all(
+    betOptions.map(async bet => ({
+      ...bet,
+      analysis: await analyzeBet(bet, allBookmakerData)
+    }))
+  );
   
   return analyzed.sort((a, b) => {
     if (a.analysis.confidence !== b.analysis.confidence) {
