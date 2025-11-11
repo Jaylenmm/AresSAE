@@ -4,7 +4,7 @@
  * FREE - No API key required
  */
 
-// Try data.nba.com first (less protected), fallback to stats.nba.com
+// Using stats.nba.com with x-nba-stats headers to avoid blocking
 const NBA_STATS_BASE = 'https://stats.nba.com/stats';
 
 // Required headers including x-nba-stats headers
