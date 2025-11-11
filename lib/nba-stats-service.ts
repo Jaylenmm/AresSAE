@@ -4,19 +4,18 @@
  * FREE - No API key required
  */
 
-// Use Render proxy in production, direct NBA.com locally
-const NBA_PROXY_URL = process.env.NBA_PROXY_URL;
-const NBA_STATS_BASE = NBA_PROXY_URL 
-  ? `${NBA_PROXY_URL}/nba`
-  : 'https://stats.nba.com/stats';
+// Try data.nba.com first (less protected), fallback to stats.nba.com
+const NBA_STATS_BASE = 'https://stats.nba.com/stats';
 
-// Required headers to avoid 403 errors (only needed for direct calls)
-const NBA_HEADERS: HeadersInit = NBA_PROXY_URL ? {} : {
+// Required headers including x-nba-stats headers
+const NBA_HEADERS: HeadersInit = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
   'Accept': 'application/json',
   'Accept-Language': 'en-US,en;q=0.9',
   'Referer': 'https://www.nba.com/',
   'Origin': 'https://www.nba.com',
+  'x-nba-stats-origin': 'stats',
+  'x-nba-stats-token': 'true',
   'Connection': 'keep-alive',
 };
 
