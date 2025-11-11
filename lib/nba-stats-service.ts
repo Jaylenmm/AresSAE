@@ -59,19 +59,36 @@ export interface PlayerGameLog {
   freeThrowsAttempted: number;
 }
 
+// Cache player list for 1 hour to speed up searches
+let playerListCache: { data: any; timestamp: number } | null = null;
+const PLAYER_LIST_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+
 /**
  * Search for a player by name
  */
 export async function searchPlayer(playerName: string): Promise<{ id: string; name: string; team: string } | null> {
   try {
-    // Search all players for current season (2025-26)
-    const url = buildUrl('/commonallplayers?LeagueID=00&Season=2025-26&IsOnlyCurrentSeason=0');
+    let data;
     
-    const response = await fetch(url, { 
-      headers: NBA_HEADERS,
-      cache: 'no-store'
-    });
-    const data = await response.json();
+    // Check cache first
+    if (playerListCache && Date.now() - playerListCache.timestamp < PLAYER_LIST_CACHE_DURATION) {
+      data = playerListCache.data;
+    } else {
+      // Fetch fresh player list
+      const url = buildUrl('/commonallplayers?LeagueID=00&Season=2025-26&IsOnlyCurrentSeason=0');
+      
+      const response = await fetch(url, { 
+        headers: NBA_HEADERS,
+        cache: 'force-cache' // Use browser/CDN cache
+      });
+      data = await response.json();
+      
+      // Cache it
+      playerListCache = {
+        data,
+        timestamp: Date.now()
+      };
+    }
     
     // Response format: { resultSets: [{ headers: [...], rowSet: [[...]] }] }
     const players = data.resultSets[0].rowSet;
@@ -231,37 +248,42 @@ export async function getPlayerGameLogs(
 }
 
 /**
- * Get comprehensive player stats (season averages + recent games)
+ * Main function to get player stats (season averages + recent game logs)
  */
-export async function getPlayerStats(playerName: string, lastNGames: number = 10) {
-  console.log(`📊 Fetching NBA stats for ${playerName}...`);
-  
-  // 1. Search for player
-  const player = await searchPlayer(playerName);
-  if (!player) {
-    console.log(`❌ Player not found: ${playerName}`);
+export async function getPlayerStats(
+  playerName: string,
+  lastNGames: number = 10,
+  season: string = '2025-26'
+): Promise<{ averages: PlayerSeasonStats; recentGames: PlayerGameLog[] } | null> {
+  try {
+    // Step 1: Find player ID
+    const player = await searchPlayer(playerName);
+    if (!player) {
+      console.log(`Player not found: ${playerName}`);
+      return null;
+    }
+    
+    console.log(`Found player: ${player.name} (${player.team})`);
+    
+    // Step 2 & 3: Get season stats and game logs IN PARALLEL
+    const [seasonStats, gameLogs] = await Promise.all([
+      getPlayerSeasonStats(player.id, season),
+      getPlayerGameLogs(player.id, season, lastNGames)
+    ]);
+    
+    if (!seasonStats) {
+      console.log(`No season stats found for ${playerName}`);
+      return null;
+    }
+    
+    seasonStats.playerName = player.name;
+    
+    return {
+      averages: seasonStats,
+      recentGames: gameLogs
+    };
+  } catch (error) {
+    console.error(`Error getting stats for ${playerName}:`, error);
     return null;
   }
-  
-  console.log(`✅ Found player: ${player.name} (${player.team})`);
-  
-  // 2. Get season averages
-  const seasonStats = await getPlayerSeasonStats(player.id);
-  if (!seasonStats) {
-    console.log(`❌ No season stats found for ${player.name}`);
-    return null;
-  }
-  
-  seasonStats.playerName = player.name;
-  console.log(`✅ Season averages: ${seasonStats.averages.points} PPG, ${seasonStats.averages.rebounds} RPG, ${seasonStats.averages.assists} APG`);
-  
-  // 3. Get recent game logs
-  const gameLogs = await getPlayerGameLogs(player.id, seasonStats.season, lastNGames);
-  console.log(`✅ Retrieved ${gameLogs.length} recent games`);
-  
-  return {
-    player,
-    seasonStats,
-    recentGames: gameLogs
-  };
 }
