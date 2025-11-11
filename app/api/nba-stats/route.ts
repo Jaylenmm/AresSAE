@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getPlayerStats } from '@/lib/nba-stats-service'
+import { supabase } from '@/lib/supabase'
 
-// Cache stats for 5 minutes
-const cache = new Map<string, { data: any; timestamp: number }>()
-const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
-
-// Vercel timeout is 10s for hobby plan, 60s for pro
-export const maxDuration = 15
+export const maxDuration = 5
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -16,61 +11,36 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Player name required' }, { status: 400 })
   }
   
-  // Check cache
-  const cacheKey = playerName.toLowerCase()
-  const cached = cache.get(cacheKey)
-  
-  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    console.log(`✅ Cache hit for ${playerName}`)
-    return NextResponse.json(cached.data)
-  }
-  
   try {
-    console.log(`Fetching NBA stats for ${playerName}...`)
+    const cacheKey = playerName.toLowerCase()
     
-    // Try with retries
-    let stats = null
-    let attempts = 0
-    const maxAttempts = 2
+    // Read from Supabase cache
+    const { data, error } = await supabase
+      .from('nba_player_stats_cache')
+      .select('stats_data, updated_at')
+      .eq('player_name', cacheKey)
+      .single()
     
-    while (!stats && attempts < maxAttempts) {
-      attempts++
-      try {
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Request timeout')), 12000)
-        )
-        
-        stats = await Promise.race([
-          getPlayerStats(playerName, 5),
-          timeoutPromise
-        ]) as any
-      } catch (err: any) {
-        if (attempts >= maxAttempts) throw err
-        console.log(`Retry ${attempts} for ${playerName}...`)
-        await new Promise(r => setTimeout(r, 500))
-      }
-    }
-    
-    if (!stats) {
-      return NextResponse.json({ error: 'Player not found' }, { status: 404 })
-    }
-    
-    // Cache the result
-    cache.set(cacheKey, {
-      data: stats,
-      timestamp: Date.now()
-    })
-    
-    return NextResponse.json(stats)
-  } catch (error: any) {
-    console.error('Error fetching NBA stats:', error?.message || error)
-    
-    if (error?.message === 'Request timeout') {
+    if (error || !data) {
+      console.log(`❌ No cached stats for ${playerName}`)
       return NextResponse.json({ 
-        error: 'NBA stats service timeout - try again' 
-      }, { status: 504 })
+        error: 'Player stats not available. Stats are updated periodically.' 
+      }, { status: 404 })
     }
     
+    // Check if data is stale (older than 24 hours)
+    const updatedAt = new Date(data.updated_at)
+    const hoursSinceUpdate = (Date.now() - updatedAt.getTime()) / (1000 * 60 * 60)
+    
+    if (hoursSinceUpdate > 24) {
+      console.log(`⚠️  Stats for ${playerName} are ${Math.floor(hoursSinceUpdate)} hours old`)
+    }
+    
+    console.log(`✅ Loaded cached stats for ${playerName}`)
+    return NextResponse.json(data.stats_data)
+    
+  } catch (error: any) {
+    console.error('Error fetching cached stats:', error?.message || error)
     return NextResponse.json({ 
       error: 'Failed to fetch stats' 
     }, { status: 500 })
