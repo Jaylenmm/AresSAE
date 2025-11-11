@@ -6,9 +6,6 @@
 
 const NBA_STATS_BASE = 'https://stats.nba.com/stats';
 
-// Use AllOrigins proxy in production - faster and more reliable
-const USE_PROXY = process.env.NODE_ENV === 'production';
-
 // Required headers to avoid 403 errors
 const NBA_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -16,15 +13,11 @@ const NBA_HEADERS = {
   'Accept-Language': 'en-US,en;q=0.9',
   'Referer': 'https://www.nba.com/',
   'Origin': 'https://www.nba.com',
+  'Connection': 'keep-alive',
 };
 
 function buildUrl(endpoint: string): string {
-  const fullUrl = `${NBA_STATS_BASE}${endpoint}`;
-  if (USE_PROXY) {
-    // Use AllOrigins which is faster
-    return `https://api.allorigins.win/raw?url=${encodeURIComponent(fullUrl)}`;
-  }
-  return fullUrl;
+  return `${NBA_STATS_BASE}${endpoint}`;
 }
 
 export interface PlayerSeasonStats {
@@ -75,7 +68,7 @@ export async function searchPlayer(playerName: string): Promise<{ id: string; na
     const url = buildUrl('/commonallplayers?LeagueID=00&Season=2025-26&IsOnlyCurrentSeason=0');
     
     const response = await fetch(url, { 
-      headers: USE_PROXY ? {} : NBA_HEADERS,
+      headers: NBA_HEADERS,
       cache: 'no-store'
     });
     const data = await response.json();
@@ -140,7 +133,7 @@ export async function getPlayerSeasonStats(playerId: string, season: string = '2
     const url = buildUrl(`/playercareerstats?PlayerID=${playerId}&PerMode=PerGame`);
     
     const response = await fetch(url, { 
-      headers: USE_PROXY ? {} : NBA_HEADERS,
+      headers: NBA_HEADERS,
       cache: 'no-store'
     });
     const data = await response.json();
@@ -200,7 +193,7 @@ export async function getPlayerGameLogs(
     const url = buildUrl(`/playergamelog?PlayerID=${playerId}&Season=${season}&SeasonType=Regular+Season`);
     
     const response = await fetch(url, { 
-      headers: USE_PROXY ? {} : NBA_HEADERS,
+      headers: NBA_HEADERS,
       cache: 'no-store'
     });
     const data = await response.json();
