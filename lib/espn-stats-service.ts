@@ -3,7 +3,7 @@
  * Uses ESPN's public API via Render proxy
  */
 
-const ESPN_PROXY_URL = process.env.NBA_PROXY_URL; // Same proxy, different endpoint
+const ESPN_PROXY_URL = process.env.ESPN_PROXY_URL;
 const ESPN_BASE = ESPN_PROXY_URL 
   ? `${ESPN_PROXY_URL}/espn`
   : 'https://site.api.espn.com/apis/site/v2/sports';
