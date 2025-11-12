@@ -14,6 +14,9 @@ const NBA_HEADERS = {
   'Accept-Language': 'en-US,en;q=0.9',
   'Referer': 'https://www.nba.com/',
   'Origin': 'https://www.nba.com',
+  'x-nba-stats-origin': 'stats',
+  'x-nba-stats-token': 'true',
+  'Connection': 'keep-alive',
 };
 
 // Proxy endpoint

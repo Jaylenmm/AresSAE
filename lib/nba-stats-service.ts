@@ -4,11 +4,14 @@
  * FREE - No API key required
  */
 
-// Using stats.nba.com with x-nba-stats headers to avoid blocking
-const NBA_STATS_BASE = 'https://stats.nba.com/stats';
+// Use Render proxy if NBA_PROXY_URL is set, otherwise direct
+const NBA_PROXY_URL = process.env.NBA_PROXY_URL;
+const NBA_STATS_BASE = NBA_PROXY_URL 
+  ? `${NBA_PROXY_URL}/nba`
+  : 'https://stats.nba.com/stats';
 
-// Required headers including x-nba-stats headers
-const NBA_HEADERS: HeadersInit = {
+// Required headers (only for direct calls, proxy handles headers)
+const NBA_HEADERS: HeadersInit = NBA_PROXY_URL ? {} : {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
   'Accept': 'application/json',
   'Accept-Language': 'en-US,en;q=0.9',
