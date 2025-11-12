@@ -1,12 +1,15 @@
 /**
  * ESPN Stats Service
- * Uses ESPN's public API via Render proxy
+ * Uses ESPN's public API - search is direct, stats go through proxy
  */
 
 const ESPN_PROXY_URL = process.env.ESPN_PROXY_URL;
-const ESPN_BASE = ESPN_PROXY_URL 
+const ESPN_STATS_BASE = ESPN_PROXY_URL 
   ? `${ESPN_PROXY_URL}/espn`
   : 'https://site.api.espn.com/apis/site/v2/sports';
+
+// Search endpoint is always direct (not proxied)
+const ESPN_SEARCH_BASE = 'https://site.web.api.espn.com/apis/search/v2';
 
 export interface ESPNPlayerStats {
   playerName: string;
@@ -28,7 +31,7 @@ export async function getNFLPlayerStats(playerName: string): Promise<ESPNPlayerS
     console.log(`Searching for NFL player: ${playerName}`);
     
     // Use ESPN's search endpoint (direct, not through proxy)
-    const searchUrl = `https://site.web.api.espn.com/apis/search/v2?query=${encodeURIComponent(playerName)}&limit=10&type=player&sport=football&league=nfl`;
+    const searchUrl = `${ESPN_SEARCH_BASE}?query=${encodeURIComponent(playerName)}&limit=10&type=player&sport=football&league=nfl`;
     
     console.log(`Search URL: ${searchUrl}`);
     const searchResponse = await fetch(searchUrl);
@@ -56,8 +59,8 @@ export async function getNFLPlayerStats(playerName: string): Promise<ESPNPlayerS
     
     console.log(`Found player ID: ${playerId}`);
     
-    // Get player game log
-    const statsUrl = `${ESPN_BASE}/football/nfl/athletes/${playerId}/gamelog`;
+    // Get player game log (through proxy)
+    const statsUrl = `${ESPN_STATS_BASE}/football/nfl/athletes/${playerId}/gamelog`;
     const statsResponse = await fetch(statsUrl);
     const statsData = await statsResponse.json();
     
@@ -100,7 +103,7 @@ export async function getNFLPlayerStats(playerName: string): Promise<ESPNPlayerS
  */
 export async function getMLBPlayerStats(playerName: string): Promise<ESPNPlayerStats | null> {
   try {
-    const searchUrl = `${ESPN_BASE}/baseball/mlb/athletes?search=${encodeURIComponent(playerName)}`;
+    const searchUrl = `${ESPN_STATS_BASE}/baseball/mlb/athletes?search=${encodeURIComponent(playerName)}`;
     
     const searchResponse = await fetch(searchUrl);
     const searchData = await searchResponse.json();
@@ -113,7 +116,7 @@ export async function getMLBPlayerStats(playerName: string): Promise<ESPNPlayerS
     const player = searchData.athletes[0];
     const playerId = player.id;
     
-    const statsUrl = `${ESPN_BASE}/baseball/mlb/athletes/${playerId}/gamelog`;
+    const statsUrl = `${ESPN_STATS_BASE}/baseball/mlb/athletes/${playerId}/gamelog`;
     const statsResponse = await fetch(statsUrl);
     const statsData = await statsResponse.json();
     
@@ -154,7 +157,7 @@ export async function getMLBPlayerStats(playerName: string): Promise<ESPNPlayerS
  */
 export async function getNHLPlayerStats(playerName: string): Promise<ESPNPlayerStats | null> {
   try {
-    const searchUrl = `${ESPN_BASE}/hockey/nhl/athletes?search=${encodeURIComponent(playerName)}`;
+    const searchUrl = `${ESPN_STATS_BASE}/hockey/nhl/athletes?search=${encodeURIComponent(playerName)}`;
     
     const searchResponse = await fetch(searchUrl);
     const searchData = await searchResponse.json();
@@ -167,7 +170,7 @@ export async function getNHLPlayerStats(playerName: string): Promise<ESPNPlayerS
     const player = searchData.athletes[0];
     const playerId = player.id;
     
-    const statsUrl = `${ESPN_BASE}/hockey/nhl/athletes/${playerId}/gamelog`;
+    const statsUrl = `${ESPN_STATS_BASE}/hockey/nhl/athletes/${playerId}/gamelog`;
     const statsResponse = await fetch(statsUrl);
     const statsData = await statsResponse.json();
     
