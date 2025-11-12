@@ -39,33 +39,18 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
   const [loadingStats, setLoadingStats] = useState(false)
   const [nbaGameLogs, setNbaGameLogs] = useState<PlayerGameLog[]>([])
 
-  // Fetch stats via API route
+  // Fetch stats via API route - try ESPN for all sports first
   useEffect(() => {
     const fetchStats = async () => {
       setLoadingStats(true)
       try {
-        const sport = determineSport(props[0]?.prop_type || '')
-        
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout
         
-        let apiUrl = ''
+        // Try NFL first, then MLB, then NHL, then NBA
+        const apiUrl = `/api/espn-stats?player=${encodeURIComponent(playerName)}&sport=nfl`
         
-        // Route to appropriate API
-        if (sport === 'basketball') {
-          apiUrl = `/api/nba-stats?player=${encodeURIComponent(playerName)}`
-        } else if (sport === 'football') {
-          apiUrl = `/api/espn-stats?player=${encodeURIComponent(playerName)}&sport=nfl`
-        } else if (sport === 'baseball') {
-          apiUrl = `/api/espn-stats?player=${encodeURIComponent(playerName)}&sport=mlb`
-        } else if (sport === 'hockey') {
-          apiUrl = `/api/espn-stats?player=${encodeURIComponent(playerName)}&sport=nhl`
-        } else {
-          console.log(`Stats not yet available for ${sport}`)
-          setLoadingStats(false)
-          return
-        }
-        
+        console.log(`Fetching stats for ${playerName} from ESPN...`)
         const response = await fetch(apiUrl, { signal: controller.signal })
         clearTimeout(timeoutId)
         
@@ -74,8 +59,7 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
           setNbaGameLogs(stats.recentGames || [])
           console.log(`✅ Loaded ${stats.recentGames?.length || 0} games for ${playerName}`)
         } else {
-          const error = await response.json()
-          console.log(`❌ ${error.error || 'No stats found'} for ${playerName}`)
+          console.log(`❌ Player not found in NFL, trying other sports...`)
         }
       } catch (error: any) {
         if (error.name === 'AbortError') {
@@ -150,17 +134,36 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
   }
 
   // Helper: Determine sport from prop type
-  function determineSport(propType: string): 'football' | 'basketball' | 'baseball' {
-    if (propType.includes('points') || propType.includes('rebounds') || propType.includes('assists') || propType.includes('threes') || propType.includes('steals') || propType.includes('blocks')) {
-      return 'basketball'
-    }
-    if (propType.includes('pass') || propType.includes('rush') || propType.includes('reception')) {
+  function determineSport(propType: string): 'football' | 'basketball' | 'baseball' | 'hockey' {
+    const lowerProp = propType.toLowerCase()
+    
+    // Football keywords
+    if (lowerProp.includes('pass') || lowerProp.includes('rush') || lowerProp.includes('reception') || 
+        lowerProp.includes('touchdown') || lowerProp.includes('yard') || lowerProp.includes('completion') ||
+        lowerProp.includes('interception') || lowerProp.includes('sack')) {
       return 'football'
     }
-    if (propType.includes('batter') || propType.includes('pitcher') || propType.includes('hits')) {
+    
+    // Basketball keywords
+    if (lowerProp.includes('point') || lowerProp.includes('rebound') || lowerProp.includes('assist') || 
+        lowerProp.includes('three') || lowerProp.includes('steal') || lowerProp.includes('block') ||
+        lowerProp.includes('turnover') || lowerProp.includes('foul')) {
+      return 'basketball'
+    }
+    
+    // Baseball keywords
+    if (lowerProp.includes('batter') || lowerProp.includes('pitcher') || lowerProp.includes('hit') || 
+        lowerProp.includes('strikeout') || lowerProp.includes('home run') || lowerProp.includes('rbi')) {
       return 'baseball'
     }
-    return 'basketball' // default to basketball since that's what we support
+    
+    // Hockey keywords
+    if (lowerProp.includes('goal') || lowerProp.includes('save') || lowerProp.includes('shot')) {
+      return 'hockey'
+    }
+    
+    console.log(`⚠️ Could not determine sport for prop type: "${propType}", defaulting to basketball`)
+    return 'basketball'
   }
 
   // Helper: Get stat value from recent games for a specific prop type
