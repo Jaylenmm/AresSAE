@@ -25,19 +25,32 @@ export interface ESPNGameLog {
  */
 export async function getNFLPlayerStats(playerName: string): Promise<ESPNPlayerStats | null> {
   try {
-    // ESPN NFL endpoint for player search
-    const searchUrl = `${ESPN_BASE}/football/nfl/athletes?search=${encodeURIComponent(playerName)}`;
+    console.log(`Searching for NFL player: ${playerName}`);
+    
+    // ESPN NFL endpoint - try direct athlete search
+    const searchUrl = `${ESPN_BASE}/football/nfl/athletes`;
     
     const searchResponse = await fetch(searchUrl);
     const searchData = await searchResponse.json();
     
-    if (!searchData.athletes || searchData.athletes.length === 0) {
+    console.log('ESPN Response:', JSON.stringify(searchData).substring(0, 500));
+    
+    // Search through athletes for matching name
+    let player = null;
+    if (searchData.athletes) {
+      player = searchData.athletes.find((a: any) => 
+        a.displayName?.toLowerCase().includes(playerName.toLowerCase()) ||
+        a.fullName?.toLowerCase().includes(playerName.toLowerCase())
+      );
+    }
+    
+    if (!player) {
       console.log(`NFL player not found: ${playerName}`);
       return null;
     }
     
-    const player = searchData.athletes[0];
     const playerId = player.id;
+    console.log(`Found player ID: ${playerId}`);
     
     // Get player game log
     const statsUrl = `${ESPN_BASE}/football/nfl/athletes/${playerId}/gamelog`;
