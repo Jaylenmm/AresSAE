@@ -61,14 +61,34 @@ export async function getNFLPlayerStats(playerName: string): Promise<ESPNPlayerS
     
     console.log(`Found player ID: ${playerId}`);
     
-    // Get player stats - use simpler endpoint
-    const statsUrl = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/athletes/${playerId}`;
-    console.log(`Stats URL: ${statsUrl}`);
+    // Try NFL.com API instead - they have game logs
+    // First get player profile to find their NFL.com ID
+    const nflSearchUrl = `https://api.nfl.com/v1/players?name=${encodeURIComponent(playerName)}`;
+    console.log(`NFL Search URL: ${nflSearchUrl}`);
     
-    const statsResponse = await fetch(statsUrl);
-    const statsData = await statsResponse.json();
+    const nflSearchResponse = await fetch(nflSearchUrl);
+    const nflSearchData = await nflSearchResponse.json();
     
-    console.log('Stats response:', JSON.stringify(statsData).substring(0, 1000));
+    console.log('NFL Search Response:', JSON.stringify(nflSearchData).substring(0, 500));
+    
+    if (!nflSearchData.players || nflSearchData.players.length === 0) {
+      console.log('Player not found on NFL.com');
+      return {
+        playerName: playerName,
+        team: 'NFL',
+        recentGames: []
+      };
+    }
+    
+    const nflPlayer = nflSearchData.players[0];
+    const nflPlayerId = nflPlayer.id;
+    
+    // Get game logs
+    const gameLogUrl = `https://api.nfl.com/v1/players/${nflPlayerId}/stats/2024`;
+    const gameLogResponse = await fetch(gameLogUrl);
+    const statsData = await gameLogResponse.json();
+    
+    console.log('NFL Stats response:', JSON.stringify(statsData).substring(0, 1000));
     
     // Parse recent games from athlete.statistics or athlete.eventLog
     const recentGames: ESPNGameLog[] = [];
