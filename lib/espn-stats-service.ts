@@ -27,29 +27,33 @@ export async function getNFLPlayerStats(playerName: string): Promise<ESPNPlayerS
   try {
     console.log(`Searching for NFL player: ${playerName}`);
     
-    // ESPN NFL endpoint - try direct athlete search
-    const searchUrl = `${ESPN_BASE}/football/nfl/athletes`;
+    // Use ESPN's search endpoint (direct, not through proxy)
+    const searchUrl = `https://site.web.api.espn.com/apis/search/v2?query=${encodeURIComponent(playerName)}&limit=10&type=player&sport=football&league=nfl`;
     
+    console.log(`Search URL: ${searchUrl}`);
     const searchResponse = await fetch(searchUrl);
     const searchData = await searchResponse.json();
     
-    console.log('ESPN Response:', JSON.stringify(searchData).substring(0, 500));
+    console.log('ESPN Search Response:', JSON.stringify(searchData).substring(0, 500));
     
-    // Search through athletes for matching name
-    let player = null;
-    if (searchData.athletes) {
-      player = searchData.athletes.find((a: any) => 
-        a.displayName?.toLowerCase().includes(playerName.toLowerCase()) ||
-        a.fullName?.toLowerCase().includes(playerName.toLowerCase())
+    // Find player in results
+    let playerId = null;
+    if (searchData.results && searchData.results.length > 0) {
+      const playerResult = searchData.results.find((r: any) => 
+        r.type === 'player' && 
+        r.name?.toLowerCase().includes(playerName.toLowerCase())
       );
+      
+      if (playerResult && playerResult.id) {
+        playerId = playerResult.id;
+      }
     }
     
-    if (!player) {
+    if (!playerId) {
       console.log(`NFL player not found: ${playerName}`);
       return null;
     }
     
-    const playerId = player.id;
     console.log(`Found player ID: ${playerId}`);
     
     // Get player game log
@@ -81,8 +85,8 @@ export async function getNFLPlayerStats(playerName: string): Promise<ESPNPlayerS
     }
     
     return {
-      playerName: player.displayName,
-      team: player.team?.displayName || 'Unknown',
+      playerName: playerName,
+      team: 'NFL',
       recentGames
     };
   } catch (error) {
