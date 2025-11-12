@@ -39,16 +39,18 @@ export async function getNFLPlayerStats(playerName: string): Promise<ESPNPlayerS
     
     console.log('ESPN Search Response:', JSON.stringify(searchData).substring(0, 500));
     
-    // Find player in results
+    // Find player in results - structure is results[0].contents[0]
     let playerId = null;
     if (searchData.results && searchData.results.length > 0) {
-      const playerResult = searchData.results.find((r: any) => 
-        r.type === 'player' && 
-        r.name?.toLowerCase().includes(playerName.toLowerCase())
-      );
+      const playerResult = searchData.results.find((r: any) => r.type === 'player');
       
-      if (playerResult && playerResult.id) {
-        playerId = playerResult.id;
+      if (playerResult && playerResult.contents && playerResult.contents.length > 0) {
+        const player = playerResult.contents[0];
+        // Extract numeric ID from uid (format: "s:20~l:28~a:4431452")
+        const uidMatch = player.uid?.match(/a:(\d+)/);
+        if (uidMatch) {
+          playerId = uidMatch[1];
+        }
       }
     }
     
