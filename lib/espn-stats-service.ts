@@ -24,55 +24,27 @@ export interface ESPNGameLog {
 }
 
 /**
- * Get NFL player stats
+ * Get NFL player stats - scrape from NFL.com
  */
 export async function getNFLPlayerStats(playerName: string): Promise<ESPNPlayerStats | null> {
   try {
-    console.log(`Searching for NFL player: ${playerName}`);
+    console.log(`Scraping NFL.com for: ${playerName}`);
     
-    // Use ESPN's search endpoint (direct, not through proxy)
-    const searchUrl = `${ESPN_SEARCH_BASE}?query=${encodeURIComponent(playerName)}&limit=10&type=player&sport=football&league=nfl`;
+    // NFL.com player page URL format
+    const playerSlug = playerName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    const profileUrl = `https://www.nfl.com/players/${playerSlug}/`;
     
-    console.log(`Search URL: ${searchUrl}`);
-    const searchResponse = await fetch(searchUrl);
-    const searchData = await searchResponse.json();
+    console.log(`Fetching: ${profileUrl}`);
     
-    console.log('ESPN Search Response:', JSON.stringify(searchData).substring(0, 500));
+    const response = await fetch(profileUrl);
+    const html = await response.text();
     
-    // Find player in results - structure is results[0].contents[0]
-    let playerId = null;
-    if (searchData.results && searchData.results.length > 0) {
-      const playerResult = searchData.results.find((r: any) => r.type === 'player');
-      
-      if (playerResult && playerResult.contents && playerResult.contents.length > 0) {
-        const player = playerResult.contents[0];
-        // Extract numeric ID from uid (format: "s:20~l:28~a:4431452")
-        const uidMatch = player.uid?.match(/a:(\d+)/);
-        if (uidMatch) {
-          playerId = uidMatch[1];
-        }
-      }
-    }
+    // Extract game log data from the page
+    // NFL.com embeds data in __NEXT_DATA__ script tag
+    const nextDataMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">(.*?)<\/script>/);
     
-    if (!playerId) {
-      console.log(`NFL player not found: ${playerName}`);
-      return null;
-    }
-    
-    console.log(`Found player ID: ${playerId}`);
-    
-    // Try NFL.com API instead - they have game logs
-    // First get player profile to find their NFL.com ID
-    const nflSearchUrl = `https://api.nfl.com/v1/players?name=${encodeURIComponent(playerName)}`;
-    console.log(`NFL Search URL: ${nflSearchUrl}`);
-    
-    const nflSearchResponse = await fetch(nflSearchUrl);
-    const nflSearchData = await nflSearchResponse.json();
-    
-    console.log('NFL Search Response:', JSON.stringify(nflSearchData).substring(0, 500));
-    
-    if (!nflSearchData.players || nflSearchData.players.length === 0) {
-      console.log('Player not found on NFL.com');
+    if (!nextDataMatch) {
+      console.log('Could not find __NEXT_DATA__ in page');
       return {
         playerName: playerName,
         team: 'NFL',
@@ -80,51 +52,47 @@ export async function getNFLPlayerStats(playerName: string): Promise<ESPNPlayerS
       };
     }
     
-    const nflPlayer = nflSearchData.players[0];
-    const nflPlayerId = nflPlayer.id;
+    const pageData = JSON.parse(nextDataMatch[1]);
+    console.log('Page data keys:', Object.keys(pageData));
     
-    // Get game logs
-    const gameLogUrl = `https://api.nfl.com/v1/players/${nflPlayerId}/stats/2024`;
-    const gameLogResponse = await fetch(gameLogUrl);
-    const statsData = await gameLogResponse.json();
+    // Navigate to game logs in the data structure
+    const playerData = pageData.props?.pageProps?.player;
+    const gameLogs = playerData?.stats?.gameLogs || [];
     
-    console.log('NFL Stats response:', JSON.stringify(statsData).substring(0, 1000));
-    
-    // Parse recent games from athlete.statistics or athlete.eventLog
     const recentGames: ESPNGameLog[] = [];
     
-    // Try eventLog first
-    if (statsData.athlete?.eventLog?.events) {
-      const games = statsData.athlete.eventLog.events.slice(0, 5);
+    // Parse last 5 games
+    for (const game of gameLogs.slice(0, 5)) {
+      const stats: Record<string, number> = {};
       
-      for (const event of games) {
-        const stats: Record<string, number> = {};
-        
-        // Parse stats from event
-        if (event.stats) {
-          event.stats.forEach((stat: any) => {
-            stats[stat.displayName || stat.name] = parseFloat(stat.value) || 0;
-          });
-        }
-        
-        recentGames.push({
-          gameDate: event.gameDate || event.date,
-          opponent: event.opponent?.displayName || event.opponent?.team?.displayName || 'Unknown',
-          stats
+      // Extract stats from game object
+      if (game.stats) {
+        Object.entries(game.stats).forEach(([key, value]) => {
+          stats[key] = parseFloat(value as string) || 0;
         });
       }
+      
+      recentGames.push({
+        gameDate: game.gameDate || game.date || '',
+        opponent: game.opponent || 'Unknown',
+        stats
+      });
     }
     
-    console.log(`Parsed ${recentGames.length} games`);
+    console.log(`Scraped ${recentGames.length} games for ${playerName}`);
     
     return {
       playerName: playerName,
-      team: 'NFL',
+      team: playerData?.team?.abbreviation || 'NFL',
       recentGames
     };
   } catch (error) {
-    console.error('Error fetching NFL stats:', error);
-    return null;
+    console.error('Error scraping NFL stats:', error);
+    return {
+      playerName: playerName,
+      team: 'NFL',
+      recentGames: []
+    };
   }
 }
 
