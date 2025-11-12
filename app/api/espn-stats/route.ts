@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getNFLPlayerStats, getMLBPlayerStats, getNHLPlayerStats } from '@/lib/espn-stats-service'
 
-export const maxDuration = 10
+export const maxDuration = 15
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams

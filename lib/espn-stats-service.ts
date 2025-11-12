@@ -61,10 +61,14 @@ export async function getNFLPlayerStats(playerName: string): Promise<ESPNPlayerS
     
     console.log(`Found player ID: ${playerId}`);
     
-    // Get player game log (through proxy)
-    const statsUrl = `${ESPN_STATS_BASE}/football/nfl/athletes/${playerId}/gamelog`;
+    // Get player stats - use simpler endpoint
+    const statsUrl = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/athletes/${playerId}`;
+    console.log(`Stats URL: ${statsUrl}`);
+    
     const statsResponse = await fetch(statsUrl);
     const statsData = await statsResponse.json();
+    
+    console.log('Stats response:', JSON.stringify(statsData).substring(0, 300));
     
     // Parse recent games (last 5)
     const recentGames: ESPNGameLog[] = [];
