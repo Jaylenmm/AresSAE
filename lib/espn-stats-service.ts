@@ -68,30 +68,34 @@ export async function getNFLPlayerStats(playerName: string): Promise<ESPNPlayerS
     const statsResponse = await fetch(statsUrl);
     const statsData = await statsResponse.json();
     
-    console.log('Stats response:', JSON.stringify(statsData).substring(0, 300));
+    console.log('Stats response:', JSON.stringify(statsData).substring(0, 1000));
     
-    // Parse recent games (last 5)
+    // Parse recent games from athlete.statistics or athlete.eventLog
     const recentGames: ESPNGameLog[] = [];
-    if (statsData.events) {
-      const games = statsData.events.slice(0, 5);
+    
+    // Try eventLog first
+    if (statsData.athlete?.eventLog?.events) {
+      const games = statsData.athlete.eventLog.events.slice(0, 5);
       
-      for (const game of games) {
+      for (const event of games) {
         const stats: Record<string, number> = {};
         
-        // Parse stats from game
-        if (game.statistics) {
-          game.statistics.forEach((stat: any) => {
-            stats[stat.name] = parseFloat(stat.value) || 0;
+        // Parse stats from event
+        if (event.stats) {
+          event.stats.forEach((stat: any) => {
+            stats[stat.displayName || stat.name] = parseFloat(stat.value) || 0;
           });
         }
         
         recentGames.push({
-          gameDate: game.date,
-          opponent: game.opponent?.displayName || 'Unknown',
+          gameDate: event.gameDate || event.date,
+          opponent: event.opponent?.displayName || event.opponent?.team?.displayName || 'Unknown',
           stats
         });
       }
     }
+    
+    console.log(`Parsed ${recentGames.length} games`);
     
     return {
       playerName: playerName,
