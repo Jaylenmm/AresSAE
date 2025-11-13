@@ -39,12 +39,30 @@ export async function getNFLPlayerStats(playerName: string): Promise<ESPNPlayerS
     const response = await fetch(profileUrl);
     const html = await response.text();
     
-    // Extract game log data from the page
-    // NFL.com embeds data in __NEXT_DATA__ script tag
-    const nextDataMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">(.*?)<\/script>/);
+    console.log('HTML length:', html.length);
+    console.log('HTML preview:', html.substring(0, 500));
     
-    if (!nextDataMatch) {
-      console.log('Could not find __NEXT_DATA__ in page');
+    // Try different patterns for data extraction
+    let pageData = null;
+    
+    // Pattern 1: __NEXT_DATA__
+    const nextDataMatch = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
+    if (nextDataMatch) {
+      pageData = JSON.parse(nextDataMatch[1]);
+      console.log('Found __NEXT_DATA__');
+    }
+    
+    // Pattern 2: window.__INITIAL_STATE__
+    if (!pageData) {
+      const initialStateMatch = html.match(/window\.__INITIAL_STATE__\s*=\s*({[\s\S]*?});/);
+      if (initialStateMatch) {
+        pageData = JSON.parse(initialStateMatch[1]);
+        console.log('Found __INITIAL_STATE__');
+      }
+    }
+    
+    if (!pageData) {
+      console.log('Could not find embedded data in page');
       return {
         playerName: playerName,
         team: 'NFL',
@@ -52,7 +70,6 @@ export async function getNFLPlayerStats(playerName: string): Promise<ESPNPlayerS
       };
     }
     
-    const pageData = JSON.parse(nextDataMatch[1]);
     console.log('Page data keys:', Object.keys(pageData));
     
     // Navigate to game logs in the data structure

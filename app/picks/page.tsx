@@ -276,7 +276,7 @@ export default function PicksPage() {
 
     betOption = createBetOptionFromSelection(pick.picks, game)
 
-    const analysis = analyzeBet(betOption, transformed.bookmakers)
+    const analysis = await analyzeBet(betOption, transformed.bookmakers)
 
     const currentSnapshot = pick.analysis_snapshot || {}
     const existingHistory = currentSnapshot.history || []
@@ -364,7 +364,7 @@ export default function PicksPage() {
 
     betOption = createBetOptionFromSelection(pickWithBest.picks, game)
 
-    const newAnalysis = analyzeBet(betOption, transformed.bookmakers)
+    const newAnalysis = await analyzeBet(betOption, transformed.bookmakers)
 
     const currentSnapshot = pick.analysis_snapshot || {}
     const existingHistory = currentSnapshot.history || []

@@ -39,19 +39,28 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
   const [loadingStats, setLoadingStats] = useState(false)
   const [nbaGameLogs, setNbaGameLogs] = useState<PlayerGameLog[]>([])
 
-  // Fetch stats via API route - try ESPN for all sports first
+  // Fetch NBA stats only
   useEffect(() => {
     const fetchStats = async () => {
       setLoadingStats(true)
       try {
+        const sport = determineSport(props[0]?.prop_type || '')
+        
+        // Only support NBA
+        if (sport !== 'basketball') {
+          console.log(`Stats not available for ${sport}`)
+          setLoadingStats(false)
+          return
+        }
+        
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 10000)
         
-        // Try NFL first, then MLB, then NHL, then NBA
-        const apiUrl = `/api/espn-stats?player=${encodeURIComponent(playerName)}&sport=nfl`
+        const response = await fetch(
+          `/api/nba-stats?player=${encodeURIComponent(playerName)}`,
+          { signal: controller.signal }
+        )
         
-        console.log(`Fetching stats for ${playerName} from ESPN...`)
-        const response = await fetch(apiUrl, { signal: controller.signal })
         clearTimeout(timeoutId)
         
         if (response.ok) {
@@ -59,7 +68,8 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
           setNbaGameLogs(stats.recentGames || [])
           console.log(`✅ Loaded ${stats.recentGames?.length || 0} games for ${playerName}`)
         } else {
-          console.log(`❌ Player not found in NFL, trying other sports...`)
+          const error = await response.json()
+          console.log(`❌ ${error.error || 'No NBA stats found'} for ${playerName}`)
         }
       } catch (error: any) {
         if (error.name === 'AbortError') {
