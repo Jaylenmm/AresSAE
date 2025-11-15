@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
 export interface AnalysisItem {
   pickId: string
@@ -47,6 +48,81 @@ export default function AnalysisStatusBar() {
   const [state, setState] = useState<AnalysisState>({ status: 'idle', items: [] })
   const [open, setOpen] = useState(false)
   const [hidden, setHidden] = useState(false)
+
+  const handleFlipOverUnder = async (item: AnalysisItem) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_picks')
+        .select('picks')
+        .eq('id', item.pickId)
+        .single()
+
+      if (error || !data) {
+        alert('Unable to load pick details to edit.')
+        return
+      }
+
+      const picks = data.picks as any
+      const selection: string = picks?.selection || ''
+      const lower = selection.toLowerCase()
+
+      let newSelection: string | null = null
+      if (lower === 'over') newSelection = 'under'
+      else if (lower === 'under') newSelection = 'over'
+
+      if (!newSelection) {
+        alert('This pick is not an over/under selection.')
+        return
+      }
+
+      const updatedPicks = {
+        ...picks,
+        selection: newSelection,
+      }
+
+      const { error: updateError } = await supabase
+        .from('user_picks')
+        .update({ picks: updatedPicks, analysis_snapshot: null })
+        .eq('id', item.pickId)
+
+      if (updateError) {
+        alert('Error updating pick: ' + updateError.message)
+        return
+      }
+
+      // Update local analysis activity description
+      const player = updatedPicks.player
+      const line = updatedPicks.line
+      const propType = updatedPicks.prop_type
+
+      const newDescription = player
+        ? `${player} ${newSelection} ${line} ${propType || ''}`
+        : `${newSelection.toUpperCase()} ${line || ''}`
+
+      updateAnalysisState(prev => {
+        const items = prev.items.map(existing =>
+          existing.pickId === item.pickId
+            ? { ...existing, description: newDescription }
+            : existing
+        )
+
+        const nextStatus: typeof prev.status =
+          items.some(i => i.status === 'running')
+            ? 'running'
+            : items.length > 0
+              ? 'completed'
+              : 'idle'
+
+        return {
+          status: nextStatus,
+          items,
+        }
+      })
+    } catch (err: any) {
+      console.error('Error flipping over/under from analysis bar:', err)
+      alert('Error updating pick. Please try again.')
+    }
+  }
 
   useEffect(() => {
     setState(readAnalysisState())
@@ -192,27 +268,47 @@ export default function AnalysisStatusBar() {
             </div>
             <div className="divide-y divide-white/10">
               {state.items.map(item => (
-                <button
+                <div
                   key={item.pickId}
-                  onClick={() => handleClickItem(item)}
-                  className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-white/5 transition-colors"
+                  className="w-full px-4 py-3 flex flex-col gap-1 hover:bg-white/5 transition-colors"
                 >
-                  <div>
-                    <p className="text-sm text-white font-semibold truncate">{item.description}</p>
-                    {item.analyzedAt && (
-                      <p className="text-xs text-gray-400 mt-0.5">{new Date(item.analyzedAt).toLocaleString()}</p>
-                    )}
-                  </div>
-                  <span
-                    className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                      item.status === 'completed'
-                        ? 'bg-green-600/20 text-green-300 border border-green-500/40'
-                        : 'bg-blue-600/20 text-blue-300 border border-blue-500/40'
-                    }`}
+                  <button
+                    onClick={() => handleClickItem(item)}
+                    className="w-full flex items-center justify-between text-left"
                   >
-                    {item.status === 'completed' ? 'Done' : 'Running'}
-                  </span>
-                </button>
+                    <div>
+                      <p className="text-sm text-white font-semibold truncate">{item.description}</p>
+                      {item.analyzedAt && (
+                        <p className="text-xs text-gray-400 mt-0.5">{new Date(item.analyzedAt).toLocaleString()}</p>
+                      )}
+                    </div>
+                    <span
+                      className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                        item.status === 'completed'
+                          ? 'bg-green-600/20 text-green-300 border border-green-500/40'
+                          : 'bg-blue-600/20 text-blue-300 border border-blue-500/40'
+                      }`}
+                    >
+                      {item.status === 'completed' ? 'Done' : 'Running'}
+                    </span>
+                  </button>
+                  <div className="flex items-center justify-end gap-3 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleFlipOverUnder(item)}
+                      className="text-[11px] text-blue-200 hover:text-white font-medium"
+                    >
+                      Flip Over/Under
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleClickItem(item)}
+                      className="text-[11px] text-blue-200 hover:text-white font-medium"
+                    >
+                      View in Picks
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           </div>

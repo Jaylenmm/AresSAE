@@ -145,6 +145,70 @@ function PicksPageInner() {
     }
   }
 
+  async function toggleOverUnder(pick: UserPick) {
+    const selection = pick.picks?.selection || ''
+    const lower = selection.toLowerCase()
+
+    let newSelection: string | null = null
+    if (lower === 'over') newSelection = 'under'
+    else if (lower === 'under') newSelection = 'over'
+
+    if (!newSelection) {
+      alert('This pick is not an over/under selection.')
+      return
+    }
+
+    const updatedPicks = {
+      ...pick.picks,
+      selection: newSelection,
+    }
+
+    const { error } = await supabase
+      .from('user_picks')
+      .update({ picks: updatedPicks, analysis_snapshot: null })
+      .eq('id', pick.id)
+
+    if (error) {
+      alert('Error updating pick: ' + error.message)
+      return
+    }
+
+    // Update local state
+    setPicks(prev => prev.map(p =>
+      p.id === pick.id
+        ? { ...p, picks: updatedPicks, analysis_snapshot: null }
+        : p
+    ))
+
+    // Keep analysis bar description roughly in sync
+    updateAnalysisState(prev => {
+      const items = prev.items.map(item => {
+        if (item.pickId !== pick.id) return item
+
+        const desc = pick.picks?.player
+          ? `${pick.picks.player} ${newSelection} ${pick.picks.line} ${pick.picks.prop_type || ''}`
+          : `${newSelection.toUpperCase()} ${pick.picks?.line || ''}`
+
+        return {
+          ...item,
+          description: desc,
+        }
+      })
+
+      const nextStatus: typeof prev.status =
+        items.some(i => i.status === 'running')
+          ? 'running'
+          : items.length > 0
+            ? 'completed'
+            : 'idle'
+
+      return {
+        status: nextStatus,
+        items,
+      }
+    })
+  }
+
   async function promptAnalysis(pick: UserPick) {
     setSelectedPickForAnalysis(pick)
     setShowAnalyzeModal(true)
@@ -812,6 +876,14 @@ function PicksPageInner() {
                         >
                           Re-analyze with Current Odds
                         </button>
+                        {(pick.picks?.selection === 'over' || pick.picks?.selection === 'under') && (
+                          <button
+                            onClick={() => toggleOverUnder(pick)}
+                            className="w-full bg-gray-800 text-white font-semibold py-3 rounded-lg hover:bg-gray-700 transition-colors text-sm border border-gray-700"
+                          >
+                            Flip Over/Under
+                          </button>
+                        )}
                         <button
                           onClick={() => promptAlternateLineAnalysis(pick)}
                           className="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg hover:bg-blue-700 transition-colors text-sm"
@@ -829,6 +901,14 @@ function PicksPageInner() {
                         >
                           Analyze This Pick
                         </button>
+                        {(pick.picks?.selection === 'over' || pick.picks?.selection === 'under') && (
+                          <button
+                            onClick={() => toggleOverUnder(pick)}
+                            className="w-full bg-gray-800 text-white font-semibold py-3 rounded-lg hover:bg-gray-700 transition-colors text-sm border border-gray-700"
+                          >
+                            Flip Over/Under
+                          </button>
+                        )}
                         <button
                           onClick={() => promptAlternateLineAnalysis(pick)}
                           className="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg hover:bg-blue-700 transition-colors text-sm"
