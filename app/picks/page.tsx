@@ -31,6 +31,9 @@ export default function PicksPage() {
   const [selectedPickForAnalysis, setSelectedPickForAnalysis] = useState<UserPick | null>(null)
   const [availableLines, setAvailableLines] = useState<AlternateLine[]>([])
   const [expandedAnalyses, setExpandedAnalyses] = useState<Record<string, boolean>>({})
+  const [analysisLoading, setAnalysisLoading] = useState(false)
+  const [analysisStatus, setAnalysisStatus] = useState<'idle' | 'running' | 'completed'>('idle')
+  const [completedAnalyses, setCompletedAnalyses] = useState(0)
 
   useEffect(() => {
     loadPicks()
@@ -232,11 +235,18 @@ export default function PicksPage() {
   async function runAnalysis() {
     if (!selectedPickForAnalysis) return
 
+    // Show analyzing status bar
+    setAnalysisLoading(true)
+    setAnalysisStatus('running')
+    setShowAnalyzeModal(false)
+
     const pick = selectedPickForAnalysis
     const game = pick.picks?.game_id ? games[pick.picks.game_id] : null
 
     if (!game) {
       alert('Cannot analyze - game data not found')
+      setAnalysisLoading(false)
+      setAnalysisStatus('idle')
       return
     }
 
@@ -254,6 +264,8 @@ export default function PicksPage() {
 
       if (!playerPropsData || playerPropsData.length === 0) {
         alert('No player props data available for analysis')
+        setAnalysisLoading(false)
+        setAnalysisStatus('idle')
         return
       }
 
@@ -268,6 +280,8 @@ export default function PicksPage() {
 
       if (!oddsData || oddsData.length === 0) {
         alert('No odds data available for analysis')
+        setAnalysisLoading(false)
+        setAnalysisStatus('idle')
         return
       }
 
@@ -276,7 +290,24 @@ export default function PicksPage() {
 
     betOption = createBetOptionFromSelection(pick.picks, game)
 
-    const analysis = await analyzeBet(betOption, transformed.bookmakers)
+    // Guard against extremely long analysis by adding a timeout
+    const ANALYSIS_TIMEOUT_MS = 20000
+
+    let analysis: AnalysisResult
+    try {
+      const analysisPromise = analyzeBet(betOption, transformed.bookmakers)
+      const timeoutPromise = new Promise<AnalysisResult>((_, reject) => {
+        setTimeout(() => reject(new Error('Analysis timed out')), ANALYSIS_TIMEOUT_MS)
+      })
+
+      analysis = await Promise.race([analysisPromise, timeoutPromise]) as AnalysisResult
+    } catch (error: any) {
+      console.error('Error during analysis:', error)
+      alert('Analysis took too long or failed. Please try again in a moment.')
+      setAnalysisLoading(false)
+      setAnalysisStatus('idle')
+      return
+    }
 
     const currentSnapshot = pick.analysis_snapshot || {}
     const existingHistory = currentSnapshot.history || []
@@ -299,12 +330,16 @@ export default function PicksPage() {
       .eq('id', pick.id)
 
     if (!error) {
-      setShowAnalyzeModal(false)
       setSelectedPickForAnalysis(null)
       loadPicks()
+      setCompletedAnalyses(prev => prev + 1)
+      setAnalysisStatus('completed')
     } else {
       alert('Error saving analysis: ' + error.message)
+      setAnalysisStatus('idle')
     }
+
+    setAnalysisLoading(false)
   }
 
   async function analyzeAtBestOdds(pick: UserPick) {
@@ -763,6 +798,28 @@ export default function PicksPage() {
           betDetails={selectedPickForAnalysis.picks}
         />
       )}
+
+      {(analysisLoading || (analysisStatus === 'completed' && completedAnalyses > 0)) && (
+        <div
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 max-w-md w-[90%] bg-gradient-to-r from-blue-700 to-blue-500 px-4 py-3 rounded-2xl shadow-xl border border-white/10 flex items-center justify-between cursor-pointer"
+          onClick={() => router.push('/picks')}
+        >
+          <div className="flex items-center gap-3">
+            <img src="/ares-logo.svg" alt="Ares Logo" className="h-8 w-8" />
+            <div>
+              <p className="text-sm font-semibold text-white">
+                {analysisStatus === 'running' ? 'Analyzing picks…' : 'Analysis complete'}
+              </p>
+              {analysisStatus === 'completed' && completedAnalyses > 0 && (
+                <p className="text-xs text-blue-100">
+                  {completedAnalyses} analysis{completedAnalyses > 1 ? 'es' : ''} completed · Tap to view picks
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <LegalFooter />
       </div>
     </main>

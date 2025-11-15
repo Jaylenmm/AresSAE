@@ -5,7 +5,6 @@ import { useState, useEffect } from 'react'
 import GameCard from '@/components/GameCardV2'
 // import PropCard from '@/components/PropCard'
 import PropCard from '@/components/PropCardV2'
-import FeaturedPicks from '@/components/FeaturedPicks'
 import LegalFooter from '@/components/LegalFooter'
 import { Game, OddsData, PlayerProp } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
@@ -103,12 +102,54 @@ export default function Home() {
         ))}
       </div>
 
-      <FeaturedPicks sport={selectedSport} />
-
       {loading ? (
         <div className="text-center py-8 text-gray-500">Loading...</div>
       ) : (
         <>
+          {/* News Section (Top of page, replaces Ares Picks) */}
+          <section className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Latest {selectedSport} News</h2>
+              <a 
+                href={`https://www.espn.com/${selectedSport.toLowerCase()}/`} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-xs text-gray-500 hover:text-gray-700 underline"
+              >
+                More on ESPN
+              </a>
+            </div>
+            {news.length === 0 ? (
+              <div className="bg-white rounded-lg shadow-md p-4 text-center text-gray-500">
+                No news available.
+              </div>
+            ) : (
+              <div className="space-y-3 mb-4">
+                {news.map((article, index) => (
+                  <a
+                    key={index}
+                    href={article.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block bg-gray-800 rounded-lg shadow-sm p-4 transition-colors border border-blue-600/20 relative"
+                  >
+                    <div className="font-semibold text-white mb-1">
+                      {article.title}
+                    </div>
+                    <div className="text-xs text-white">
+                      {new Date(article.pubDate).toLocaleDateString('en-US', { 
+                        weekday: 'short', 
+                        day: 'numeric', 
+                        month: 'short', 
+                        year: 'numeric' 
+                      })} · Source: ESPN
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
+          </section>
+
           {/* Featured Games */}
           <section className="mb-8">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Upcoming Games</h2>
@@ -139,56 +180,6 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-3">
                 {playerProps.slice(0, 8).map((prop) => (
                   <PropCard key={prop.id} prop={prop} />
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* News Section */}
-          <section className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Latest {selectedSport} News</h2>
-              <a 
-                href={`https://www.espn.com/${selectedSport.toLowerCase()}/`} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-xs text-gray-500 hover:text-gray-700 underline"
-              >
-                More on ESPN
-              </a>
-            </div>
-            {news.length === 0 ? (
-              <div className="bg-white rounded-lg shadow-md p-4 text-center text-gray-500">
-                No news available.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {news.map((article, index) => (
-                  <a
-                    key={index}
-                    href={article.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block bg-gradient-to-br from-black to-blue-900 rounded-lg shadow-sm p-4 transition-colors border border-white/20 relative"
-
-                  >
-                    <div className="font-semibold text-white mb-2">
-                      {article.title}
-                    </div>
-                    {article.description && (
-                      <div className="text-sm text-white mb-2">
-                        {article.description}
-                      </div>
-                    )}
-                    <div className="text-xs text-white">
-                      {new Date(article.pubDate).toLocaleDateString('en-US', { 
-                        weekday: 'short', 
-                        day: 'numeric', 
-                        month: 'short', 
-                        year: 'numeric' 
-                      })} · Source: ESPN
-                    </div>
-                  </a>
                 ))}
               </div>
             )}

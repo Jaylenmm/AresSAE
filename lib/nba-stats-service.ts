@@ -22,6 +22,32 @@ const NBA_HEADERS: HeadersInit = NBA_PROXY_URL ? {} : {
   'Connection': 'keep-alive',
 };
 
+// Helper: fetch with timeout so stats calls can't hang analysis indefinitely
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit & { timeoutMs?: number } = {}
+): Promise<Response> {
+  const { timeoutMs = 8000, ...fetchOptions } = options;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      signal: controller.signal,
+    });
+    return response;
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      console.error(`NBA stats request timed out after ${timeoutMs}ms:`, url);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function buildUrl(endpoint: string): string {
   return `${NBA_STATS_BASE}${endpoint}`;
 }
@@ -83,9 +109,10 @@ export async function searchPlayer(playerName: string): Promise<{ id: string; na
       // Fetch fresh player list
       const url = buildUrl('/commonallplayers?LeagueID=00&Season=2025-26&IsOnlyCurrentSeason=0');
       
-      const response = await fetch(url, { 
+      const response = await fetchWithTimeout(url, { 
         headers: NBA_HEADERS,
-        cache: 'force-cache' // Use browser/CDN cache
+        cache: 'force-cache', // Use browser/CDN cache
+        timeoutMs: 8000,
       });
       data = await response.json();
       
@@ -155,9 +182,10 @@ export async function getPlayerSeasonStats(playerId: string, season: string = '2
   try {
     const url = buildUrl(`/playercareerstats?PlayerID=${playerId}&PerMode=PerGame`);
     
-    const response = await fetch(url, { 
+    const response = await fetchWithTimeout(url, { 
       headers: NBA_HEADERS,
-      cache: 'no-store'
+      cache: 'no-store',
+      timeoutMs: 8000,
     });
     const data = await response.json();
     
@@ -215,9 +243,10 @@ export async function getPlayerGameLogs(
   try {
     const url = buildUrl(`/playergamelog?PlayerID=${playerId}&Season=${season}&SeasonType=Regular+Season`);
     
-    const response = await fetch(url, { 
+    const response = await fetchWithTimeout(url, { 
       headers: NBA_HEADERS,
-      cache: 'no-store'
+      cache: 'no-store',
+      timeoutMs: 8000,
     });
     const data = await response.json();
     
@@ -255,6 +284,7 @@ export async function getPlayerGameLogs(
 
 /**
  * Main function to get player stats (season averages + recent game logs)
+ * Currently uses NBA.com official stats API only (Highlightly disabled).
  */
 export async function getPlayerStats(
   playerName: string,
