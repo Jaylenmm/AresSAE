@@ -3,6 +3,7 @@
  * Uses real NBA stats with median-based analysis and Monte Carlo simulation
  */
 import type { ParsedBet } from './bet-parser';
+import type { PlayerGameLog, PlayerSeasonStats } from './nba-stats-service';
 import { calculateStats, calculateHitProbability, calculateWeightedMedian } from './statistical-analysis';
 import { runMonteCarloSimulation, calculatePropProbability, type SimulationResult } from './monte-carlo-simulator';
 
@@ -52,9 +53,11 @@ export async function analyzeNBAProp(bet: ParsedBet): Promise<PropAnalysis | nul
     console.log(`❌ Failed to fetch stats for ${bet.player} via /api/nba-stats: ${statsResponse.status}`);
     return null;
   }
-  const playerStats = await statsResponse.json();
+
+  type StatsResponse = { averages: PlayerSeasonStats; recentGames: PlayerGameLog[] };
+  const stats = (await statsResponse.json()) as StatsResponse | null;
   
-  if (!playerStats) {
+  if (!stats) {
     console.log(`❌ Could not find stats for ${bet.player}`);
     return null;
   }
@@ -71,7 +74,7 @@ export async function analyzeNBAProp(bet: ParsedBet): Promise<PropAnalysis | nul
   const selection = bet.selection as 'over' | 'under';
   
   // Get all game values for this stat
-  const allGameValues = playerStats.recentGames.map(game => getGameStatValue(game, statField));
+  const allGameValues = stats.recentGames.map(game => getGameStatValue(game, statField));
   const last5Values = allGameValues.slice(0, 5);
   const last10Values = allGameValues.slice(0, 10);
   
@@ -97,8 +100,8 @@ export async function analyzeNBAProp(bet: ParsedBet): Promise<PropAnalysis | nul
   // RUN MONTE CARLO SIMULATION
   console.log(`🎲 Running Monte Carlo simulation (10,000 iterations)...`);
   const simulation = runMonteCarloSimulation({
-    playerStats: playerStats.seasonStats,
-    recentGames: playerStats.recentGames,
+    playerStats: stats.averages,
+    recentGames: stats.recentGames,
     propType: bet.propType,
     iterations: 10000
   });
@@ -156,8 +159,8 @@ export async function analyzeNBAProp(bet: ParsedBet): Promise<PropAnalysis | nul
   }
   
   // Sample size check
-  if (playerStats.seasonStats.gamesPlayed < 5) {
-    warnings.push(`Limited sample size: Only ${playerStats.seasonStats.gamesPlayed} games played this season`);
+  if (stats.averages.gamesPlayed < 5) {
+    warnings.push(`Limited sample size: Only ${stats.averages.gamesPlayed} games played this season`);
   }
   
   // Variance warning

@@ -801,17 +801,17 @@ export default function PicksPage() {
 
       {(analysisLoading || (analysisStatus === 'completed' && completedAnalyses > 0)) && (
         <div
-          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 max-w-md w-[90%] bg-gradient-to-r from-blue-700 to-blue-500 px-4 py-3 rounded-2xl shadow-xl border border-white/10 flex items-center justify-between cursor-pointer"
+          className="fixed bottom-16 left-1/2 -translate-x-1/2 z-40 max-w-xl w-[95%] bg-gradient-to-r from-blue-700 to-blue-500 px-5 py-4 rounded-2xl shadow-2xl border border-white/20 flex items-center justify-between cursor-pointer"
           onClick={() => router.push('/picks')}
         >
           <div className="flex items-center gap-3">
-            <img src="/ares-logo.svg" alt="Ares Logo" className="h-8 w-8" />
+            <img src="/ares-logo.svg" alt="Ares Logo" className="h-9 w-9" />
             <div>
-              <p className="text-sm font-semibold text-white">
+              <p className="text-base font-semibold text-white">
                 {analysisStatus === 'running' ? 'Analyzing picks…' : 'Analysis complete'}
               </p>
               {analysisStatus === 'completed' && completedAnalyses > 0 && (
-                <p className="text-xs text-blue-100">
+                <p className="text-sm text-blue-100">
                   {completedAnalyses} analysis{completedAnalyses > 1 ? 'es' : ''} completed · Tap to view picks
                 </p>
               )}
