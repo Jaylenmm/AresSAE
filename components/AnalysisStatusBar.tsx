@@ -330,14 +330,14 @@ export default function AnalysisStatusBar() {
       {!hidden && hasActivity && (
         <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[95%] pb-4 px-4 pointer-events-none">
           <div
-            className={`bg-transparent backdrop-blur-xl rounded-2xl shadow-2xl overflow-y-auto touch-pan-y
+            className={`overflow-y-auto touch-pan-y
               [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-blue-500 [&::-webkit-scrollbar-thumb]:rounded-full [scrollbar-color:rgb(59_130_246)_transparent]
               transform transition-all duration-200 ease-out origin-bottom
               ${open ? 'max-h-80 opacity-100 translate-y-0 pointer-events-auto' : 'max-h-0 opacity-0 translate-y-2'}
             `}
           >
-            {/* Header mimics the collapsed bar so it feels like one component */}
-            <div className="px-4 pt-3 pb-2 flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-blue-700 to-blue-500 rounded-t-2xl">
+            {/* Header strip */}
+            <div className="px-4 pt-3 pb-2 flex items-center justify-between bg-gradient-to-r from-blue-700 to-blue-500">
               <div>
                 <p className="text-sm font-semibold text-white">
                   {state.status === 'running' ? 'Analyzing picks' : 'Analysis complete'}
