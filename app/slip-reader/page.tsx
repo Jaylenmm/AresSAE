@@ -172,7 +172,7 @@ function SlipReaderInterface() {
                   className="hidden"
                 />
                 <div className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg transition-colors text-center">
-                  📷 Take Photo
+                  Take Photo
                 </div>
               </label>
 
@@ -185,7 +185,7 @@ function SlipReaderInterface() {
                   className="hidden"
                 />
                 <div className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 px-6 rounded-lg transition-colors text-center">
-                  📁 Upload Image
+                  Upload Image
                 </div>
               </label>
             </div>
@@ -247,11 +247,11 @@ function SlipReaderInterface() {
                           ? 'bg-purple-500/20 text-purple-300 border border-purple-500/50' 
                           : 'bg-blue-500/20 text-blue-300 border border-blue-500/50'
                       }`}>
-                        {results.parsingMethod === 'gpt-vision' ? '✨ GPT-4 Vision' : 
-                         results.parsingMethod === 'prizepicks-parser' ? '🎯 PrizePicks Parser' :
-                         results.parsingMethod === 'underdog-parser' ? '🐶 Underdog Parser' :
-                         results.parsingMethod === 'fanduel-parser' ? '📱 FanDuel Parser' :
-                         `📊 ${results.parsingMethod}`}
+                        {results.parsingMethod === 'gpt-vision' ? 'GPT-4 Vision' : 
+                         results.parsingMethod === 'prizepicks-parser' ? 'PrizePicks Parser' :
+                         results.parsingMethod === 'underdog-parser' ? 'Underdog Parser' :
+                         results.parsingMethod === 'fanduel-parser' ? 'FanDuel Parser' :
+                         results.parsingMethod}
                       </span>
                       {results.parsingMethod !== 'gpt-vision' && (
                         <span className="text-xs text-gray-500">
@@ -273,7 +273,7 @@ function SlipReaderInterface() {
               {results.ocrText && (
                 <details className="mt-4">
                   <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">
-                    🔍 Show extracted text (debug)
+                    Show extracted text (debug)
                   </summary>
                   <pre className="mt-2 p-3 bg-gray-900 rounded text-xs text-gray-300 overflow-auto max-h-40">
                     {results.ocrText}
@@ -348,7 +348,7 @@ function SlipReaderInterface() {
                         <p className="text-sm font-semibold text-green-400 mb-1">Why:</p>
                         <ul className="text-sm text-gray-300 space-y-1">
                           {result.analysis.reasons.map((reason: string, i: number) => (
-                            <li key={i}>✓ {reason}</li>
+                            <li key={i}>- {reason}</li>
                           ))}
                         </ul>
                       </div>
@@ -359,7 +359,7 @@ function SlipReaderInterface() {
                         <p className="text-sm font-semibold text-yellow-400 mb-1">Warnings:</p>
                         <ul className="text-sm text-gray-300 space-y-1">
                           {result.analysis.warnings.map((warning: string, i: number) => (
-                            <li key={i}>⚠ {warning}</li>
+                            <li key={i}>! {warning}</li>
                           ))}
                         </ul>
                       </div>

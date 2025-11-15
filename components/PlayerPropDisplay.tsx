@@ -66,16 +66,16 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
         if (response.ok) {
           const stats = await response.json()
           setNbaGameLogs(stats.recentGames || [])
-          console.log(`✅ Loaded ${stats.recentGames?.length || 0} games for ${playerName}`)
+          console.log(`Loaded ${stats.recentGames?.length || 0} games for ${playerName}`)
         } else {
           const error = await response.json()
-          console.log(`❌ ${error.error || 'No NBA stats found'} for ${playerName}`)
+          console.log(`${error.error || 'No NBA stats found'} for ${playerName}`)
         }
       } catch (error: any) {
         if (error.name === 'AbortError') {
-          console.log(`⏱️ Stats request timeout for ${playerName}`)
+          console.log(`Stats request timeout for ${playerName}`)
         } else {
-          console.log(`❌ Stats unavailable for ${playerName}`)
+          console.log(`Stats unavailable for ${playerName}`)
         }
       } finally {
         setLoadingStats(false)
@@ -172,7 +172,7 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
       return 'hockey'
     }
     
-    console.log(`⚠️ Could not determine sport for prop type: "${propType}", defaulting to basketball`)
+    console.log(`Could not determine sport for prop type: "${propType}", defaulting to basketball`)
     return 'basketball'
   }
 

@@ -265,7 +265,7 @@ export function AnalysisSummary({
           <ul className="space-y-1">
             {analysis.reasons.map((reason, idx) => (
               <li key={idx} className="text-sm text-gray-300 flex items-start gap-2">
-                <span className="text-green-400">✓</span>
+                <span className="text-green-400">-</span>
                 {reason}
               </li>
             ))}
@@ -280,7 +280,7 @@ export function AnalysisSummary({
           <ul className="space-y-1">
             {analysis.warnings.map((warning, idx) => (
               <li key={idx} className="text-sm text-gray-300 flex items-start gap-2">
-                <span className="text-yellow-400">⚠</span>
+                <span className="text-yellow-400">!</span>
                 {warning}
               </li>
             ))}

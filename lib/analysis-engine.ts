@@ -454,8 +454,8 @@ export async function analyzeBet(
         const combinedConfidence = Math.max(nbaAnalysis.confidence, confidence);
         
         // Add NBA reasoning to existing reasons
-        reasons.unshift(...nbaAnalysis.reasoning.map(r => `📊 ${r}`));
-        warnings.unshift(...nbaAnalysis.warnings.map(w => `⚠️ ${w}`));
+        reasons.unshift(...nbaAnalysis.reasoning.map(r => r.replace(/^📊 /, '')));
+        warnings.unshift(...nbaAnalysis.warnings.map(w => w.replace(/^⚠️ /, '')));
         
         // Update recommendation based on NBA analysis
         const nbaRec = nbaAnalysis.recommendation;
@@ -537,29 +537,72 @@ function calculateConfidence(
   totalBookCount: number,
   baseConfidence: number
 ): number {
+  // When we have a model-based true probability, confidence should be
+  // anchored near that value and only adjust slightly for edge and
+  // market quality. Hit probability and confidence remain distinct
+  // concepts, but numerically close.
+
   let confidence: number;
 
   if (trueProbability !== null) {
-    confidence = trueProbability * 100;
-    const edgeAdj = edge >= 0
-      ? Math.min(4, edge * 0.3)
-      : Math.max(-6, edge * 0.5);
-    confidence += edgeAdj;
+    // Anchor around trueProbability (0-1) expressed as percentage
+    const baseFromProb = trueProbability * 100;
+
+    // Small adjustment based on edge (positive or negative),
+    // bounded so we never swing confidence by more than ±5 pts.
+    const edgeAdj = Math.max(-5, Math.min(5, edge * 0.15));
+
+    // Data quality adjustments: sharp books and coverage can nudge
+    // confidence, but only within a narrow band.
+    let dataAdj = 0;
+    if (sharpBookCount >= 2) dataAdj += 2;
+    else if (sharpBookCount === 1) dataAdj += 1;
+    else dataAdj -= 2;
+
+    if (totalBookCount >= 5) dataAdj += 1;
+    else if (totalBookCount < 3) dataAdj -= 1;
+
+    if (oddsRange > 30) dataAdj -= 2;
+
+    // Clamp total data adjustment to ±5 points
+    dataAdj = Math.max(-5, Math.min(5, dataAdj));
+
+    confidence = baseFromProb + edgeAdj + dataAdj;
+
+    // If edge is clearly negative, do not allow confidence to exceed
+    // the underlying true probability by more than a couple of points.
+    if (edge <= 0) {
+      const maxWithNegativeEdge = baseFromProb - Math.min(10, Math.abs(edge) * 0.2);
+      confidence = Math.min(confidence, maxWithNegativeEdge);
+    }
+
+    // Keep confidence within a tight band around trueProbability
+    const minBand = baseFromProb - 12;
+    const maxBand = baseFromProb + 12;
+    confidence = Math.max(minBand, Math.min(maxBand, confidence));
   } else {
+    // Fallback when we do not have a reliable trueProbability.
+    // Use baseConfidence but damp the effect of edge and data quality
+    // so we do not produce extreme numbers from weak information.
     confidence = baseConfidence;
-    confidence += Math.max(-6, Math.min(4, edge * 0.3));
+
+    const edgeAdj = Math.max(-5, Math.min(5, edge * 0.15));
+    let dataAdj = 0;
+    if (sharpBookCount >= 2) dataAdj += 2;
+    else if (sharpBookCount === 1) dataAdj += 1;
+    else dataAdj -= 2;
+
+    if (totalBookCount >= 5) dataAdj += 1;
+    else if (totalBookCount < 3) dataAdj -= 1;
+
+    if (oddsRange > 30) dataAdj -= 2;
+
+    dataAdj = Math.max(-5, Math.min(5, dataAdj));
+    confidence += edgeAdj + dataAdj;
   }
 
-  if (sharpBookCount >= 2) confidence += 2;
-  else if (sharpBookCount === 1) confidence += 1;
-  else confidence -= 2;
-
-  if (totalBookCount >= 5) confidence += 1;
-  else if (totalBookCount < 3) confidence -= 1;
-
-  if (oddsRange > 30) confidence -= 2;
-
-  return Math.max(10, Math.min(100, Math.round(confidence)));
+  // Global clamp: avoid meaningless extremes
+  return Math.max(10, Math.min(95, Math.round(confidence)));
 }
 
 function generateRecommendation(
