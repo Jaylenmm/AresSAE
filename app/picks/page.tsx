@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { UserPick, Game, PlayerProp } from '@/lib/types'
@@ -22,7 +22,7 @@ interface AlternateLine {
   is_alternate: boolean
 }
 
-export default function PicksPage() {
+function PicksPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [picks, setPicks] = useState<UserPick[]>([])
@@ -852,5 +852,21 @@ export default function PicksPage() {
       <LegalFooter />
       </div>
     </main>
+  )
+}
+
+export default function PicksPage() {
+  return (
+    <Suspense
+      fallback={(
+        <main className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
+          <div className="max-w-4xl mx-auto p-4">
+            <p className="text-center text-gray-500">Loading picks...</p>
+          </div>
+        </main>
+      )}
+    >
+      <PicksPageInner />
+    </Suspense>
   )
 }
