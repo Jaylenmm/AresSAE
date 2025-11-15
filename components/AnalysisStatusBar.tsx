@@ -173,16 +173,18 @@ export default function AnalysisStatusBar() {
                   {completedCount > 0 && `${completedCount} completed`}
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <button
+                  type="button"
                   onClick={() => setOpen(false)}
-                  className="text-xs text-blue-100 hover:text-white font-semibold"
+                  className="text-[11px] px-2.5 py-1 rounded-full bg-white/10 border border-white/30 text-blue-50 hover:bg-white/20 hover:border-white/60 font-medium transition-colors"
                 >
                   Collapse
                 </button>
                 <button
+                  type="button"
                   onClick={handleHide}
-                  className="text-xs text-blue-100 hover:text-white font-semibold"
+                  className="text-[11px] px-2.5 py-1 rounded-full bg-transparent border border-white/40 text-blue-50 hover:bg-white/10 hover:border-white/70 font-medium transition-colors"
                 >
                   Hide
                 </button>

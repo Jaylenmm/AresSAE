@@ -96,6 +96,22 @@ function PicksPageInner() {
           setGames(gamesMap)
         }
       }
+
+      // Keep global analysis activity in sync with current pending picks
+      const currentPickIds = new Set(data.map(p => p.id))
+      updateAnalysisState(prev => {
+        const filteredItems = prev.items.filter(item => currentPickIds.has(item.pickId))
+        const nextStatus: typeof prev.status =
+          filteredItems.some(i => i.status === 'running')
+            ? 'running'
+            : filteredItems.length > 0
+              ? 'completed'
+              : 'idle'
+        return {
+          status: nextStatus,
+          items: filteredItems,
+        }
+      })
     }
     setLoading(false)
   }
@@ -111,6 +127,21 @@ function PicksPageInner() {
 
     if (!error) {
       setPicks(picks.filter(p => p.id !== pickId))
+
+      // Remove this pick from global analysis activity
+      updateAnalysisState(prev => {
+        const remaining = prev.items.filter(item => item.pickId !== pickId)
+        const nextStatus: typeof prev.status =
+          remaining.some(i => i.status === 'running')
+            ? 'running'
+            : remaining.length > 0
+              ? 'completed'
+              : 'idle'
+        return {
+          status: nextStatus,
+          items: remaining,
+        }
+      })
     }
   }
 
@@ -494,6 +525,9 @@ function PicksPageInner() {
 
     if (!error) {
       setPicks([])
+
+      // Clear all analysis activity when all picks are deleted
+      updateAnalysisState(() => ({ status: 'idle', items: [] }))
     }
   }
 
