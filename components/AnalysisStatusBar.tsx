@@ -114,8 +114,8 @@ export default function AnalysisStatusBar() {
         </button>
       )}
 
-      {/* Main bar */}
-      {!hidden && hasActivity && (
+      {/* Collapsed bar (summary view) */}
+      {!hidden && hasActivity && !open && (
       <div
         className="fixed bottom-16 left-1/2 -translate-x-1/2 z-40 max-w-xl w-[95%] bg-gradient-to-r from-blue-700 to-blue-500 px-5 py-4 rounded-2xl shadow-2xl border border-white/20 flex items-center justify-between cursor-pointer"
         onClick={() => setOpen(prev => !prev)}
@@ -153,17 +153,40 @@ export default function AnalysisStatusBar() {
       </div>
       )}
 
-      {!hidden && hasActivity && open && (
-        <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[95%] pb-4 px-4">
-          <div className="bg-gray-900/95 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl max-h-80 overflow-y-auto">
-            <div className="px-4 pt-3 pb-2 flex items-center justify-between border-b border-white/10">
-              <p className="text-sm font-semibold text-white">Analysis activity</p>
-              <button
-                onClick={() => setOpen(false)}
-                className="text-xs text-blue-300 hover:text-blue-200"
-              >
-                Close
-              </button>
+      {/* Expanded panel (detail view) with slide animation */}
+      {!hidden && hasActivity && (
+        <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[95%] pb-4 px-4 pointer-events-none">
+          <div
+            className={`bg-gray-900/95 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl overflow-y-auto transform transition-all duration-200 ease-out origin-bottom
+              ${open ? 'max-h-80 opacity-100 translate-y-0 pointer-events-auto' : 'max-h-0 opacity-0 translate-y-2'}
+            `}
+          >
+            {/* Header mimics the collapsed bar so it feels like one component */}
+            <div className="px-4 pt-3 pb-2 flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-blue-700 to-blue-500 rounded-t-2xl">
+              <div>
+                <p className="text-sm font-semibold text-white">
+                  {state.status === 'running' ? 'Analyzing picks' : 'Analysis complete'}
+                </p>
+                <p className="text-xs text-blue-100">
+                  {runningCount > 0 && `${runningCount} in progress`}
+                  {runningCount > 0 && completedCount > 0 && ' · '}
+                  {completedCount > 0 && `${completedCount} completed`}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setOpen(false)}
+                  className="text-xs text-blue-100 hover:text-white font-semibold"
+                >
+                  Collapse
+                </button>
+                <button
+                  onClick={handleHide}
+                  className="text-xs text-blue-100 hover:text-white font-semibold"
+                >
+                  Hide
+                </button>
+              </div>
             </div>
             <div className="divide-y divide-white/10">
               {state.items.map(item => (
