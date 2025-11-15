@@ -154,7 +154,7 @@ export default function AnalysisStatusBar() {
       )}
 
       {!hidden && hasActivity && open && (
-        <div className="fixed inset-x-0 bottom-0 z-40 max-w-xl w-full mx-auto pb-4 px-4">
+        <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[95%] pb-4 px-4">
           <div className="bg-gray-900/95 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl max-h-80 overflow-y-auto">
             <div className="px-4 pt-3 pb-2 flex items-center justify-between border-b border-white/10">
               <p className="text-sm font-semibold text-white">Analysis activity</p>
