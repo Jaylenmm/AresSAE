@@ -2,8 +2,6 @@
  * NBA Prop Analyzer
  * Uses real NBA stats with median-based analysis and Monte Carlo simulation
  */
-
-import { getPlayerStats } from './nba-stats-service';
 import type { ParsedBet } from './bet-parser';
 import { calculateStats, calculateHitProbability, calculateWeightedMedian } from './statistical-analysis';
 import { runMonteCarloSimulation, calculatePropProbability, type SimulationResult } from './monte-carlo-simulator';
@@ -48,8 +46,13 @@ export async function analyzeNBAProp(bet: ParsedBet): Promise<PropAnalysis | nul
   
   console.log(`\n🔍 Analyzing ${bet.player} - ${bet.propType} ${bet.selection} ${bet.line}`);
   
-  // Get player stats
-  const playerStats = await getPlayerStats(bet.player, 10);
+  // Get player stats via server API to avoid client-side CORS/timeouts
+  const statsResponse = await fetch(`/api/nba-stats?player=${encodeURIComponent(bet.player)}`);
+  if (!statsResponse.ok) {
+    console.log(`❌ Failed to fetch stats for ${bet.player} via /api/nba-stats: ${statsResponse.status}`);
+    return null;
+  }
+  const playerStats = await statsResponse.json();
   
   if (!playerStats) {
     console.log(`❌ Could not find stats for ${bet.player}`);
