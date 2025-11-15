@@ -375,6 +375,9 @@ export async function analyzeBet(
       expectedValue = calculateEV(trueProbability, betOption.odds) * 100;
     }
   }
+
+  // Round edge to nearest whole number for reporting
+  edge = Math.round(edge);
   
   const softBest = softOdds.length > 0 ? softOdds.reduce((a, b) => a.odds > b.odds ? a : b) : null;
   
@@ -390,7 +393,21 @@ export async function analyzeBet(
     baseConfidence = 40;
   }
   
-  const confidence = calculateConfidence(trueProbability, edge, oddsRange, sharpOdds.length, relevantOdds.length, baseConfidence);
+  // For confidence, anchor on a probability that is intuitive to the user.
+  // Prefer the model-based trueProbability when available; otherwise fall
+  // back to the implied probability from the user's odds.
+  const probabilityForConfidence = trueProbability !== null
+    ? trueProbability
+    : americanOddsToImpliedProbability(betOption.odds);
+
+  const confidence = calculateConfidence(
+    probabilityForConfidence,
+    edge,
+    oddsRange,
+    sharpOdds.length,
+    relevantOdds.length,
+    baseConfidence
+  );
   
   let marketEfficiency: 'efficient' | 'inefficient' | 'highly_inefficient';
   if (oddsRange <= 15) marketEfficiency = 'efficient';
@@ -450,15 +467,32 @@ export async function analyzeBet(
         // Merge NBA analysis into existing analysis
         // NBA stats-based edge takes priority over odds-based edge
         const statsEdge = nbaAnalysis.edge;
-        const combinedEdge = (statsEdge * 0.7) + (edge * 0.3); // Weight stats more heavily
-        const combinedConfidence = Math.max(nbaAnalysis.confidence, confidence);
+        let combinedEdge = (statsEdge * 0.7) + (edge * 0.3); // Weight stats more heavily
+        combinedEdge = Math.round(combinedEdge);
+        
+        // Start from the odds-based confidence and let stats move it by
+        // at most ±3 points based on how well the pick aligns with the
+        // stats (median + Monte Carlo) recommendation.
+        let combinedConfidence = confidence;
+        let statsConfidenceAdjustment = 0;
+        const nbaRec = nbaAnalysis.recommendation;
+        if (nbaRec === 'bet') {
+          statsConfidenceAdjustment = 3;
+        } else if (nbaRec === 'lean_bet') {
+          statsConfidenceAdjustment = 1.5;
+        } else if (nbaRec === 'lean_pass') {
+          statsConfidenceAdjustment = -1.5;
+        } else if (nbaRec === 'pass') {
+          statsConfidenceAdjustment = -3;
+        }
+
+        combinedConfidence = Math.max(10, Math.min(95, combinedConfidence + statsConfidenceAdjustment));
         
         // Add NBA reasoning to existing reasons
         reasons.unshift(...nbaAnalysis.reasoning.map(r => r.replace(/^📊 /, '')));
         warnings.unshift(...nbaAnalysis.warnings.map(w => w.replace(/^⚠️ /, '')));
         
         // Update recommendation based on NBA analysis
-        const nbaRec = nbaAnalysis.recommendation;
         let finalRecommendation = recommendation;
         
         if (nbaRec === 'bet' && combinedEdge > 2) {
