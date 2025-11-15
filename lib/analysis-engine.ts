@@ -537,71 +537,26 @@ function calculateConfidence(
   totalBookCount: number,
   baseConfidence: number
 ): number {
-  // When we have a model-based true probability, confidence should be
-  // anchored near that value and only adjust slightly for edge and
-  // market quality. Hit probability and confidence remain distinct
-  // concepts, but numerically close.
+  // Simple, odds-first approach:
+  // - Anchor confidence on trueProbability when we have it
+  // - Apply a small adjustment based on edge (up to ±3 percentage points)
+  // - When trueProbability is missing, fall back to baseConfidence with the same
+  //   small edge-based adjustment.
 
   let confidence: number;
 
+  // Edge is expressed as a percentage (e.g. +5 means 5% edge).
+  // Convert to a small adjustment in confidence, capped at ±3 points.
+  const edgeAdjustment = Math.max(-3, Math.min(3, edge * 0.1));
+
   if (trueProbability !== null) {
-    // Anchor around trueProbability (0-1) expressed as percentage
-    const baseFromProb = trueProbability * 100;
-
-    // Small adjustment based on edge (positive or negative),
-    // bounded so we never swing confidence by more than ±5 pts.
-    const edgeAdj = Math.max(-5, Math.min(5, edge * 0.15));
-
-    // Data quality adjustments: sharp books and coverage can nudge
-    // confidence, but only within a narrow band.
-    let dataAdj = 0;
-    if (sharpBookCount >= 2) dataAdj += 2;
-    else if (sharpBookCount === 1) dataAdj += 1;
-    else dataAdj -= 2;
-
-    if (totalBookCount >= 5) dataAdj += 1;
-    else if (totalBookCount < 3) dataAdj -= 1;
-
-    if (oddsRange > 30) dataAdj -= 2;
-
-    // Clamp total data adjustment to ±5 points
-    dataAdj = Math.max(-5, Math.min(5, dataAdj));
-
-    confidence = baseFromProb + edgeAdj + dataAdj;
-
-    // If edge is clearly negative, do not allow confidence to exceed
-    // the underlying true probability by more than a couple of points.
-    if (edge <= 0) {
-      const maxWithNegativeEdge = baseFromProb - Math.min(10, Math.abs(edge) * 0.2);
-      confidence = Math.min(confidence, maxWithNegativeEdge);
-    }
-
-    // Keep confidence within a tight band around trueProbability
-    const minBand = baseFromProb - 12;
-    const maxBand = baseFromProb + 12;
-    confidence = Math.max(minBand, Math.min(maxBand, confidence));
+    const baseFromProb = trueProbability * 100; // 0-1 -> 0-100
+    confidence = baseFromProb + edgeAdjustment;
   } else {
-    // Fallback when we do not have a reliable trueProbability.
-    // Use baseConfidence but damp the effect of edge and data quality
-    // so we do not produce extreme numbers from weak information.
-    confidence = baseConfidence;
-
-    const edgeAdj = Math.max(-5, Math.min(5, edge * 0.15));
-    let dataAdj = 0;
-    if (sharpBookCount >= 2) dataAdj += 2;
-    else if (sharpBookCount === 1) dataAdj += 1;
-    else dataAdj -= 2;
-
-    if (totalBookCount >= 5) dataAdj += 1;
-    else if (totalBookCount < 3) dataAdj -= 1;
-
-    if (oddsRange > 30) dataAdj -= 2;
-
-    dataAdj = Math.max(-5, Math.min(5, dataAdj));
-    confidence += edgeAdj + dataAdj;
+    confidence = baseConfidence + edgeAdjustment;
   }
 
-  // Global clamp: avoid meaningless extremes
+  // Clamp to a reasonable range and round to integer
   return Math.max(10, Math.min(95, Math.round(confidence)));
 }
 
