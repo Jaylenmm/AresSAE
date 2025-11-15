@@ -37,6 +37,7 @@ function PicksPageInner() {
   const [analysisStatus, setAnalysisStatus] = useState<'idle' | 'running' | 'completed'>('idle')
   const [completedAnalyses, setCompletedAnalyses] = useState(0)
   const pickRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const autoAnalyzedRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     loadPicks()
@@ -53,6 +54,26 @@ function PicksPageInner() {
         }
       }, 300)
     }
+  }, [searchParams, picks])
+
+  // If auto_analyze=1 is present, automatically run analysis for the focused pick
+  useEffect(() => {
+    const focusPickId = searchParams.get('focus_pick')
+    const autoAnalyze = searchParams.get('auto_analyze') === '1'
+
+    if (!autoAnalyze || !focusPickId || picks.length === 0) return
+
+    if (autoAnalyzedRef.current.has(focusPickId)) return
+
+    const targetPick = picks.find(p => p.id === focusPickId)
+    if (!targetPick) return
+
+    autoAnalyzedRef.current.add(focusPickId)
+    setSelectedPickForAnalysis(targetPick)
+    // Run analysis without showing the confirmation modal
+    ;(async () => {
+      await runAnalysis()
+    })()
   }, [searchParams, picks])
 
   async function loadPicks() {
@@ -110,18 +131,23 @@ function PicksPageInner() {
         return {
           pickId: pick.id,
           description,
-          status: hasAnalysis ? 'completed' : 'completed',
+          status: hasAnalysis ? 'completed' : 'pending',
           analyzedAt,
         }
       })
 
       updateAnalysisState(() => {
+        const anyRunning = itemsFromPicks.some(i => i.status === 'running')
+        const anyCompleted = itemsFromPicks.some(i => i.status === 'completed')
+
         const nextStatus: AnalysisState['status'] =
           itemsFromPicks.length === 0
             ? 'idle'
-            : itemsFromPicks.some(i => i.status === 'running')
+            : anyRunning
               ? 'running'
-              : 'completed'
+              : anyCompleted
+                ? 'completed'
+                : 'idle'
 
         return {
           status: nextStatus,

@@ -8,7 +8,7 @@ export interface AnalysisItem {
   pickId: string
   description: string
   analyzedAt?: string
-  status: 'running' | 'completed'
+  status: 'pending' | 'running' | 'completed'
 }
 
 export interface AnalysisState {
@@ -124,14 +124,43 @@ export default function AnalysisStatusBar() {
     }
   }
 
+  const handleAnalyzeItem = (item: AnalysisItem) => {
+    // Mark this item as running in the global state, then navigate to Picks to auto-run analysis
+    updateAnalysisState(prev => {
+      const items = prev.items.map(existing =>
+        existing.pickId === item.pickId
+          ? { ...existing, status: 'running' as const }
+          : existing
+      )
+
+      const anyRunning = items.some(i => i.status === 'running')
+      const anyCompleted = items.some(i => i.status === 'completed')
+
+      const nextStatus: AnalysisState['status'] =
+        items.length === 0
+          ? 'idle'
+          : anyRunning
+            ? 'running'
+            : anyCompleted
+              ? 'completed'
+              : 'idle'
+
+      return {
+        status: nextStatus,
+        items,
+      }
+    })
+
+    const url = `/picks?focus_pick=${encodeURIComponent(item.pickId)}&auto_analyze=1`
+    router.push(url)
+  }
+
   useEffect(() => {
     const initialState = readAnalysisState()
     setState(initialState)
 
-    // If there is no stored analysis state yet, seed it from pending picks
-    async function seedFromPendingPicks() {
-      if (initialState.items.length > 0) return
-
+    // Always resync from pending picks on mount so state is fresh on app load/refresh
+    async function syncFromPendingPicks() {
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
@@ -143,7 +172,7 @@ export default function AnalysisStatusBar() {
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
 
-        if (!picks || picks.length === 0) return
+        if (!picks) return
 
         const items: AnalysisItem[] = picks.map((pick: any) => {
           const hasAnalysis = !!pick.analysis_snapshot
@@ -156,27 +185,32 @@ export default function AnalysisStatusBar() {
           return {
             pickId: pick.id,
             description,
-            status: hasAnalysis ? 'completed' : 'completed',
+            status: hasAnalysis ? 'completed' : 'pending',
             analyzedAt,
           }
         })
 
+        const anyRunning = items.some(i => i.status === 'running')
+        const anyCompleted = items.some(i => i.status === 'completed')
+
         const nextStatus: AnalysisState['status'] =
           items.length === 0
             ? 'idle'
-            : items.some(i => i.status === 'running')
+            : anyRunning
               ? 'running'
-              : 'completed'
+              : anyCompleted
+                ? 'completed'
+                : 'idle'
 
         const nextState: AnalysisState = { status: nextStatus, items }
         updateAnalysisState(() => nextState)
         setState(nextState)
       } catch (err) {
-        console.error('Error seeding analysis bar from pending picks:', err)
+        console.error('Error syncing analysis bar from pending picks:', err)
       }
     }
 
-    seedFromPendingPicks()
+    syncFromPendingPicks()
 
     if (typeof window !== 'undefined') {
       const hiddenValue = window.localStorage.getItem(HIDE_KEY)
@@ -196,7 +230,7 @@ export default function AnalysisStatusBar() {
     return () => window.removeEventListener('storage', handleStorage)
   }, [])
 
-  const hasActivity = state.items.length > 0 && state.status !== 'idle'
+  const hasActivity = state.items.some(i => i.status === 'running' || i.status === 'completed')
 
   const runningCount = state.items.filter(i => i.status === 'running').length
   const completedCount = state.items.filter(i => i.status === 'completed').length
@@ -214,7 +248,7 @@ export default function AnalysisStatusBar() {
       ]
         .filter(Boolean)
         .join(' · ')
-    : 'No recent analyses'
+    : 'No completed analyses yet'
 
   const handleClickItem = (item: AnalysisItem) => {
     const url = `/picks?focus_pick=${encodeURIComponent(item.pickId)}`
@@ -296,7 +330,9 @@ export default function AnalysisStatusBar() {
       {!hidden && hasActivity && (
         <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[95%] pb-4 px-4 pointer-events-none">
           <div
-            className={`bg-gray-900/95 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl overflow-y-auto transform transition-all duration-200 ease-out origin-bottom
+            className={`bg-gray-900/95 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl overflow-y-auto touch-pan-y
+              [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-blue-500 [&::-webkit-scrollbar-thumb]:rounded-full [scrollbar-color:rgb(59_130_246)_transparent]
+              transform transition-all duration-200 ease-out origin-bottom
               ${open ? 'max-h-80 opacity-100 translate-y-0 pointer-events-auto' : 'max-h-0 opacity-0 translate-y-2'}
             `}
           >
@@ -333,7 +369,7 @@ export default function AnalysisStatusBar() {
               {state.items.map(item => (
                 <div
                   key={item.pickId}
-                  className="w-full px-4 py-3 flex flex-col gap-1 hover:bg-white/5 transition-colors"
+                  className="w-full px-4 py-3 flex flex-col gap-1 transition-colors"
                 >
                   <button
                     onClick={() => handleClickItem(item)}
@@ -349,13 +385,26 @@ export default function AnalysisStatusBar() {
                       className={`text-xs font-semibold px-2 py-1 rounded-full ${
                         item.status === 'completed'
                           ? 'bg-green-600/20 text-green-300 border border-green-500/40'
-                          : 'bg-blue-600/20 text-blue-300 border border-blue-500/40'
+                          : item.status === 'running'
+                            ? 'bg-blue-600/20 text-blue-300 border border-blue-500/40'
+                            : 'bg-gray-500/20 text-gray-300 border border-gray-400/40'
                       }`}
                     >
-                      {item.status === 'completed' ? 'Done' : 'Running'}
+                      {item.status === 'completed'
+                        ? 'Done'
+                        : item.status === 'running'
+                          ? 'Running'
+                          : 'Pending'}
                     </span>
                   </button>
                   <div className="flex items-center justify-end gap-3 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleAnalyzeItem(item)}
+                      className="text-[11px] text-blue-50 hover:text-white font-medium"
+                    >
+                      Analyze
+                    </button>
                     <button
                       type="button"
                       onClick={() => handleFlipOverUnder(item)}
