@@ -125,7 +125,58 @@ export default function AnalysisStatusBar() {
   }
 
   useEffect(() => {
-    setState(readAnalysisState())
+    const initialState = readAnalysisState()
+    setState(initialState)
+
+    // If there is no stored analysis state yet, seed it from pending picks
+    async function seedFromPendingPicks() {
+      if (initialState.items.length > 0) return
+
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const { data: picks } = await supabase
+          .from('user_picks')
+          .select('*')
+          .eq('status', 'pending')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+
+        if (!picks || picks.length === 0) return
+
+        const items: AnalysisItem[] = picks.map((pick: any) => {
+          const hasAnalysis = !!pick.analysis_snapshot
+          const analyzedAt = hasAnalysis ? pick.analysis_snapshot.timestamp : undefined
+
+          const description = pick.picks?.player
+            ? `${pick.picks.player} ${pick.picks.selection} ${pick.picks.line} ${pick.picks.prop_type || ''}`
+            : `${pick.picks?.selection || ''} ${pick.picks?.line || ''}`
+
+          return {
+            pickId: pick.id,
+            description,
+            status: hasAnalysis ? 'completed' : 'completed',
+            analyzedAt,
+          }
+        })
+
+        const nextStatus: AnalysisState['status'] =
+          items.length === 0
+            ? 'idle'
+            : items.some(i => i.status === 'running')
+              ? 'running'
+              : 'completed'
+
+        const nextState: AnalysisState = { status: nextStatus, items }
+        updateAnalysisState(() => nextState)
+        setState(nextState)
+      } catch (err) {
+        console.error('Error seeding analysis bar from pending picks:', err)
+      }
+    }
+
+    seedFromPendingPicks()
 
     if (typeof window !== 'undefined') {
       const hiddenValue = window.localStorage.getItem(HIDE_KEY)
@@ -147,12 +198,23 @@ export default function AnalysisStatusBar() {
 
   const hasActivity = state.items.length > 0 && state.status !== 'idle'
 
-  if (!hasActivity && !hidden) {
-    return null
-  }
-
   const runningCount = state.items.filter(i => i.status === 'running').length
   const completedCount = state.items.filter(i => i.status === 'completed').length
+
+  const titleText = state.status === 'running'
+    ? 'Analyzing picks'
+    : hasActivity
+      ? 'Analysis complete'
+      : 'Analysis'
+
+  const subtitleText = hasActivity
+    ? [
+        runningCount > 0 ? `${runningCount} in progress` : null,
+        completedCount > 0 ? `${completedCount} completed` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : 'No recent analyses'
 
   const handleClickItem = (item: AnalysisItem) => {
     const url = `/picks?focus_pick=${encodeURIComponent(item.pickId)}`
@@ -190,11 +252,14 @@ export default function AnalysisStatusBar() {
         </button>
       )}
 
-      {/* Collapsed bar (summary view) */}
-      {!hidden && hasActivity && !open && (
+      {/* Collapsed bar (summary view) - always visible unless hidden */}
+      {!hidden && !open && (
       <div
         className="fixed bottom-16 left-1/2 -translate-x-1/2 z-40 max-w-xl w-[95%] bg-gradient-to-r from-blue-700 to-blue-500 px-5 py-4 rounded-2xl shadow-2xl border border-white/20 flex items-center justify-between cursor-pointer"
-        onClick={() => setOpen(prev => !prev)}
+        onClick={() => {
+          if (!hasActivity) return
+          setOpen(prev => !prev)
+        }}
       >
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-full bg-white/10 flex items-center justify-center border border-white/30 text-white text-sm font-bold">
@@ -202,12 +267,10 @@ export default function AnalysisStatusBar() {
           </div>
           <div>
             <p className="text-base font-semibold text-white">
-              {state.status === 'running' ? 'Analyzing picks' : 'Analysis complete'}
+              {titleText}
             </p>
             <p className="text-sm text-blue-100">
-              {runningCount > 0 && `${runningCount} in progress`}
-              {runningCount > 0 && completedCount > 0 && ' · '}
-              {completedCount > 0 && `${completedCount} completed`}
+              {subtitleText}
             </p>
           </div>
         </div>
@@ -223,7 +286,7 @@ export default function AnalysisStatusBar() {
             Hide
           </button>
           <span className="text-xs text-blue-100 font-semibold">
-            View details
+            {hasActivity ? 'View details' : ''}
           </span>
         </div>
       </div>

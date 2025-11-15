@@ -7,7 +7,7 @@ import { UserPick, Game, PlayerProp } from '@/lib/types'
 import { Trash2 } from 'lucide-react'
 import { getBookmakerDisplayName } from '@/lib/bookmakers'
 import { analyzeBet, BetOption, AnalysisResult, BetType, BookmakerOdds } from '@/lib/analysis-engine'
-import { updateAnalysisState, AnalysisItem } from '@/components/AnalysisStatusBar'
+import { updateAnalysisState, AnalysisItem, AnalysisState } from '@/components/AnalysisStatusBar'
 import { transformGameToAnalysisFormat, transformPlayerPropsToAnalysisFormat, createBetOptionFromSelection } from '@/lib/supabase-adapter'
 import AnalyzeConfirmationModal from '@/components/AnalyzeConfirmationModal'
 import LineSelector from '@/components/LineSelector'
@@ -98,18 +98,34 @@ function PicksPageInner() {
       }
 
       // Keep global analysis activity in sync with current pending picks
-      const currentPickIds = new Set(data.map(p => p.id))
-      updateAnalysisState(prev => {
-        const filteredItems = prev.items.filter(item => currentPickIds.has(item.pickId))
-        const nextStatus: typeof prev.status =
-          filteredItems.some(i => i.status === 'running')
-            ? 'running'
-            : filteredItems.length > 0
-              ? 'completed'
-              : 'idle'
+      // Seed the analysis bar with all saved picks so they are always visible there
+      const itemsFromPicks: AnalysisItem[] = data.map(pick => {
+        const hasAnalysis = !!pick.analysis_snapshot
+        const analyzedAt = hasAnalysis ? pick.analysis_snapshot.timestamp : undefined
+
+        const description = pick.picks?.player
+          ? `${pick.picks.player} ${pick.picks.selection} ${pick.picks.line} ${pick.picks.prop_type || ''}`
+          : `${pick.picks?.selection || ''} ${pick.picks?.line || ''}`
+
+        return {
+          pickId: pick.id,
+          description,
+          status: hasAnalysis ? 'completed' : 'completed',
+          analyzedAt,
+        }
+      })
+
+      updateAnalysisState(() => {
+        const nextStatus: AnalysisState['status'] =
+          itemsFromPicks.length === 0
+            ? 'idle'
+            : itemsFromPicks.some(i => i.status === 'running')
+              ? 'running'
+              : 'completed'
+
         return {
           status: nextStatus,
-          items: filteredItems,
+          items: itemsFromPicks,
         }
       })
     }
