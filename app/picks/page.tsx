@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { UserPick, Game, PlayerProp } from '@/lib/types'
 import { Trash2 } from 'lucide-react'
 import { getBookmakerDisplayName } from '@/lib/bookmakers'
 import { analyzeBet, BetOption, AnalysisResult, BetType, BookmakerOdds } from '@/lib/analysis-engine'
+import { updateAnalysisState, AnalysisItem } from '@/components/AnalysisStatusBar'
 import { transformGameToAnalysisFormat, transformPlayerPropsToAnalysisFormat, createBetOptionFromSelection } from '@/lib/supabase-adapter'
 import AnalyzeConfirmationModal from '@/components/AnalyzeConfirmationModal'
 import LineSelector from '@/components/LineSelector'
@@ -23,6 +24,7 @@ interface AlternateLine {
 
 export default function PicksPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [picks, setPicks] = useState<UserPick[]>([])
   const [games, setGames] = useState<Record<string, Game>>({})
   const [loading, setLoading] = useState(true)
@@ -34,10 +36,24 @@ export default function PicksPage() {
   const [analysisLoading, setAnalysisLoading] = useState(false)
   const [analysisStatus, setAnalysisStatus] = useState<'idle' | 'running' | 'completed'>('idle')
   const [completedAnalyses, setCompletedAnalyses] = useState(0)
+  const pickRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   useEffect(() => {
     loadPicks()
   }, [])
+
+  // If a focus_pick query param is present, scroll that pick into view
+  useEffect(() => {
+    const focusPickId = searchParams.get('focus_pick')
+    if (focusPickId && pickRefs.current[focusPickId]) {
+      setTimeout(() => {
+        const el = pickRefs.current[focusPickId]
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 300)
+    }
+  }, [searchParams, picks])
 
   async function loadPicks() {
 
@@ -241,6 +257,22 @@ export default function PicksPage() {
     setShowAnalyzeModal(false)
 
     const pick = selectedPickForAnalysis
+
+    // Register this analysis job globally so it appears in the status bar
+    updateAnalysisState(prev => {
+      const description = pick.picks?.player
+        ? `${pick.picks.player} ${pick.picks.selection} ${pick.picks.line} ${pick.picks.prop_type || ''}`
+        : `${pick.picks?.selection} ${pick.picks?.line || ''}`
+
+      const filtered: AnalysisItem[] = prev.items.filter(i => i.pickId !== pick.id)
+      return {
+        status: 'running',
+        items: [
+          { pickId: pick.id, description, status: 'running' as const },
+          ...filtered,
+        ] as AnalysisItem[],
+      }
+    })
     const game = pick.picks?.game_id ? games[pick.picks.game_id] : null
 
     if (!game) {
@@ -334,6 +366,21 @@ export default function PicksPage() {
       loadPicks()
       setCompletedAnalyses(prev => prev + 1)
       setAnalysisStatus('completed')
+
+      // Mark this analysis job as completed
+      updateAnalysisState(prev => {
+        const updated: AnalysisItem[] = prev.items.map(item =>
+          item.pickId === pick.id
+            ? { ...item, status: 'completed' as const, analyzedAt: new Date().toISOString() }
+            : item
+        )
+
+        const anyRunning = updated.some(i => i.status === 'running')
+        return {
+          status: anyRunning ? 'running' : 'completed',
+          items: updated,
+        }
+      })
     } else {
       alert('Error saving analysis: ' + error.message)
       setAnalysisStatus('idle')
@@ -506,7 +553,11 @@ export default function PicksPage() {
               const game = pick.picks?.game_id ? games[pick.picks.game_id] : null
               
               return (
-                <div key={pick.id} className="bg-gray-900 rounded-xl shadow-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
+                <div
+                  key={pick.id}
+                  ref={el => { pickRefs.current[pick.id] = el }}
+                  className="bg-gray-900 rounded-xl shadow-2xl border border-white/10 overflow-hidden backdrop-blur-sm"
+                >
                   <div className="p-4">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
@@ -610,8 +661,8 @@ export default function PicksPage() {
                             <p className="text-xs text-gray-200">Edge</p>
                             <p className={`font-bold ${(analysis.edge ?? 0) > 0 ? 'text-green-400' : 'text-gray-200'}`}>
                               {analysis.edge !== undefined && analysis.edge !== null 
-                                ? `${analysis.edge > 0 ? '+' : ''}${analysis.edge.toFixed(1)}%` 
-                                : '0.0%'}
+                                ? `${analysis.edge > 0 ? '+' : ''}${analysis.edge}%` 
+                                : '0%'}
                             </p>
                           </div>
                           <div className="bg-white/5 backdrop-blur-sm rounded-lg p-3 text-center border border-white/10">
@@ -658,7 +709,7 @@ export default function PicksPage() {
 
                         {analysis.warnings && analysis.warnings.length > 0 && (
                           <div className="text-xs text-blue-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 border border-blue-500/30">
-                            <p className="font-semibold mb-1">ℹ️ Analysis Notes:</p>
+                            <p className="font-semibold mb-1">Analysis Notes:</p>
                             <ul className="list-disc list-inside space-y-1">
                               {analysis.warnings.map((warning: string, i: number) => (
                                 <li key={i}>{warning}</li>
@@ -697,8 +748,8 @@ export default function PicksPage() {
                                     <p className="text-xs text-gray-500">Edge</p>
                                     <p className={`text-sm font-bold ${(oldAnalysis.edge ?? 0) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
                                       {oldAnalysis.edge !== undefined && oldAnalysis.edge !== null 
-                                        ? `${oldAnalysis.edge > 0 ? '+' : ''}${oldAnalysis.edge.toFixed(1)}%` 
-                                        : '0.0%'}
+                                        ? `${oldAnalysis.edge > 0 ? '+' : ''}${oldAnalysis.edge}%` 
+                                        : '0%'}
                                     </p>
                                   </div>
                                   <div className="text-center">
@@ -798,28 +849,6 @@ export default function PicksPage() {
           betDetails={selectedPickForAnalysis.picks}
         />
       )}
-
-      {(analysisLoading || (analysisStatus === 'completed' && completedAnalyses > 0)) && (
-        <div
-          className="fixed bottom-16 left-1/2 -translate-x-1/2 z-40 max-w-xl w-[95%] bg-gradient-to-r from-blue-700 to-blue-500 px-5 py-4 rounded-2xl shadow-2xl border border-white/20 flex items-center justify-between cursor-pointer"
-          onClick={() => router.push('/picks')}
-        >
-          <div className="flex items-center gap-3">
-            <img src="/ares-logo.svg" alt="Ares Logo" className="h-9 w-9" />
-            <div>
-              <p className="text-base font-semibold text-white">
-                {analysisStatus === 'running' ? 'Analyzing picks…' : 'Analysis complete'}
-              </p>
-              {analysisStatus === 'completed' && completedAnalyses > 0 && (
-                <p className="text-sm text-blue-100">
-                  {completedAnalyses} analysis{completedAnalyses > 1 ? 'es' : ''} completed · Tap to view picks
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       <LegalFooter />
       </div>
     </main>

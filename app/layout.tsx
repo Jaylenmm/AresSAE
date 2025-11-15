@@ -4,6 +4,7 @@ import './globals.css'
 import '../public/vscode-dark.css'
 import BottomNav from '@/components/BottomNav'
 import Footer from '@/components/Footer'
+import AnalysisStatusBar from '@/components/AnalysisStatusBar'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -30,6 +31,7 @@ export default function RootLayout({
           </div>
           <Footer />
         </div>
+        <AnalysisStatusBar />
         <BottomNav />
       </body>
     </html>
