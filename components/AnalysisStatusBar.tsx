@@ -108,7 +108,7 @@ export default function AnalysisStatusBar() {
         <button
           type="button"
           onClick={handleShow}
-          className="fixed bottom-16 right-4 z-50 bg-blue-700 text-white text-xs font-semibold px-3 py-2 rounded-full shadow-lg border border-white/30 hover:bg-blue-600"
+          className="fixed bottom-24 right-4 z-50 bg-blue-700 text-white text-xs font-semibold px-3 py-2 rounded-full shadow-lg border border-white/30 hover:bg-blue-600"
         >
           View analysis
         </button>
@@ -135,19 +135,19 @@ export default function AnalysisStatusBar() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation()
               handleHide()
             }}
-            className="text-xs text-blue-100 hover:text-white font-semibold"
+            className="text-[11px] px-2.5 py-1 rounded-full bg-transparent border border-white/40 text-blue-50 hover:bg-white/10 hover:border-white/70 font-medium transition-colors"
           >
             Hide
           </button>
           <span className="text-xs text-blue-100 font-semibold">
-            {open ? 'Collapse' : 'View details'}
+            View details
           </span>
         </div>
       </div>
