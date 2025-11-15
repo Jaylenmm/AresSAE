@@ -369,11 +369,11 @@ export default function AnalysisStatusBar() {
               {state.items.map(item => (
                 <div
                   key={item.pickId}
-                  className="w-full px-4 py-3 flex flex-col gap-1 transition-colors"
+                  className="w-full px-4 py-3 flex flex-col gap-1 bg-transparent transition-colors"
                 >
                   <button
                     onClick={() => handleClickItem(item)}
-                    className="w-full flex items-center justify-between text-left"
+                    className="w-full flex items-center justify-between text-left bg-transparent"
                   >
                     <div>
                       <p className="text-sm text-white font-semibold truncate">{item.description}</p>

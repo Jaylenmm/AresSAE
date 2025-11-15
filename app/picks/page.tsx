@@ -65,7 +65,7 @@ function PicksPageInner() {
 
     if (autoAnalyzedRef.current.has(focusPickId)) return
 
-    const targetPick = picks.find(p => p.id === focusPickId)
+    const targetPick = picks.find(p => String(p.id) === focusPickId)
     if (!targetPick) return
 
     autoAnalyzedRef.current.add(focusPickId)
