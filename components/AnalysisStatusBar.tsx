@@ -330,7 +330,7 @@ export default function AnalysisStatusBar() {
       {!hidden && hasActivity && (
         <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[95%] pb-4 px-4 pointer-events-none">
           <div
-            className={`overflow-y-auto touch-pan-y
+            className={`bg-transparent backdrop-blur-xl rounded-2xl shadow-2xl overflow-y-auto touch-pan-y
               [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-blue-500 [&::-webkit-scrollbar-thumb]:rounded-full [scrollbar-color:rgb(59_130_246)_transparent]
               transform transition-all duration-200 ease-out origin-bottom
               ${open ? 'max-h-80 opacity-100 translate-y-0 pointer-events-auto' : 'max-h-0 opacity-0 translate-y-2'}
@@ -373,7 +373,7 @@ export default function AnalysisStatusBar() {
                 >
                   <button
                     onClick={() => handleClickItem(item)}
-                    className="w-full flex items-center justify-between text-left bg-transparent"
+                    className="w-full flex items-center justify-between text-left bg-transparent border-none outline-none shadow-none appearance-none"
                   >
                     <div>
                       <p className="text-sm text-white font-semibold truncate">{item.description}</p>
@@ -401,21 +401,21 @@ export default function AnalysisStatusBar() {
                     <button
                       type="button"
                       onClick={() => handleAnalyzeItem(item)}
-                      className="text-[11px] text-blue-50 hover:text-white font-medium"
+                      className="text-[11px] text-blue-50 hover:text-white font-medium bg-transparent border-none outline-none shadow-none appearance-none"
                     >
                       Analyze
                     </button>
                     <button
                       type="button"
                       onClick={() => handleFlipOverUnder(item)}
-                      className="text-[11px] text-blue-200 hover:text-white font-medium"
+                      className="text-[11px] text-blue-200 hover:text-white font-medium bg-transparent border-none outline-none shadow-none appearance-none"
                     >
                       Flip Over/Under
                     </button>
                     <button
                       type="button"
                       onClick={() => handleClickItem(item)}
-                      className="text-[11px] text-blue-200 hover:text-white font-medium"
+                      className="text-[11px] text-blue-200 hover:text-white font-medium bg-transparent border-none outline-none shadow-none appearance-none"
                     >
                       View in Picks
                     </button>
