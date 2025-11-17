@@ -11,10 +11,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing analysis or context' }, { status: 400 })
     }
 
+    console.log('[ARES SUMMARY API] Request received')
+
     const analysis = body.analysis as AnalysisResult
     const context = body.context as { description: string; sport?: string }
 
     const summary = await generateAresSummary(analysis, context)
+
+    if (!summary) {
+      console.warn('[ARES SUMMARY API] No summary generated (missing key or Anthropic error)')
+    } else {
+      console.log('[ARES SUMMARY API] Summary generated')
+    }
 
     return NextResponse.json({ summary }, { status: 200 })
   } catch (err: any) {

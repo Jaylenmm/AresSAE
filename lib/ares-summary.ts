@@ -41,6 +41,8 @@ Guidelines:
 - Be direct and practical for a bettor; no fluff.
 - Output just the summary text, no bullets, no labels.`
 
+    console.log('[ARES SUMMARY] Calling Anthropic messages API for summary')
+
     const response = await fetch(ANTHROPIC_API_URL, {
       method: 'POST',
       headers: {
@@ -70,6 +72,7 @@ Guidelines:
     const data: any = await response.json()
     const content = data?.content?.[0]?.text ?? ''
     const summary = typeof content === 'string' ? content.trim() : ''
+    console.log('[ARES SUMMARY] Anthropic summary length:', summary.length)
     return summary || null
   } catch (err) {
     console.error('Error generating Ares summary via Anthropic:', err)

@@ -516,6 +516,8 @@ function PicksPageInner() {
         ? `${pick.picks.player} ${pick.picks.selection} ${pick.picks.line} ${pick.picks.prop_type || ''}`
         : `${pick.picks?.team || ''} ${pick.picks?.selection || ''} ${pick.picks?.line ?? ''}`
 
+      console.log('📡 Calling /api/ares-summary for pick', pick.id, 'with desc:', desc)
+
       const summaryResp = await fetch('/api/ares-summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -528,11 +530,20 @@ function PicksPageInner() {
         }),
       })
 
-      if (summaryResp.ok) {
-        const json = await summaryResp.json().catch(() => null)
-        if (json && typeof json.summary === 'string' && json.summary.trim().length > 0) {
-          reasoning = json.summary.trim()
-        }
+      console.log('📡 /api/ares-summary response', summaryResp.status)
+
+      const json = await summaryResp
+        .json()
+        .catch(() => null)
+
+      if (!summaryResp.ok) {
+        console.error('❌ /api/ares-summary non-OK response:', summaryResp.status, json)
+      } else {
+        console.log('✅ /api/ares-summary OK payload:', json)
+      }
+
+      if (json && typeof json.summary === 'string' && json.summary.trim().length > 0) {
+        reasoning = json.summary.trim()
       }
     } catch (err) {
       console.error('Error generating Ares summary via API:', err)
@@ -926,9 +937,32 @@ function PicksPageInner() {
                               >
                                 <div className="bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 border border-blue-500/30">
                                   <ul className="list-disc list-inside space-y-1">
-                                    {allNotes.map((note, i) => (
-                                      <li key={i}>{note}</li>
-                                    ))}
+                                    {allNotes.map((note, i) => {
+                                      // Special handling for stats-service failures so the user sees a clear retry affordance
+                                      if (note === "Hmm... We weren't able to get stats for some reason.") {
+                                        return (
+                                          <li key={i} className="list-none text-red-300 text-[11px]">
+                                            <span className="mr-1">Hmm... We weren't able to get stats for some reason.</span>
+                                            <button
+                                              type="button"
+                                              className="underline text-blue-300 hover:text-blue-100"
+                                              onClick={() => {
+                                                // Full reload is safest to wake any sleeping backend services
+                                                if (typeof window !== 'undefined') {
+                                                  window.location.reload();
+                                                }
+                                              }}
+                                            >
+                                              Try again
+                                            </button>
+                                          </li>
+                                        );
+                                      }
+
+                                      return (
+                                        <li key={i}>{note}</li>
+                                      );
+                                    })}
                                   </ul>
                                 </div>
                               </div>

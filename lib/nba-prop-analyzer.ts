@@ -51,6 +51,13 @@ export async function analyzeNBAProp(bet: ParsedBet): Promise<PropAnalysis | nul
   const statsResponse = await fetch(`/api/nba-stats?player=${encodeURIComponent(bet.player)}`);
   if (!statsResponse.ok) {
     console.log(`❌ Failed to fetch stats for ${bet.player} via /api/nba-stats: ${statsResponse.status}`);
+
+    // If the stats endpoint returns 404 (e.g. Render proxy asleep / unavailable),
+    // bubble a specific error up so the caller can show a friendly retry message.
+    if (statsResponse.status === 404) {
+      throw new Error('NBA_STATS_404');
+    }
+
     return null;
   }
 

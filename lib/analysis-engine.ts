@@ -529,9 +529,16 @@ export async function analyzeBet(
           nbaAnalysis
         };
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching NBA stats:', error);
-      warnings.push('NBA stats unavailable - using odds-only analysis');
+
+      const message = typeof error?.message === 'string' ? error.message : '';
+      if (message.includes('NBA_STATS_404')) {
+        // Stats service (or proxy) returned a 404 - likely asleep or temporarily unavailable
+        warnings.push("Hmm... We weren't able to get stats for some reason.");
+      } else {
+        warnings.push('NBA stats unavailable - using odds-only analysis');
+      }
     }
   }
   
