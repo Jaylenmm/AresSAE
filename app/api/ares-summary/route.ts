@@ -16,6 +16,7 @@ export async function POST(request: Request) {
     const analysis = body.analysis as AnalysisResult
     const context = body.context as { description: string; sport?: string }
 
+    const hasKey = !!process.env.ANTHROPIC_API_KEY
     const summary = await generateAresSummary(analysis, context)
 
     if (!summary) {
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
       console.log('[ARES SUMMARY API] Summary generated')
     }
 
-    return NextResponse.json({ summary }, { status: 200 })
+    return NextResponse.json({ summary, hasKey }, { status: 200 })
   } catch (err: any) {
     console.error('Error in /api/ares-summary:', err)
     return NextResponse.json({ error: 'Internal error generating summary' }, { status: 500 })

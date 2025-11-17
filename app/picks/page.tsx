@@ -540,6 +540,9 @@ function PicksPageInner() {
         console.error('❌ /api/ares-summary non-OK response:', summaryResp.status, json)
       } else {
         console.log('✅ /api/ares-summary OK payload:', json)
+        if (json) {
+          console.log('🔑 /api/ares-summary hasKey:', json.hasKey)
+        }
       }
 
       if (json && typeof json.summary === 'string' && json.summary.trim().length > 0) {
