@@ -50,7 +50,8 @@ export default function AnalysisStatusBar() {
   const pathname = usePathname()
   const [state, setState] = useState<AnalysisState>({ status: 'idle', items: [] })
   const [open, setOpen] = useState(false)
-  const [hidden, setHidden] = useState(false)
+  // Default to hidden on first load; user preference in localStorage overrides this
+  const [hidden, setHidden] = useState(true)
 
   const handleFlipOverUnder = async (item: AnalysisItem) => {
     try {
@@ -260,25 +261,27 @@ export default function AnalysisStatusBar() {
     return () => window.removeEventListener('storage', handleStorage)
   }, [])
 
-  const hasActivity = state.items.some(i => i.status === 'running' || i.status === 'completed')
+  const hasActivity = state.items.length > 0
 
   const runningCount = state.items.filter(i => i.status === 'running').length
   const completedCount = state.items.filter(i => i.status === 'completed').length
+  const pendingCount = state.items.filter(i => i.status === 'pending').length
 
   const titleText = state.status === 'running'
     ? 'Analyzing picks'
     : hasActivity
-      ? 'Analysis complete'
+      ? 'Your picks'
       : 'Analysis'
 
   const subtitleText = hasActivity
     ? [
+        pendingCount > 0 ? `${pendingCount} saved` : null,
         runningCount > 0 ? `${runningCount} in progress` : null,
         completedCount > 0 ? `${completedCount} completed` : null,
       ]
         .filter(Boolean)
         .join(' · ')
-    : 'No completed analyses yet'
+    : 'No picks yet'
 
   const handleClickItem = (item: AnalysisItem) => {
     const url = `/picks?focus_pick=${encodeURIComponent(item.pickId)}`
@@ -310,9 +313,12 @@ export default function AnalysisStatusBar() {
         <button
           type="button"
           onClick={handleShow}
-          className="fixed bottom-24 right-4 z-50 bg-blue-700 text-white text-xs font-semibold px-3 py-2 rounded-full shadow-lg border border-white/30 hover:bg-blue-600"
+          className="fixed bottom-24 right-4 z-50 bg-blue-700 text-white text-[11px] font-semibold px-3 py-2 rounded-full shadow-lg border border-white/30 hover:bg-blue-600 flex items-center gap-1"
         >
-          View analysis
+          <span>View analysis</span>
+          <span className="text-[9px] uppercase tracking-wide bg-white/15 px-1.5 py-0.5 rounded-full border border-white/30">
+            BETA
+          </span>
         </button>
       )}
 
@@ -326,8 +332,12 @@ export default function AnalysisStatusBar() {
         }}
       >
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-white/10 flex items-center justify-center border border-white/30 text-white text-sm font-bold">
-            A
+          <div className="h-9 w-9 rounded-full bg-white/10 flex items-center justify-center border border-white/30 overflow-hidden">
+            <img
+              src="/ares-logo.svg"
+              alt="Ares logo"
+              className="h-7 w-7 object-contain"
+            />
           </div>
           <div>
             <p className="text-base font-semibold text-white">
@@ -368,15 +378,22 @@ export default function AnalysisStatusBar() {
           >
             {/* Header strip */}
             <div className="px-4 pt-3 pb-2 flex items-center justify-between bg-gradient-to-r from-blue-700 to-blue-500">
-              <div>
-                <p className="text-sm font-semibold text-white">
-                  {state.status === 'running' ? 'Analyzing picks' : 'Analysis complete'}
-                </p>
-                <p className="text-xs text-blue-100">
-                  {runningCount > 0 && `${runningCount} in progress`}
-                  {runningCount > 0 && completedCount > 0 && ' · '}
-                  {completedCount > 0 && `${completedCount} completed`}
-                </p>
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center border border-white/30 overflow-hidden">
+                  <img
+                    src="/ares-logo.svg"
+                    alt="Ares logo"
+                    className="h-6 w-6 object-contain"
+                  />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    {state.status === 'running' ? 'Analyzing picks' : 'Your picks'}
+                  </p>
+                  <p className="text-xs text-blue-100">
+                    {subtitleText}
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <button

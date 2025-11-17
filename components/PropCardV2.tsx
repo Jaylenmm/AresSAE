@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { PlayerProp } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
+import { updateAnalysisState, type AnalysisItem, type AnalysisState } from '@/components/AnalysisStatusBar'
 import BetConfirmationModal from './BetConfirmationModal'
 
 interface PropCardV2Props {
@@ -81,6 +82,40 @@ export default function PropCardV2({ prop }: PropCardV2Props) {
     } else {
       console.log('Pick saved successfully:', data)
       alert('Bet saved successfully!')
+
+      // Update global AnalysisStatusBar so this saved prop appears immediately
+      const saved = Array.isArray(data) && data.length > 0 ? data[0] as any : null
+      if (saved && saved.id) {
+        const description = `${pendingBet.player} ${pendingBet.selection} ${pendingBet.line} ${pendingBet.propType || ''}`
+
+        const newItem: AnalysisItem = {
+          pickId: saved.id,
+          description,
+          status: 'pending',
+        }
+
+        updateAnalysisState((prev: AnalysisState) => {
+          const filtered = prev.items.filter(i => i.pickId !== newItem.pickId)
+          const items = [newItem, ...filtered]
+
+          const anyRunning = items.some(i => i.status === 'running')
+          const anyCompleted = items.some(i => i.status === 'completed')
+
+          const nextStatus: AnalysisState['status'] =
+            items.length === 0
+              ? 'idle'
+              : anyRunning
+                ? 'running'
+                : anyCompleted
+                  ? 'completed'
+                  : 'idle'
+
+          return {
+            status: nextStatus,
+            items,
+          }
+        })
+      }
     }
   }
 

@@ -874,6 +874,33 @@ function PicksPageInner() {
                         {(() => {
                           const reasoning = (analysis as any).reasoning as string | undefined
 
+                          // If stats failed (e.g. Render/proxy asleep -> 404), surface a clear retry CTA
+                          const statsWarning = (analysis.warnings || []).includes(
+                            "Hmm... We weren't able to get stats for some reason."
+                          )
+
+                          if (statsWarning) {
+                            return (
+                              <div className="text-xs text-gray-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 mb-2 border border-blue-500/30">
+                                <p className="font-semibold mb-1">Ares thinks:</p>
+                                <p className="text-[11px] text-gray-100">
+                                  <span className="mr-1">Hmm... We weren't able to get stats for some reason.</span>
+                                  <button
+                                    type="button"
+                                    className="underline text-blue-200 hover:text-blue-50"
+                                    onClick={() => {
+                                      if (typeof window !== 'undefined') {
+                                        window.location.reload()
+                                      }
+                                    }}
+                                  >
+                                    Try again
+                                  </button>
+                                </p>
+                              </div>
+                            )
+                          }
+
                           let fallback: string | null = null
                           if (!reasoning) {
                             const ev = analysis.expectedValue ?? null

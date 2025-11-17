@@ -9,6 +9,7 @@ import BuildFeaturedPicks from '@/components/BuildFeaturedPicks'
 import GameCardV2 from '@/components/GameCardV2'
 import PlayerPropDisplay from '@/components/PlayerPropDisplay'
 import { Game, OddsData, PlayerProp } from '@/lib/types'
+import { updateAnalysisState, type AnalysisItem, type AnalysisState } from '@/components/AnalysisStatusBar'
 import { Search } from 'lucide-react'
 import BetConfirmationModal from '@/components/BetConfirmationModal'
 import LegalFooter from '@/components/LegalFooter'
@@ -404,6 +405,42 @@ export default function BuildPageContent() {
     } else {
       console.log('Pick saved successfully:', data)
       alert('Bet saved successfully!')
+
+      // Seed/update the global AnalysisStatusBar so this pick appears immediately
+      const saved = Array.isArray(data) && data.length > 0 ? data[0] as any : null
+      if (saved && saved.id) {
+        const description = bet.player
+          ? `${bet.player} ${bet.selection} ${bet.line} ${bet.propType || ''}`
+          : `${bet.selection} ${bet.line ?? ''}`
+
+        const newItem: AnalysisItem = {
+          pickId: saved.id,
+          description,
+          status: 'pending',
+        }
+
+        updateAnalysisState((prev: AnalysisState) => {
+          const filtered = prev.items.filter(i => i.pickId !== newItem.pickId)
+          const items = [newItem, ...filtered]
+
+          const anyRunning = items.some(i => i.status === 'running')
+          const anyCompleted = items.some(i => i.status === 'completed')
+
+          const nextStatus: AnalysisState['status'] =
+            items.length === 0
+              ? 'idle'
+              : anyRunning
+                ? 'running'
+                : anyCompleted
+                  ? 'completed'
+                  : 'idle'
+
+          return {
+            status: nextStatus,
+            items,
+          }
+        })
+      }
     }
   }
 

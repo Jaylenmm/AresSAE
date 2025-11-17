@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Game, OddsData } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
+import { updateAnalysisState, type AnalysisItem, type AnalysisState } from '@/components/AnalysisStatusBar'
 import BetConfirmationModal from './BetConfirmationModal'
 
 interface GameCardV2Props {
@@ -132,6 +133,42 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
     } else {
       console.log('Pick saved successfully:', data)
       alert('Bet saved successfully!')
+
+      // Update global AnalysisStatusBar so this saved game pick appears immediately
+      const saved = Array.isArray(data) && data.length > 0 ? data[0] as any : null
+      if (saved && saved.id) {
+        const description = pendingBet.player
+          ? `${pendingBet.player} ${pendingBet.selection} ${pendingBet.line ?? ''}`
+          : `${pendingBet.selection} ${pendingBet.line ?? ''}`
+
+        const newItem: AnalysisItem = {
+          pickId: saved.id,
+          description,
+          status: 'pending',
+        }
+
+        updateAnalysisState((prev: AnalysisState) => {
+          const filtered = prev.items.filter(i => i.pickId !== newItem.pickId)
+          const items = [newItem, ...filtered]
+
+          const anyRunning = items.some(i => i.status === 'running')
+          const anyCompleted = items.some(i => i.status === 'completed')
+
+          const nextStatus: AnalysisState['status'] =
+            items.length === 0
+              ? 'idle'
+              : anyRunning
+                ? 'running'
+                : anyCompleted
+                  ? 'completed'
+                  : 'idle'
+
+          return {
+            status: nextStatus,
+            items,
+          }
+        })
+      }
     }
   }
 
