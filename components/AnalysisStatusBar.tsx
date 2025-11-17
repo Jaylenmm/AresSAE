@@ -9,6 +9,9 @@ export interface AnalysisItem {
   description: string
   analyzedAt?: string
   status: 'pending' | 'running' | 'completed'
+  // Optional structured fields for nicer display
+  playerName?: string
+  betLabel?: string
 }
 
 export interface AnalysisState {
@@ -90,19 +93,32 @@ export default function AnalysisStatusBar() {
         return
       }
 
-      // Update local analysis activity description
+      // Update local analysis activity description + structured fields
       const player = updatedPicks.player
       const line = updatedPicks.line
       const propType = updatedPicks.prop_type
 
-      const newDescription = player
-        ? `${player} ${newSelection} ${line} ${propType || ''}`
-        : `${newSelection.toUpperCase()} ${line || ''}`
+      const newPlayerName = player || ''
+
+      const baseLabelParts = [propType, line].filter(Boolean)
+      let newBetLabel = baseLabelParts.join(' ')
+      if (newSelection) {
+        const lowerSel = newSelection.toLowerCase()
+        const ouShort = lowerSel === 'over' ? 'O' : lowerSel === 'under' ? 'U' : newSelection
+        newBetLabel = newBetLabel ? `${newBetLabel} - ${ouShort}` : ouShort
+      }
+
+      const newDescription = newPlayerName || newBetLabel || ''
 
       updateAnalysisState(prev => {
         const items = prev.items.map(existing =>
           existing.pickId === item.pickId
-            ? { ...existing, description: newDescription }
+            ? {
+                ...existing,
+                description: newDescription,
+                playerName: newPlayerName || existing.playerName,
+                betLabel: newBetLabel || existing.betLabel,
+              }
             : existing
         )
 
@@ -178,15 +194,29 @@ export default function AnalysisStatusBar() {
           const hasAnalysis = !!pick.analysis_snapshot
           const analyzedAt = hasAnalysis ? pick.analysis_snapshot.timestamp : undefined
 
-          const description = pick.picks?.player
-            ? `${pick.picks.player} ${pick.picks.selection} ${pick.picks.line} ${pick.picks.prop_type || ''}`
-            : `${pick.picks?.selection || ''} ${pick.picks?.line || ''}`
+          const playerName: string | undefined = pick.picks?.player || pick.picks?.team || pick.picks?.team_name
+
+          const selection: string = pick.picks?.selection || ''
+          const line = pick.picks?.line
+          const propType = pick.picks?.prop_type
+
+          const baseLabelParts = [propType, line].filter(Boolean)
+          let betLabel = baseLabelParts.join(' ')
+          if (selection) {
+            const lowerSel = selection.toLowerCase()
+            const ouShort = lowerSel === 'over' ? 'O' : lowerSel === 'under' ? 'U' : selection
+            betLabel = betLabel ? `${betLabel} - ${ouShort}` : ouShort
+          }
+
+          const description = playerName || betLabel || ''
 
           return {
             pickId: pick.id,
             description,
             status: hasAnalysis ? 'completed' : 'pending',
             analyzedAt,
+            playerName,
+            betLabel,
           }
         })
 
@@ -376,10 +406,8 @@ export default function AnalysisStatusBar() {
                     className="w-full flex items-center justify-between text-left bg-transparent border-0 outline-none shadow-none appearance-none"
                   >
                     <div>
-                      <p className="text-sm text-white font-semibold truncate">{item.description}</p>
-                      {item.analyzedAt && (
-                        <p className="text-xs text-gray-400 mt-0.5">{new Date(item.analyzedAt).toLocaleString()}</p>
-                      )}
+                      <p className="text-sm text-white font-semibold truncate">{item.playerName || item.description}</p>
+                      <p className="text-xs text-gray-300 mt-0.5 truncate">{item.betLabel || item.description}</p>
                     </div>
                     <span
                       className={`text-xs font-semibold px-2 py-1 rounded-full ${
@@ -408,7 +436,7 @@ export default function AnalysisStatusBar() {
                     <button
                       type="button"
                       onClick={() => handleFlipOverUnder(item)}
-                      className="text-[11px] px-2.5 py-1 font-medium"
+                      className="text-[11px] px-2.5 py-1 rounded bg-[#2a2f3a] border border-white/25 text-gray-100 hover:bg-[#343a48] hover:border-white/50 font-medium"
                     >
                       Flip Over/Under
                     </button>

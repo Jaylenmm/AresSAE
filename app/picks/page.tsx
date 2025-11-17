@@ -12,6 +12,7 @@ import { transformGameToAnalysisFormat, transformPlayerPropsToAnalysisFormat, cr
 import AnalyzeConfirmationModal from '@/components/AnalyzeConfirmationModal'
 import LineSelector from '@/components/LineSelector'
 import ValueMeter from '@/components/ValueMeter'
+import { generateAresSummary } from '@/lib/ares-summary'
 import LegalFooter from '@/components/LegalFooter'
 
 interface AlternateLine {
@@ -33,6 +34,7 @@ function PicksPageInner() {
   const [selectedPickForAnalysis, setSelectedPickForAnalysis] = useState<UserPick | null>(null)
   const [availableLines, setAvailableLines] = useState<AlternateLine[]>([])
   const [expandedAnalyses, setExpandedAnalyses] = useState<Record<string, boolean>>({})
+  const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({})
   const [analysisLoading, setAnalysisLoading] = useState(false)
   const [analysisStatus, setAnalysisStatus] = useState<'idle' | 'running' | 'completed'>('idle')
   const [completedAnalyses, setCompletedAnalyses] = useState(0)
@@ -385,15 +387,11 @@ function PicksPageInner() {
     setShowAnalyzeModal(true)
   }
 
-  async function runAnalysis() {
-    if (!selectedPickForAnalysis) return
-
+  async function runAnalysisForPick(pick: UserPick) {
     // Show analyzing status bar
     setAnalysisLoading(true)
     setAnalysisStatus('running')
     setShowAnalyzeModal(false)
-
-    const pick = selectedPickForAnalysis
 
     // Register this analysis job globally so it appears in the status bar
     updateAnalysisState(prev => {
@@ -410,6 +408,7 @@ function PicksPageInner() {
         ] as AnalysisItem[],
       }
     })
+
     const game = pick.picks?.game_id ? games[pick.picks.game_id] : null
 
     if (!game) {
@@ -480,12 +479,27 @@ function PicksPageInner() {
 
     const currentSnapshot = pick.analysis_snapshot || {}
     const existingHistory = currentSnapshot.history || []
-    
+
+    // Generate natural-language summary for "Ares thinks:" using Claude, if configured
+    let reasoning: string | null = null
+    try {
+      const desc = pick.picks?.player
+        ? `${pick.picks.player} ${pick.picks.selection} ${pick.picks.line} ${pick.picks.prop_type || ''}`
+        : `${pick.picks?.team || ''} ${pick.picks?.selection || ''} ${pick.picks?.line ?? ''}`
+      reasoning = await generateAresSummary(analysis, {
+        description: desc.trim(),
+        sport: pick.picks?.sport,
+      })
+    } catch (err) {
+      console.error('Error generating Ares summary:', err)
+    }
+
     const newAnalysisEntry = {
       timestamp: new Date().toISOString(),
       analyzedLine: pick.picks.line,
       analyzedOdds: pick.picks.odds,
-      ...analysis
+      ...(reasoning ? { reasoning } : {}),
+      ...analysis,
     }
 
     const { error } = await supabase
@@ -526,6 +540,11 @@ function PicksPageInner() {
     setAnalysisLoading(false)
   }
 
+  async function runAnalysis() {
+    if (!selectedPickForAnalysis) return
+    await runAnalysisForPick(selectedPickForAnalysis)
+  }
+
   async function analyzeAtBestOdds(pick: UserPick) {
     const analysis = pick.analysis_snapshot
     if (!analysis || !analysis.bestOdds || !analysis.bestSportsbook) {
@@ -533,82 +552,21 @@ function PicksPageInner() {
       return
     }
 
-    const game = pick.picks?.game_id ? games[pick.picks.game_id] : null
-    if (!game) {
-      alert('Cannot analyze - game data not found')
-      return
-    }
-
-    let transformed: { bookmakers: BookmakerOdds[] }
-    let betOption: BetOption
-
-    if (pick.picks.player) {
-      const params = new URLSearchParams()
-      params.set('game_ids', game.id)
-      params.set('limit', '200')
-      params.set('strict', '1')
-      const resp = await fetch(`/api/featured-props?${params.toString()}`)
-      const json = await resp.json().catch(() => ({ props: [] }))
-      const playerPropsData = Array.isArray(json?.props) ? (json.props as PlayerProp[]) : []
-
-      if (!playerPropsData || playerPropsData.length === 0) {
-        alert('No player props data available for analysis')
-        return
-      }
-
-      const bookmakers = transformPlayerPropsToAnalysisFormat(game, playerPropsData)
-      transformed = { bookmakers }
-    } else {
-      const { data: oddsData } = await supabase
-        .from('odds_data_v2')
-        .select('*')
-        .eq('game_id', game.id)
-
-      if (!oddsData || oddsData.length === 0) {
-        alert('No odds data available for analysis')
-        return
-      }
-
-      transformed = transformGameToAnalysisFormat(game, oddsData)
-    }
-
     const pickWithBest = {
       ...pick,
       picks: {
         ...pick.picks,
         odds: analysis.bestOdds,
-        sportsbook: analysis.bestSportsbook
-      }
+        sportsbook: analysis.bestSportsbook,
+      },
     } as UserPick
 
-    betOption = createBetOptionFromSelection(pickWithBest.picks, game)
+    await runAnalysisForPick(pickWithBest)
+  }
 
-    const newAnalysis = await analyzeBet(betOption, transformed.bookmakers)
-
-    const currentSnapshot = pick.analysis_snapshot || {}
-    const existingHistory = currentSnapshot.history || []
-    const newEntry = {
-      timestamp: new Date().toISOString(),
-      analyzedLine: pick.picks.line,
-      analyzedOdds: analysis.bestOdds,
-      ...newAnalysis
-    }
-
-    const { error } = await supabase
-      .from('user_picks')
-      .update({
-        analysis_snapshot: {
-          ...newEntry,
-          history: [...existingHistory, newEntry]
-        }
-      })
-      .eq('id', pick.id)
-
-    if (!error) {
-      loadPicks()
-    } else {
-      alert('Error saving analysis: ' + error.message)
-    }
+  async function analyzeAtUserOdds(pick: UserPick) {
+    // Re-run analysis using the user's currently saved odds/book
+    await runAnalysisForPick(pick)
   }
 
   function toggleAnalysisHistory(pickId: string) {
@@ -817,46 +775,88 @@ function PicksPageInner() {
                         <ValueMeter edge={analysis.edge ?? 0} />
 
                         {analysis.bestSportsbook && analysis.bestOdds && (
-                          <div className="text-xs text-gray-300 mb-2 flex items-center gap-3">
-                            <div>
-                              <p className="font-semibold">Best available:</p>
-                              <p>{analysis.bestOdds > 0 ? '+' : ''}{analysis.bestOdds} @ {getBookmakerDisplayName(analysis.bestSportsbook)}</p>
+                          <div className="text-xs text-gray-300 mb-3 flex flex-col gap-1">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="font-semibold">Best in market:</p>
+                                <p>{analysis.bestOdds > 0 ? '+' : ''}{analysis.bestOdds} @ {getBookmakerDisplayName(analysis.bestSportsbook)}</p>
+                              </div>
                             </div>
-                            {(
-                              (pick.picks?.odds !== undefined && pick.picks?.odds !== analysis.bestOdds) ||
-                              ((pick.picks?.sportsbook || '') !== (analysis.bestSportsbook || ''))
-                            ) && (
-                              <button
-                                onClick={() => analyzeAtBestOdds(pick)}
-                                className="text-blue-600 font-semibold"
+                            <p className="text-[11px] text-gray-400">
+                              Analyzed at best odds in the market. Select your odds to see if you're getting value.
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <label className="text-[11px] text-gray-400">Shop odds:</label>
+                              <select
+                                className="bg-gray-900 border border-white/15 rounded px-2 py-1 text-[11px] text-gray-100"
+                                value={pick.picks?.odds !== undefined ? 'user' : 'best'}
+                                onChange={async (e) => {
+                                  const choice = e.target.value
+                                  if (choice === 'user') {
+                                    await analyzeAtUserOdds(pick)
+                                  } else {
+                                    await analyzeAtBestOdds(pick)
+                                  }
+                                }}
                               >
-                                Analyze at best odds?
-                              </button>
-                            )}
+                                {pick.picks?.odds !== undefined && (
+                                  <option value="user">
+                                    Your odds: {pick.picks.odds > 0 ? '+' : ''}{pick.picks.odds} @ {getBookmakerDisplayName(pick.picks?.sportsbook || 'Your book')}
+                                  </option>
+                                )}
+                                <option value="best">
+                                  Best in market: {analysis.bestOdds > 0 ? '+' : ''}{analysis.bestOdds} @ {getBookmakerDisplayName(analysis.bestSportsbook)}
+                                </option>
+                              </select>
+                            </div>
                           </div>
                         )}
 
-                        {analysis.reasons && analysis.reasons.length > 0 && (
+                        {/* Ares summary */}
+                        {((analysis as any).reasoning || (analysis.reasons && analysis.reasons.length > 0)) && (
                           <div className="text-xs text-gray-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 mb-2 border border-blue-500/30">
-                            <p className="font-semibold mb-1">Why this pick:</p>
-                            <ul className="list-disc list-inside space-y-1">
-                              {analysis.reasons.map((reason: string, i: number) => (
-                                <li key={i}>{reason}</li>
-                              ))}
-                            </ul>
+                            <p className="font-semibold mb-1">Ares thinks:</p>
+                            <p className="text-[11px] text-gray-100">
+                              {(analysis as any).reasoning || analysis.reasons[0]}
+                            </p>
                           </div>
                         )}
 
-                        {analysis.warnings && analysis.warnings.length > 0 && (
-                          <div className="text-xs text-blue-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 border border-blue-500/30">
-                            <p className="font-semibold mb-1">Analysis Notes:</p>
-                            <ul className="list-disc list-inside space-y-1">
-                              {analysis.warnings.map((warning: string, i: number) => (
-                                <li key={i}>{warning}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+                        {/* Detailed analysis notes (expandable) */}
+                        {(() => {
+                          const allNotes = [
+                            ...(analysis.reasons || []),
+                            ...(analysis.warnings || []),
+                          ] as string[]
+                          if (!allNotes.length) return null
+                          const isExpanded = !!expandedNotes[pick.id]
+                          return (
+                            <div className="text-xs text-blue-300">
+                              <button
+                                type="button"
+                                className="text-[11px] text-blue-400 hover:text-blue-200 font-semibold flex items-center gap-1 mb-1"
+                                onClick={() =>
+                                  setExpandedNotes(prev => ({
+                                    ...prev,
+                                    [pick.id]: !isExpanded,
+                                  }))
+                                }
+                              >
+                                <span>{isExpanded ? '▼' : '▶'}</span>
+                                <span>Analysis Notes</span>
+                              </button>
+                              {isExpanded && (
+                                <div className="bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 border border-blue-500/30">
+                                  <ul className="list-disc list-inside space-y-1">
+                                    {allNotes.map((note, i) => (
+                                      <li key={i}>{note}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </div>
 
                       {expandedAnalyses[pick.id] && analysis.history && analysis.history.length > 1 && (
