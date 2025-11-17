@@ -12,7 +12,6 @@ import { transformGameToAnalysisFormat, transformPlayerPropsToAnalysisFormat, cr
 import AnalyzeConfirmationModal from '@/components/AnalyzeConfirmationModal'
 import LineSelector from '@/components/LineSelector'
 import ValueMeter from '@/components/ValueMeter'
-import { generateAresSummary } from '@/lib/ares-summary'
 import LegalFooter from '@/components/LegalFooter'
 
 interface AlternateLine {
@@ -202,9 +201,39 @@ function PicksPageInner() {
       return
     }
 
-    const updatedPicks = {
+    let updatedPicks = {
       ...pick.picks,
       selection: newSelection,
+    }
+
+    // If this is a player prop with a known game, try to pull the opposite-side odds
+    const gameId = pick.picks?.game_id
+    const playerName = pick.picks?.player
+    const propType = pick.picks?.prop_type
+    const line = pick.picks?.line
+    const sportsbook = pick.picks?.sportsbook
+
+    if (gameId && playerName && propType && typeof line === 'number' && sportsbook) {
+      const { data: propsRow, error: propsError } = await supabase
+        .from('player_props_v2')
+        .select('over_odds, under_odds')
+        .eq('game_id', gameId)
+        .eq('player_name', playerName)
+        .eq('prop_type', propType)
+        .eq('line', line)
+        .eq('sportsbook', sportsbook)
+        .eq('is_alternate', false)
+        .maybeSingle()
+
+      if (!propsError && propsRow) {
+        const oppositeOdds = newSelection === 'over' ? propsRow.over_odds : propsRow.under_odds
+        if (typeof oppositeOdds === 'number') {
+          updatedPicks = {
+            ...updatedPicks,
+            odds: oppositeOdds,
+          }
+        }
+      }
     }
 
     const { error } = await supabase
@@ -480,18 +509,33 @@ function PicksPageInner() {
     const currentSnapshot = pick.analysis_snapshot || {}
     const existingHistory = currentSnapshot.history || []
 
-    // Generate natural-language summary for "Ares thinks:" using Claude, if configured
+    // Generate natural-language summary for "Ares thinks:" via server API (Claude), if configured
     let reasoning: string | null = null
     try {
       const desc = pick.picks?.player
         ? `${pick.picks.player} ${pick.picks.selection} ${pick.picks.line} ${pick.picks.prop_type || ''}`
         : `${pick.picks?.team || ''} ${pick.picks?.selection || ''} ${pick.picks?.line ?? ''}`
-      reasoning = await generateAresSummary(analysis, {
-        description: desc.trim(),
-        sport: pick.picks?.sport,
+
+      const summaryResp = await fetch('/api/ares-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          analysis,
+          context: {
+            description: desc.trim(),
+            sport: pick.picks?.sport,
+          },
+        }),
       })
+
+      if (summaryResp.ok) {
+        const json = await summaryResp.json().catch(() => null)
+        if (json && typeof json.summary === 'string' && json.summary.trim().length > 0) {
+          reasoning = json.summary.trim()
+        }
+      }
     } catch (err) {
-      console.error('Error generating Ares summary:', err)
+      console.error('Error generating Ares summary via API:', err)
     }
 
     const newAnalysisEntry = {
@@ -831,10 +875,10 @@ function PicksPageInner() {
                           if (!allNotes.length) return null
                           const isExpanded = !!expandedNotes[pick.id]
                           return (
-                            <div className="text-xs text-blue-300">
+                            <div className="text-xs text-blue-300 flex justify-center mt-2 mb-1">
                               <button
                                 type="button"
-                                className="text-[11px] text-blue-400 hover:text-blue-200 font-semibold flex items-center gap-1 mb-1"
+                                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-blue-400/70 bg-transparent text-[12px] font-semibold text-blue-200 hover:bg-blue-500/15 hover:border-blue-300 hover:text-blue-100 transition-colors"
                                 onClick={() =>
                                   setExpandedNotes(prev => ({
                                     ...prev,
@@ -842,7 +886,7 @@ function PicksPageInner() {
                                   }))
                                 }
                               >
-                                <span>{isExpanded ? '▼' : '▶'}</span>
+                                <span className="text-[10px]">{isExpanded ? '▼' : '▶'}</span>
                                 <span>Analysis Notes</span>
                               </button>
                               {isExpanded && (
