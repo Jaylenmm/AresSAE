@@ -857,14 +857,44 @@ function PicksPageInner() {
                         )}
 
                         {/* Ares summary */}
-                        {((analysis as any).reasoning || (analysis.reasons && analysis.reasons.length > 0)) && (
-                          <div className="text-xs text-gray-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 mb-2 border border-blue-500/30">
-                            <p className="font-semibold mb-1">Ares thinks:</p>
-                            <p className="text-[11px] text-gray-100">
-                              {(analysis as any).reasoning || analysis.reasons[0]}
-                            </p>
-                          </div>
-                        )}
+                        {(() => {
+                          const reasoning = (analysis as any).reasoning as string | undefined
+
+                          let fallback: string | null = null
+                          if (!reasoning) {
+                            const ev = analysis.expectedValue ?? null
+                            const edge = analysis.edge ?? null
+                            const confidence = analysis.confidence ?? null
+
+                            if (ev !== null || edge !== null || confidence !== null) {
+                              const evPerDollar = ev !== null ? (ev / 100).toFixed(2) : null
+                              const edgeText = edge !== null ? `${edge > 0 ? '+' : ''}${edge}% edge` : null
+                              const confText = confidence !== null ? `${confidence}% confidence` : null
+
+                              const parts = [
+                                evPerDollar !== null ? `$${evPerDollar} expected value per $1 staked` : null,
+                                edgeText,
+                                confText,
+                              ].filter(Boolean)
+
+                              if (parts.length) {
+                                fallback = `This price looks ${edge !== null && edge > 0 ? 'favorable' : 'marginal'} based on our model — ${parts.join(', ')}.`
+                              }
+                            }
+                          }
+
+                          const summaryText = reasoning || fallback
+                          if (!summaryText) return null
+
+                          return (
+                            <div className="text-xs text-gray-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 mb-2 border border-blue-500/30">
+                              <p className="font-semibold mb-1">Ares thinks:</p>
+                              <p className="text-[11px] text-gray-100">
+                                {summaryText}
+                              </p>
+                            </div>
+                          )
+                        })()}
 
                         {/* Detailed analysis notes (expandable) */}
                         {(() => {
