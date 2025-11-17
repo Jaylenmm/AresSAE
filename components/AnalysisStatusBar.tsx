@@ -365,15 +365,15 @@ export default function AnalysisStatusBar() {
                 </button>
               </div>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-0">
               {state.items.map(item => (
                 <div
                   key={item.pickId}
-                  className="w-full px-4 py-3 flex flex-col gap-1 bg-transparent transition-colors"
+                  className="w-full px-4 py-3 flex flex-col gap-1 bg-[#181b23] border-t border-white/10 transition-colors"
                 >
                   <button
                     onClick={() => handleClickItem(item)}
-                    className="w-full flex items-center justify-between text-left bg-transparent border-none outline-none shadow-none appearance-none"
+                    className="w-full flex items-center justify-between text-left bg-transparent border-0 outline-none shadow-none appearance-none"
                   >
                     <div>
                       <p className="text-sm text-white font-semibold truncate">{item.description}</p>
@@ -397,25 +397,25 @@ export default function AnalysisStatusBar() {
                           : 'Pending'}
                     </span>
                   </button>
-                  <div className="flex items-center justify-end gap-3 mt-1">
+                  <div className="flex items-center justify-end gap-2 mt-2">
                     <button
                       type="button"
                       onClick={() => handleAnalyzeItem(item)}
-                      className="text-[11px] text-blue-50 hover:text-white font-medium bg-transparent border-none outline-none shadow-none appearance-none"
+                      className="text-[11px] px-2.5 py-1 rounded bg-[#2a2f3a] border border-white/25 text-gray-100 hover:bg-[#343a48] hover:border-white/50 font-medium"
                     >
                       Analyze
                     </button>
                     <button
                       type="button"
                       onClick={() => handleFlipOverUnder(item)}
-                      className="text-[11px] text-blue-200 hover:text-white font-medium bg-transparent border-none outline-none shadow-none appearance-none"
+                      className="text-[11px] px-2.5 py-1 rounded bg-[#2a2f3a] border border-white/25 text-gray-100 hover:bg-[#343a48] hover:border-white/50 font-medium"
                     >
                       Flip Over/Under
                     </button>
                     <button
                       type="button"
                       onClick={() => handleClickItem(item)}
-                      className="text-[11px] text-blue-200 hover:text-white font-medium bg-transparent border-none outline-none shadow-none appearance-none"
+                      className="text-[11px] px-2.5 py-1 rounded bg-[#2a2f3a] border border-white/25 text-gray-100 hover:bg-[#343a48] hover:border-white/50 font-medium"
                     >
                       View in Picks
                     </button>
