@@ -875,10 +875,10 @@ function PicksPageInner() {
                           if (!allNotes.length) return null
                           const isExpanded = !!expandedNotes[pick.id]
                           return (
-                            <div className="text-xs text-blue-300 flex justify-center mt-2 mb-1">
+                            <div className="text-xs text-blue-300 flex flex-col items-center mt-2 mb-1">
                               <button
                                 type="button"
-                                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-blue-400/70 bg-transparent text-[12px] font-semibold text-blue-200 hover:bg-blue-500/15 hover:border-blue-300 hover:text-blue-100 transition-colors"
+                                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-blue-400 bg-gray-900 text-[12px] font-semibold text-blue-200 hover:bg-blue-500/15 hover:border-blue-300 hover:text-blue-100 transition-colors"
                                 onClick={() =>
                                   setExpandedNotes(prev => ({
                                     ...prev,
@@ -889,7 +889,11 @@ function PicksPageInner() {
                                 <span className="text-[10px]">{isExpanded ? '▼' : '▶'}</span>
                                 <span>Analysis Notes</span>
                               </button>
-                              {isExpanded && (
+                              <div
+                                className={`w-full mt-2 max-w-xl transition-all duration-200 ease-out origin-top overflow-hidden ${
+                                  isExpanded ? 'max-h-64 opacity-100' : 'max-h-0 opacity-0'
+                                }`}
+                              >
                                 <div className="bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 border border-blue-500/30">
                                   <ul className="list-disc list-inside space-y-1">
                                     {allNotes.map((note, i) => (
@@ -897,7 +901,7 @@ function PicksPageInner() {
                                     ))}
                                   </ul>
                                 </div>
-                              )}
+                              </div>
                             </div>
                           )
                         })()}
