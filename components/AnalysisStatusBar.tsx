@@ -330,7 +330,7 @@ export default function AnalysisStatusBar() {
       {!hidden && hasActivity && (
         <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[95%] pb-4 px-4 pointer-events-none">
           <div
-            className={`overflow-y-auto touch-pan-y
+            className={`bg-[#050814] rounded-2xl border border-white/15 overflow-hidden overflow-y-auto touch-pan-y
               [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-blue-500 [&::-webkit-scrollbar-thumb]:rounded-full [scrollbar-color:rgb(59_130_246)_transparent]
               transform transition-all duration-200 ease-out origin-bottom
               ${open ? 'max-h-80 opacity-100 translate-y-0 pointer-events-auto' : 'max-h-0 opacity-0 translate-y-2'}
@@ -365,7 +365,7 @@ export default function AnalysisStatusBar() {
                 </button>
               </div>
             </div>
-            <div className="space-y-0">
+            <div className="space-y-0 bg-[#050814]">
               {state.items.map(item => (
                 <div
                   key={item.pickId}
@@ -408,7 +408,7 @@ export default function AnalysisStatusBar() {
                     <button
                       type="button"
                       onClick={() => handleFlipOverUnder(item)}
-                      className="text-[11px] px-2.5 py-1 rounded bg-[#2a2f3a] border border-white/25 text-gray-100 hover:bg-[#343a48] hover:border-white/50 font-medium"
+                      className="text-[11px] px-2.5 py-1 font-medium"
                     >
                       Flip Over/Under
                     </button>
