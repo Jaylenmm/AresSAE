@@ -653,6 +653,117 @@ function PicksPageInner() {
     }
   }
 
+  function buildAresSummary(analysis: any, pick: UserPick, game: Game | null): string | null {
+    const edge: number = typeof analysis.edge === 'number' ? analysis.edge : 0
+    const confidence: number = typeof analysis.confidence === 'number' ? analysis.confidence : 0
+    const trueProbability: number | null =
+      typeof analysis.trueProbability === 'number' ? analysis.trueProbability : null
+    const evCents: number | null =
+      typeof analysis.expectedValue === 'number' ? analysis.expectedValue : null
+    const evPerDollar: number | null = evCents !== null ? evCents / 100 : null
+    const recommendation: string | undefined = analysis.recommendation
+
+    const sport: string | null = (pick as any).picks?.sport || (game as any)?.sport || null
+    const hasNBAStats = sport === 'NBA' && !!analysis.nbaAnalysis
+    const mode: 'stats+odds' | 'odds-only' = hasNBAStats ? 'stats+odds' : 'odds-only'
+
+    let tier: 'strong_value' | 'playable' | 'fair' | 'bad'
+    if (edge >= 3 || recommendation === 'strong_bet' || recommendation === 'bet') {
+      tier = 'strong_value'
+    } else if (edge <= -5 || recommendation === 'avoid') {
+      tier = 'bad'
+    } else if (Math.abs(edge) < 3) {
+      tier = 'fair'
+    } else {
+      tier = 'playable'
+    }
+
+    const edgeText = `${edge > 0 ? '+' : ''}${edge.toFixed(1)}% edge`
+    const confText = `${confidence.toFixed(0)}% confidence`
+    const evText = evPerDollar !== null ? `$${evPerDollar.toFixed(2)} EV per $1` : null
+    const probText =
+      trueProbability !== null ? `${(trueProbability * 100).toFixed(1)}% model win chance` : null
+
+    const numericParts = [evText, edgeText, confText, probText].filter(Boolean).join(', ')
+
+    if (mode === 'odds-only') {
+      if (tier === 'strong_value') {
+        return `Ares thinks this is a strong value spot at the current price — ${numericParts}.`
+      }
+      if (tier === 'playable') {
+        return `Ares sees this as a reasonable angle with a modest edge — ${numericParts}. It is playable if you like the matchup, but not something to hammer.`
+      }
+      if (tier === 'fair') {
+        return `This number looks roughly fair based on market and model — ${numericParts}. It is more of a lean than a clear value.`
+      }
+      return `Ares thinks this price is a tough number to beat — ${numericParts}. You may want to pass on this one and look for a cleaner edge before betting.`
+    }
+
+    const nba = analysis.nbaAnalysis as any | undefined
+    const hitRate: number | null =
+      nba && nba.stats && typeof nba.stats.hitRate === 'number' ? nba.stats.hitRate : null
+    const trend: string | undefined = nba && nba.stats ? nba.stats.trend : undefined
+
+    let statsSupport: 'supports' | 'mixed' | 'against' = 'mixed'
+    if (hitRate !== null && hitRate >= 60) {
+      statsSupport = 'supports'
+    } else if (hitRate !== null && hitRate <= 40) {
+      statsSupport = 'against'
+    } else if (trend === 'up') {
+      statsSupport = 'supports'
+    } else if (trend === 'down') {
+      statsSupport = 'against'
+    }
+
+    const hitRateText = hitRate !== null ? `${hitRate.toFixed(0)}% recent hit rate` : null
+    const statsParts = [hitRateText].filter(Boolean).join(', ')
+
+    if (tier === 'strong_value') {
+      if (statsSupport === 'supports') {
+        return `Ares thinks this is a strong value that is backed by the stats — ${numericParts}${
+          statsParts ? `, with ${statsParts}.` : '.'
+        }`
+      }
+      return `Ares sees a solid edge at this price — ${numericParts}. The stat profile is generally favorable even if not perfect.`
+    }
+
+    if (tier === 'playable') {
+      if (statsSupport === 'supports') {
+        return `Ares thinks this is a decent basketball angle at a slightly rich number — ${numericParts}${
+          statsParts ? `, and ${statsParts} suggest the spot is still reasonable.` : '.'
+        }`
+      }
+      if (statsSupport === 'against') {
+        return `Price and stats are a bit at odds here — ${numericParts}${
+          statsParts ? `, but ${statsParts} point the other way.` : '.'
+        } It is more of a lean than a clear edge.`
+      }
+      return `Ares sees this as playable but not a slam-dunk — ${numericParts}. Consider your own read on the matchup before sizing up.`
+    }
+
+    if (tier === 'fair') {
+      if (statsSupport === 'supports') {
+        return `This looks roughly fair on price, but the underlying stat profile is friendly — ${numericParts}${
+          statsParts ? `, with ${statsParts}.` : '.'
+        } It is fine as a small-stake play if you like the angle.`
+      }
+      if (statsSupport === 'against') {
+        return `On price this looks close to fair — ${numericParts} — but the stats are not fully on your side${
+          statsParts ? ` (${statsParts}).` : '.'
+        } Treat it as a lean, not a conviction bet.`
+      }
+      return `This number lines up closely with our projections — ${numericParts}. It is a marginal spot rather than a clear edge.`
+    }
+
+    if (statsSupport === 'against') {
+      return `Ares thinks this is a poor value given both price and stats — ${numericParts}${
+        statsParts ? `, and ${statsParts} work against the pick.` : '.'
+      } It is better to skip this and look for a clearer edge before wagering.`
+    }
+
+    return `Ares thinks this price is hard to justify — ${numericParts}. You may want to rethink this pick or search for a stronger statistical and price edge.`
+  }
+
   if (loading) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
@@ -903,25 +1014,7 @@ function PicksPageInner() {
 
                           let fallback: string | null = null
                           if (!reasoning) {
-                            const ev = analysis.expectedValue ?? null
-                            const edge = analysis.edge ?? null
-                            const confidence = analysis.confidence ?? null
-
-                            if (ev !== null || edge !== null || confidence !== null) {
-                              const evPerDollar = ev !== null ? (ev / 100).toFixed(2) : null
-                              const edgeText = edge !== null ? `${edge > 0 ? '+' : ''}${edge}% edge` : null
-                              const confText = confidence !== null ? `${confidence}% confidence` : null
-
-                              const parts = [
-                                evPerDollar !== null ? `$${evPerDollar} expected value per $1 staked` : null,
-                                edgeText,
-                                confText,
-                              ].filter(Boolean)
-
-                              if (parts.length) {
-                                fallback = `This price looks ${edge !== null && edge > 0 ? 'favorable' : 'a bit unfavorable'} based on our model — ${parts.join(', ')}.`
-                              }
-                            }
+                            fallback = buildAresSummary(analysis, pick, game)
                           }
 
                           const summaryText = reasoning || fallback
