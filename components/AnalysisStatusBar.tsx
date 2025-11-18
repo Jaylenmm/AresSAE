@@ -310,16 +310,22 @@ export default function AnalysisStatusBar() {
     <>
       {/* When hidden but there is recent activity, show a small floating button */}
       {hidden && hasActivity && (
-        <button
-          type="button"
-          onClick={handleShow}
-          className="fixed bottom-24 right-4 z-50 bg-blue-700 text-white text-[11px] font-semibold px-3 py-2 rounded-full shadow-lg border border-white/30 hover:bg-blue-600 flex items-center gap-1"
-        >
-          <span>View analysis</span>
-          <span className="text-[9px] text-blue-400 uppercase tracking-wide bg-white/15 px-1.5 py-0.5 rounded-full border border-white/30">
-            BETA
-          </span>
-        </button>
+        <div className="fixed bottom-24 right-4 z-50">
+          {/* Soft pulsating glow behind the CTA */}
+          <div className="absolute inset-0 -z-10 flex items-center justify-center pointer-events-none">
+            <span className="inline-block h-10 w-28 rounded-full bg-blue-500/30 blur-xl animate-pulse" />
+          </div>
+          <button
+            type="button"
+            onClick={handleShow}
+            className="relative bg-blue-700 text-white text-[11px] font-semibold px-3 py-2 rounded-full shadow-lg border border-white/30 hover:bg-blue-600 flex items-center gap-1"
+          >
+            <span>View analysis</span>
+            <span className="text-[9px] text-blue-400 uppercase tracking-wide bg-white/15 px-1.5 py-0.5 rounded-full border border-white/30">
+              BETA
+            </span>
+          </button>
+        </div>
       )}
 
       {/* Collapsed bar (summary view) - always visible unless hidden */}
