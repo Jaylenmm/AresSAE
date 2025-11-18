@@ -316,7 +316,7 @@ export default function AnalysisStatusBar() {
           className="fixed bottom-24 right-4 z-50 bg-blue-700 text-white text-[11px] font-semibold px-3 py-2 rounded-full shadow-lg border border-white/30 hover:bg-blue-600 flex items-center gap-1"
         >
           <span>View analysis</span>
-          <span className="text-[9px] uppercase tracking-wide bg-white/15 px-1.5 py-0.5 rounded-full border border-white/30">
+          <span className="text-[9px] text-blue-400 uppercase tracking-wide bg-white/15 px-1.5 py-0.5 rounded-full border border-white/30">
             BETA
           </span>
         </button>
