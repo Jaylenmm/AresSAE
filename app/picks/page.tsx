@@ -919,7 +919,7 @@ function PicksPageInner() {
                               ].filter(Boolean)
 
                               if (parts.length) {
-                                fallback = `This price looks ${edge !== null && edge > 0 ? 'favorable' : 'marginal'} based on our model — ${parts.join(', ')}.`
+                                fallback = `This price looks ${edge !== null && edge > 0 ? 'favorable' : 'a bit unfavorable'} based on our model — ${parts.join(', ')}.`
                               }
                             }
                           }
