@@ -313,7 +313,7 @@ export default function AnalysisStatusBar() {
         <div className="fixed bottom-24 right-4 z-50">
           {/* Soft pulsating glow behind the CTA */}
           <div className="absolute inset-0 -z-10 flex items-center justify-center pointer-events-none">
-            <span className="inline-block h-10 w-28 rounded-full bg-blue-500/30 blur-xl animate-pulse" />
+            <span className="inline-block h-12 w-32 rounded-full bg-blue-500/35 blur-2xl animate-pulse" />
           </div>
           <button
             type="button"
