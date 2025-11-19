@@ -33,43 +33,63 @@ interface PlayerStats {
   seasonAverages: Record<string, number>
 }
 
+interface NflGameLog {
+  gameDate: string
+  opponent: string
+  stats: Record<string, number>
+}
+
 export default function PlayerPropDisplay({ playerName, props, onSelectBet }: PlayerPropDisplayProps) {
   const [selectedLineIndex, setSelectedLineIndex] = useState<Record<string, number>>({})
   const [playerStats, setPlayerStats] = useState<PlayerStats | null>(null)
   const [loadingStats, setLoadingStats] = useState(false)
   const [nbaGameLogs, setNbaGameLogs] = useState<PlayerGameLog[]>([])
+  const [nflGameLogs, setNflGameLogs] = useState<NflGameLog[]>([])
 
-  // Fetch NBA stats only
   useEffect(() => {
     const fetchStats = async () => {
       setLoadingStats(true)
       try {
         const sport = determineSport(props[0]?.prop_type || '')
-        
-        // Only support NBA
-        if (sport !== 'basketball') {
-          console.log(`Stats not available for ${sport}`)
-          setLoadingStats(false)
-          return
-        }
-        
+
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 10000)
-        
-        const response = await fetch(
-          `/api/nba-stats?player=${encodeURIComponent(playerName)}`,
-          { signal: controller.signal }
-        )
-        
-        clearTimeout(timeoutId)
-        
-        if (response.ok) {
-          const stats = await response.json()
-          setNbaGameLogs(stats.recentGames || [])
-          console.log(`Loaded ${stats.recentGames?.length || 0} games for ${playerName}`)
+
+        if (sport === 'basketball') {
+          const response = await fetch(
+            `/api/nba-stats?player=${encodeURIComponent(playerName)}`,
+            { signal: controller.signal }
+          )
+
+          clearTimeout(timeoutId)
+
+          if (response.ok) {
+            const stats = await response.json()
+            setNbaGameLogs((stats.recentGames || []).slice(0, 5))
+            console.log(`Loaded ${stats.recentGames?.length || 0} NBA games for ${playerName}`)
+          } else {
+            const error = await response.json()
+            console.log(`${error.error || 'No NBA stats found'} for ${playerName}`)
+          }
+        } else if (sport === 'football') {
+          const response = await fetch(
+            `/api/espn-stats?player=${encodeURIComponent(playerName)}&sport=nfl`,
+            { signal: controller.signal }
+          )
+
+          clearTimeout(timeoutId)
+
+          if (response.ok) {
+            const stats = await response.json()
+            setNflGameLogs((stats.recentGames || []).slice(0, 5))
+            console.log(`Loaded ${stats.recentGames?.length || 0} NFL games for ${playerName}`)
+          } else {
+            const error = await response.json()
+            console.log(`${error.error || 'No NFL stats found'} for ${playerName}`)
+          }
         } else {
-          const error = await response.json()
-          console.log(`${error.error || 'No NBA stats found'} for ${playerName}`)
+          console.log(`Stats not available for ${sport}`)
+          clearTimeout(timeoutId)
         }
       } catch (error: any) {
         if (error.name === 'AbortError') {
@@ -81,7 +101,7 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
         setLoadingStats(false)
       }
     }
-    
+
     fetchStats()
   }, [playerName, props])
 
@@ -196,6 +216,8 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
     }
     return mapping[propType] || propType
   }
+
+  const sport = determineSport(props[0]?.prop_type || '')
 
   return (
     <div className="space-y-4 overflow-hidden">
@@ -329,7 +351,7 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
               <div className="h-3 w-24 bg-gray-700 rounded"></div>
             </div>
           </div>
-        ) : nbaGameLogs.length > 0 ? (
+        ) : sport === 'basketball' && nbaGameLogs.length > 0 ? (
           <div className="overflow-x-auto -mx-4 px-4 touch-pan-x [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-blue-500 [&::-webkit-scrollbar-thumb]:rounded-full [scrollbar-color:rgb(59_130_246)_transparent]">
             <table className="w-full text-xs sm:text-sm min-w-[800px]">
               <thead>
@@ -397,14 +419,54 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
               </tbody>
             </table>
           </div>
-        ) : playerStats && playerStats.recentGames.length > 0 ? (
-          <div className="space-y-2">
-            {playerStats.recentGames.map((game, index) => (
-              <div key={index} className="flex justify-between">
-                <span className="text-sm text-gray-500">{game.date}</span>
-                <span className="text-sm font-bold text-white">{getStatFromGame(game, groupedProps[0]?.propType || '')}</span>
-              </div>
-            ))}
+        ) : sport === 'football' && nflGameLogs.length > 0 ? (
+          <div className="overflow-x-auto -mx-4 px-4 touch-pan-x [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-blue-500 [&::-webkit-scrollbar-thumb]:rounded-full [scrollbar-color:rgb(59_130_246)_transparent]">
+            {(() => {
+              const firstGame = nflGameLogs[0]
+              const statKeys = Object.keys(firstGame.stats || {}).slice(0, 8)
+
+              return (
+                <table className="w-full text-xs sm:text-sm min-w-[600px]">
+                  <thead>
+                    <tr className="border-b border-white/10">
+                      <th className="text-left py-2 px-2 text-gray-400 font-semibold sticky left-0 bg-black/30 backdrop-blur-sm z-20 min-w-[60px] shadow-[4px_0_8px_rgba(0,0,0,0.5)]">Date</th>
+                      <th className="text-left py-2 px-2 text-blue-400 font-semibold sticky left-[60px] bg-black/30 backdrop-blur-sm z-20 min-w-[70px] shadow-[4px_0_8px_rgba(0,0,0,0.5)]">Opp</th>
+                      {statKeys.map(key => (
+                        <th
+                          key={key}
+                          className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap"
+                        >
+                          {key.toUpperCase()}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {nflGameLogs.map((game, index) => {
+                      const date = game.gameDate ? new Date(game.gameDate) : null
+                      const formattedDate = date && !Number.isNaN(date.getTime())
+                        ? `${date.getMonth() + 1}/${date.getDate()}`
+                        : game.gameDate
+
+                      return (
+                        <tr key={index} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                          <td className="py-2 px-2 text-gray-300 sticky left-0 bg-black/30 backdrop-blur-sm z-20 whitespace-nowrap shadow-[4px_0_8px_rgba(0,0,0,0.5)]">{formattedDate}</td>
+                          <td className="py-2 px-2 text-blue-400 font-medium sticky left-[60px] bg-black/30 backdrop-blur-sm z-20 whitespace-nowrap shadow-[4px_0_8px_rgba(0,0,0,0.5)]">{game.opponent}</td>
+                          {statKeys.map(key => (
+                            <td
+                              key={key}
+                              className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-white whitespace-nowrap"
+                            >
+                              {game.stats[key] ?? 0}
+                            </td>
+                          ))}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )
+            })()}
           </div>
         ) : (
           <div className="text-center text-gray-500 py-6">

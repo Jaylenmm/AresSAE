@@ -9,6 +9,7 @@ import {
 } from './odds-calculations'
 import { getBookmakerDisplayName } from './bookmakers'
 import { analyzeNBAProp, type PropAnalysis } from './nba-prop-analyzer'
+import { analyzeNflProp, type NflPropAnalysis } from './nfl-prop-analyzer'
 
 export type BetType = 'h2h' | 'spreads' | 'totals' | 'player_prop' | 'futures';
 
@@ -71,6 +72,8 @@ export interface AnalysisResult {
   }>;
   // NBA Stats Analysis (when available)
   nbaAnalysis?: PropAnalysis;
+  // NFL Stats Analysis (when available)
+  nflAnalysis?: NflPropAnalysis;
 }
 
 const SHARP_BOOKMAKERS = ['pinnacle', 'betonline', 'bookmaker', 'circa', 'circasports'];
@@ -465,7 +468,8 @@ export async function analyzeBet(
   
   // NBA Stats Analysis Integration
   let nbaAnalysis: PropAnalysis | undefined;
-  
+  let nflAnalysis: NflPropAnalysis | undefined;
+
   if (betOption.sport === 'NBA' && betOption.betType === 'player_prop' && betOption.playerName) {
     console.log(`\n🏀 Fetching NBA stats for ${betOption.playerName}...`);
     
@@ -552,7 +556,8 @@ export async function analyzeBet(
           reasons,
           warnings,
           allOdds: relevantOdds,
-          nbaAnalysis
+          nbaAnalysis,
+          nflAnalysis
         };
       }
     } catch (error: any) {
@@ -567,8 +572,97 @@ export async function analyzeBet(
       }
     }
   }
-  
-  // Return standard analysis (no NBA stats)
+
+  // NFL Stats Analysis Integration
+  if (betOption.sport === 'NFL' && betOption.betType === 'player_prop' && betOption.playerName) {
+    console.log(`\n🏈 Fetching NFL stats for ${betOption.playerName}...`);
+    
+    const parsedBet = {
+      type: 'player_prop' as const,
+      player: betOption.playerName,
+      propType: betOption.market,
+      line: betOption.line,
+      selection: betOption.selection.toLowerCase() as 'over' | 'under',
+      odds: betOption.odds,
+      sportsbook: betOption.sportsbook,
+      sport: 'NFL',
+      rawText: `${betOption.playerName} ${betOption.selection} ${betOption.line}`,
+      confidence: 0.9
+    };
+    
+    try {
+      const result = await analyzeNflProp(parsedBet as any);
+      nflAnalysis = result ?? undefined;
+      
+      if (nflAnalysis) {
+        console.log(`✅ NFL analysis complete: ${nflAnalysis.recommendation} (${nflAnalysis.confidence}% confidence)`);
+        
+        const statsEdge = nflAnalysis.edge;
+        let combinedEdge = (statsEdge * 0.7) + (edge * 0.3);
+        combinedEdge = Math.round(combinedEdge);
+        
+        let combinedConfidence = confidence;
+        let statsConfidenceAdjustment = 0;
+        const nflRec = nflAnalysis.recommendation;
+        if (nflRec === 'bet') {
+          statsConfidenceAdjustment = 3;
+        } else if (nflRec === 'lean_bet') {
+          statsConfidenceAdjustment = 1.5;
+        } else if (nflRec === 'lean_pass') {
+          statsConfidenceAdjustment = -1.5;
+        } else if (nflRec === 'pass') {
+          statsConfidenceAdjustment = -3;
+        }
+
+        combinedConfidence = Math.max(10, Math.min(95, combinedConfidence + statsConfidenceAdjustment));
+        
+        reasons.unshift(...nflAnalysis.reasoning);
+        warnings.unshift(...nflAnalysis.warnings);
+        
+        let finalRecommendation = recommendation;
+        
+        if (nflRec === 'bet' && combinedEdge > 2) {
+          finalRecommendation = 'strong_bet';
+        } else if (nflRec === 'lean_bet' && combinedEdge > 1) {
+          finalRecommendation = 'bet';
+        } else if (nflRec === 'pass' || nflRec === 'lean_pass') {
+          finalRecommendation = 'avoid';
+        }
+        
+        return {
+          bestOdds: best.odds,
+          bestSportsbook: getBookmakerDisplayName(best.sportsbook),
+          worstOdds: worst.odds,
+          worstSportsbook: getBookmakerDisplayName(worst.sportsbook),
+          oddsRange,
+          expectedValue,
+          edge: combinedEdge,
+          confidence: combinedConfidence,
+          marketEfficiency,
+          sharpConsensus: sharpConsensusLabel,
+          lineMovement: 'unknown',
+          sharpBookOdds: sharpConsensus?.odds ?? null,
+          sharpBookName: sharpConsensus?.sportsbook ? getBookmakerDisplayName(sharpConsensus.sportsbook) : null,
+          sharpLine: sharpConsensus?.line ?? null,
+          sharpLineDistance: sharpConsensus?.lineDistance ?? 0,
+          trueProbability,
+          softBookBestOdds: softBest?.odds ?? null,
+          softBookBestName: softBest?.sportsbook ? getBookmakerDisplayName(softBest.sportsbook) : null,
+          recommendation: finalRecommendation,
+          reasons,
+          warnings,
+          allOdds: relevantOdds,
+          nbaAnalysis,
+          nflAnalysis
+        };
+      }
+    } catch (error: any) {
+      console.error('Error fetching NFL stats:', error);
+      warnings.push('NFL stats unavailable - using odds-only analysis');
+    }
+  }
+
+  // Return standard analysis (no NBA/NFL stats)
   return {
     bestOdds: best.odds,
     bestSportsbook: getBookmakerDisplayName(best.sportsbook),
