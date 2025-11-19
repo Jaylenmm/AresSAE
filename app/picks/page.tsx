@@ -37,6 +37,7 @@ function PicksPageInner() {
   const [analysisLoading, setAnalysisLoading] = useState(false)
   const [analysisStatus, setAnalysisStatus] = useState<'idle' | 'running' | 'completed'>('idle')
   const [completedAnalyses, setCompletedAnalyses] = useState(0)
+  const [analyzingPickId, setAnalyzingPickId] = useState<string | null>(null)
   const pickRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const autoAnalyzedRef = useRef<Set<string>>(new Set())
 
@@ -417,9 +418,10 @@ function PicksPageInner() {
   }
 
   async function runAnalysisForPick(pick: UserPick) {
-    // Show analyzing status bar
+    // Show analyzing status bar + per-pick overlay
     setAnalysisLoading(true)
     setAnalysisStatus('running')
+    setAnalyzingPickId(pick.id)
     setShowAnalyzeModal(false)
 
     // Register this analysis job globally so it appears in the status bar
@@ -444,6 +446,7 @@ function PicksPageInner() {
       alert('Cannot analyze - game data not found')
       setAnalysisLoading(false)
       setAnalysisStatus('idle')
+      setAnalyzingPickId(null)
       return
     }
 
@@ -463,6 +466,7 @@ function PicksPageInner() {
         alert('No player props data available for analysis')
         setAnalysisLoading(false)
         setAnalysisStatus('idle')
+        setAnalyzingPickId(null)
         return
       }
 
@@ -479,6 +483,7 @@ function PicksPageInner() {
         alert('No odds data available for analysis')
         setAnalysisLoading(false)
         setAnalysisStatus('idle')
+        setAnalyzingPickId(null)
         return
       }
 
@@ -503,6 +508,7 @@ function PicksPageInner() {
       alert('Analysis took too long or failed. Please try again in a moment.')
       setAnalysisLoading(false)
       setAnalysisStatus('idle')
+      setAnalyzingPickId(null)
       return
     }
 
@@ -596,6 +602,7 @@ function PicksPageInner() {
     }
 
     setAnalysisLoading(false)
+    setAnalyzingPickId(null)
   }
 
   async function runAnalysis() {
@@ -712,7 +719,7 @@ function PicksPageInner() {
                 <div
                   key={pick.id}
                   ref={el => { pickRefs.current[pick.id] = el }}
-                  className="bg-gray-900 rounded-xl shadow-2xl border border-white/10 overflow-hidden backdrop-blur-sm"
+                  className="relative bg-gray-900 rounded-xl shadow-2xl border border-white/10 overflow-hidden backdrop-blur-sm"
                 >
                   <div className="p-4">
                     <div className="flex justify-between items-start">
@@ -807,6 +814,17 @@ function PicksPageInner() {
                     </div>
                   </div>
 
+                  {analyzingPickId === pick.id && (
+                    <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center z-20">
+                      <img
+                        src="/ares-logo.svg"
+                        alt="Ares logo"
+                        className="w-16 h-16 mb-3 opacity-90"
+                      />
+                      <p className="text-sm font-semibold tracking-wide text-blue-100">Analyzing...</p>
+                    </div>
+                  )}
+
                   {analysis ? (
                     <div className="border-t border-white/10 p-4 bg-black/30 backdrop-blur-sm">
                       <div className="mb-3">
@@ -832,10 +850,8 @@ function PicksPageInner() {
                                   <button
                                     type="button"
                                     className="underline text-blue-200 hover:text-blue-50"
-                                    onClick={() => {
-                                      if (typeof window !== 'undefined') {
-                                        window.location.reload()
-                                      }
+                                    onClick={async () => {
+                                      await promptAnalysis(pick)
                                     }}
                                   >
                                     Try again
