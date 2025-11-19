@@ -26,6 +26,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <div className="flex flex-col min-h-screen">
+          <div className="w-full bg-amber-500/10 border-b border-amber-400/40 text-amber-100 text-xs sm:text-sm py-2 px-3 text-center">
+            We are currently updating the Ares app. If there is an issue you are seeing, please hang tight as this could be due to current work being done on the app. Thanks for using Ares today!
+          </div>
           <div className="flex-1 pb-20">
             {children}
           </div>

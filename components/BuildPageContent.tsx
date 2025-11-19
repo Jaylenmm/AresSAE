@@ -300,7 +300,6 @@ export default function BuildPageContent() {
   }
 
   async function handleSelectBet(bet: any) {
-
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
@@ -318,8 +317,6 @@ export default function BuildPageContent() {
       router.push(`/login?redirect=${encodeURIComponent(redirectUrl)}`)
       return
     }
-
-
     if (!selectedGame) {
       alert('No game selected')
       return
