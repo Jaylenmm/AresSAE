@@ -307,15 +307,15 @@ export async function analyzeBet(
     })
     .filter((item): item is NonNullable<typeof item> => item !== null);
 
-  // For player props with a custom/user-entered line (e.g. alt lines that
-  // no book is hanging), we still want to run stats-based analysis. If there
-  // are no matching market odds at this exact line, fall back to using the
-  // user's own price as a soft, synthetic odds source instead of bailing
-  // out with `No odds data available`.
-  if (relevantOdds.length === 0 && betOption.betType === 'player_prop' && hasUserOdds) {
+  // For player props (especially user-entered alternate lines that no book
+  // is hanging), we still want to run stats-based analysis even if there are
+  // no matching market odds at this exact line. In that case, synthesize a
+  // minimal odds row so we don't bail out early with `No odds data available`.
+  if (relevantOdds.length === 0 && betOption.betType === 'player_prop') {
+    const fallbackOdds = hasUserOdds ? betOption.odds : -110;
     relevantOdds = [{
       sportsbook: betOption.sportsbook,
-      odds: betOption.odds,
+      odds: fallbackOdds,
       isSharp: false,
     }];
   }
