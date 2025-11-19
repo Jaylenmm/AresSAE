@@ -283,8 +283,9 @@ export async function analyzeBet(
   betOption: BetOption,
   allBookmakerData: BookmakerOdds[]
 ): Promise<AnalysisResult> {
-  
-  const relevantOdds = allBookmakerData
+  const hasUserOdds = betOption.odds !== 0;
+
+  let relevantOdds = allBookmakerData
     .map(bookmaker => {
       const market = bookmaker.markets.find(m => m.key === betOption.market);
       if (!market) return null;
@@ -305,7 +306,20 @@ export async function analyzeBet(
       };
     })
     .filter((item): item is NonNullable<typeof item> => item !== null);
-  
+
+  // For player props with a custom/user-entered line (e.g. alt lines that
+  // no book is hanging), we still want to run stats-based analysis. If there
+  // are no matching market odds at this exact line, fall back to using the
+  // user's own price as a soft, synthetic odds source instead of bailing
+  // out with `No odds data available`.
+  if (relevantOdds.length === 0 && betOption.betType === 'player_prop' && hasUserOdds) {
+    relevantOdds = [{
+      sportsbook: betOption.sportsbook,
+      odds: betOption.odds,
+      isSharp: false,
+    }];
+  }
+
   if (relevantOdds.length === 0) {
     return createEmptyAnalysis();
   }
@@ -319,7 +333,7 @@ export async function analyzeBet(
   const oddsRange = best.odds - worst.odds;
   
   // For player props, use sharp-ish consensus; for game lines, use traditional sharp books
-  const isPlayerProp = betOption.market === 'player_prop';
+  const isPlayerProp = betOption.betType === 'player_prop';
   
   let sharpConsensus: any = null;
   let propConsensus: any = null;
@@ -349,9 +363,11 @@ export async function analyzeBet(
   if (propConsensus) {
     // Use prop consensus (weighted average of sharp-ish books)
     trueProbability = propConsensus.trueProbability;
-    const impliedProbability = americanOddsToImpliedProbability(betOption.odds);
-    edge = (trueProbability! - impliedProbability) * 100;
-    expectedValue = calculateEV(trueProbability!, betOption.odds) * 100;
+    if (hasUserOdds) {
+      const impliedProbability = americanOddsToImpliedProbability(betOption.odds);
+      edge = (trueProbability! - impliedProbability) * 100;
+      expectedValue = calculateEV(trueProbability!, betOption.odds) * 100;
+    }
   } else if (sharpConsensus) {
     // Use traditional sharp book consensus
     if (sharpConsensus.opposingOdds !== null) {
@@ -361,18 +377,22 @@ export async function analyzeBet(
       trueProbability = americanOddsToImpliedProbability(sharpConsensus.odds);
     }
     
-    const impliedProbability = americanOddsToImpliedProbability(betOption.odds);
-    edge = (trueProbability - impliedProbability) * 100;
-    expectedValue = calculateEV(trueProbability, betOption.odds) * 100;
+    if (hasUserOdds) {
+      const impliedProbability = americanOddsToImpliedProbability(betOption.odds);
+      edge = (trueProbability - impliedProbability) * 100;
+      expectedValue = calculateEV(trueProbability, betOption.odds) * 100;
+    }
   } else {
     usingSoftFallback = true;
     const softBest = softOdds.length > 0 ? softOdds.reduce((a, b) => a.odds > b.odds ? a : b) : null;
     
     if (softBest) {
       trueProbability = americanOddsToImpliedProbability(softBest.odds);
-      const impliedProbability = americanOddsToImpliedProbability(betOption.odds);
-      edge = (trueProbability - impliedProbability) * 100;
-      expectedValue = calculateEV(trueProbability, betOption.odds) * 100;
+      if (hasUserOdds) {
+        const impliedProbability = americanOddsToImpliedProbability(betOption.odds);
+        edge = (trueProbability - impliedProbability) * 100;
+        expectedValue = calculateEV(trueProbability, betOption.odds) * 100;
+      }
     }
   }
 
@@ -398,16 +418,18 @@ export async function analyzeBet(
   // back to the implied probability from the user's odds.
   const probabilityForConfidence = trueProbability !== null
     ? trueProbability
-    : americanOddsToImpliedProbability(betOption.odds);
+    : (hasUserOdds ? americanOddsToImpliedProbability(betOption.odds) : null);
 
-  const confidence = calculateConfidence(
-    probabilityForConfidence,
-    edge,
-    oddsRange,
-    sharpOdds.length,
-    relevantOdds.length,
-    baseConfidence
-  );
+  const confidence = hasUserOdds
+    ? calculateConfidence(
+        probabilityForConfidence,
+        edge,
+        oddsRange,
+        sharpOdds.length,
+        relevantOdds.length,
+        baseConfidence
+      )
+    : 0;
   
   let marketEfficiency: 'efficient' | 'inefficient' | 'highly_inefficient';
   if (oddsRange <= 15) marketEfficiency = 'efficient';
@@ -436,6 +458,10 @@ export async function analyzeBet(
     best.odds,
     usingSoftFallback
   );
+
+  if (!hasUserOdds) {
+    warnings.push('NO_USER_PRICE');
+  }
   
   // NBA Stats Analysis Integration
   let nbaAnalysis: PropAnalysis | undefined;

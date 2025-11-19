@@ -314,16 +314,15 @@ function PicksPageInner() {
     setShowLineSelector(false)
     
     if (selectedPickForAnalysis) {
-      const useExistingOdds = Number.isNaN(selectedOdds)
-
       const updatedPick = {
         ...selectedPickForAnalysis,
         picks: {
           ...selectedPickForAnalysis.picks,
           line: selectedLine,
-          odds: useExistingOdds
-            ? selectedPickForAnalysis.picks.odds
-            : selectedOdds
+          // If the user did not enter odds, mark odds as 0 to indicate
+          // 'no user price provided' so the analysis engine can run
+          // stats-only logic without EV/edge/confidence.
+          odds: Number.isNaN(selectedOdds) ? 0 : selectedOdds
         }
       }
       setSelectedPickForAnalysis(updatedPick)
@@ -748,8 +747,14 @@ function PicksPageInner() {
                         {(() => {
                           const reasoning = (analysis as any).reasoning as string | undefined
 
+                          const warnings = (analysis.warnings || []) as string[]
+
+                          // If user didn't provide odds for an alt line, we can't compute EV/edge/confidence,
+                          // but we can still lean on stats (nbaAnalysis) for qualitative guidance.
+                          const noUserPrice = warnings.includes('NO_USER_PRICE')
+
                           // If stats failed (e.g. Render/proxy asleep -> 404), surface a clear retry CTA
-                          const statsWarning = (analysis.warnings || []).includes(
+                          const statsWarning = warnings.includes(
                             "Hmm... We weren't able to get stats for some reason."
                           )
 
@@ -981,7 +986,7 @@ function PicksPageInner() {
                           onClick={() => promptAlternateLineAnalysis(pick)}
                           className="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg hover:bg-blue-700 transition-colors text-sm"
                         >
-                          Analyze Alternate Line
+                          Analyze Alternate Line <span className="text-[10px] align-middle opacity-80">(beta)</span>
                         </button>
                       </div>
                     </div>
