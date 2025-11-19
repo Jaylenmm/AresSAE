@@ -754,68 +754,22 @@ function PicksPageInner() {
                             : `${pick.picks?.team || pick.picks?.selection}`
                           }
                         </p>
-                        <p className="text-sm text-gray-400 mb-3">
+                        <p className="text-sm text-blue-300 font-semibold italic tracking-wide uppercase mb-3">
                           {pick.picks?.player 
-                            ? `${pick.picks.selection} ${pick.picks.line} ${pick.picks.prop_type}`
-                            : `${pick.picks?.selection} ${pick.picks?.line || ''}`
+                            ? `${(pick.picks.selection || '').toUpperCase()} ${pick.picks.line} ${pick.picks.prop_type}`
+                            : `${(pick.picks?.selection || '').toUpperCase()} ${pick.picks?.line || ''}`
                           }
                         </p>
 
-                        <div className="flex gap-2 mb-3">
+                        <div className="flex flex-wrap items-center gap-2 mb-3">
                           <span className="text-white bg-gradient-to-r from-blue-900 to-blue-400 px-3 py-1.5 rounded-lg text-sm shadow-lg">
                             {pick.picks?.odds > 0 ? '+' : ''}{pick.picks?.odds}
                           </span>
                           <span className="text-white bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg text-sm font-semibold border border-white/20">
                             {getBookmakerDisplayName(pick.picks?.sportsbook || 'N/A')}
                           </span>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => deletePick(pick.id)}
-                        className="text-red-500 hover:text-red-700 transition-colors p-2"
-                        title="Delete pick"
-                      >
-                        <Trash2 size={20} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {analysis ? (
-                    <div className="border-t border-white/10 p-4 bg-black/30 backdrop-blur-sm">
-                      <div className="mb-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs text-gray-400">
-                            Latest Analysis: {new Date(analysis.timestamp).toLocaleString()}
-                          </span>
-                          {analysis.history && analysis.history.length > 1 && (
-                            <button
-                              onClick={() => toggleAnalysisHistory(pick.id)}
-                              className="text-xs text-blue-400 hover:text-blue-300 font-semibold"
-                            >
-                              {expandedAnalyses[pick.id] ? '▼' : '▶'} View History ({analysis.history.length})
-                            </button>
-                          )}
-                        </div>
-
-                        {analysis.analyzedLine && (
-                          <div className="text-xs text-blue-400 bg-blue-500/20 backdrop-blur-sm rounded-lg px-3 py-1.5 mb-2 inline-block border border-blue-500/30">
-                            Analyzed at line: {analysis.analyzedLine} ({analysis.analyzedOdds > 0 ? '+' : ''}{analysis.analyzedOdds})
-                          </div>
-                        )}
-
-                        {analysis.bestSportsbook && analysis.bestOdds && (
-                          <div className="text-xs text-gray-300 mb-3 flex flex-col gap-1">
-                            <div className="flex items-center justify-between gap-3">
-                              <div>
-                                <p className="font-semibold">Best in market:</p>
-                                <p>{analysis.bestOdds > 0 ? '+' : ''}{analysis.bestOdds} @ {getBookmakerDisplayName(analysis.bestSportsbook)}</p>
-                              </div>
-                            </div>
-                            <p className="text-[11px] text-gray-400">
-                              Analyzed at best odds in the market. Select your odds to see if you're getting value.
-                            </p>
-                            <div className="flex items-center gap-2 mt-1">
+                          {analysis.bestSportsbook && analysis.bestOdds && (
+                            <div className="flex items-center gap-2 ml-1">
                               <label className="text-[11px] text-gray-400">Shop odds:</label>
                               <select
                                 className="bg-gray-900 border border-white/15 rounded px-2 py-1 text-[11px] text-gray-100"
@@ -839,8 +793,23 @@ function PicksPageInner() {
                                 </option>
                               </select>
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => deletePick(pick.id)}
+                        className="text-red-500 hover:text-red-700 transition-colors p-2"
+                        title="Delete pick"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {analysis ? (
+                    <div className="border-t border-white/10 p-4 bg-black/30 backdrop-blur-sm">
+                      <div className="mb-3">
 
                         {/* Ares summary */}
                         {(() => {
@@ -854,7 +823,10 @@ function PicksPageInner() {
                           if (statsWarning) {
                             return (
                               <div className="text-sm text-gray-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 mb-3 border border-blue-500/30">
-                                <p className="mb-1 text-[13px] font-semibold italic">Ares Thinks:</p>
+                                <div className="flex items-center gap-2 mb-2">
+                                  <p className="text-[11px] font-semibold italic tracking-wide uppercase">Ares Thinks:</p>
+                                  <div className="flex-1 h-px bg-blue-400/60" />
+                                </div>
                                 <p className="text-[12px] text-gray-100 leading-relaxed">
                                   <span className="mr-1">Hmm... We weren't able to get stats for some reason.</span>
                                   <button
@@ -901,7 +873,10 @@ function PicksPageInner() {
 
                           return (
                             <div className="text-sm text-gray-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 mb-3 border border-blue-500/30">
-                              <p className="mb-1 text-[13px] font-semibold italic">Ares Thinks:</p>
+                              <div className="flex items-center gap-2 mb-2">
+                                <p className="text-[11px] font-semibold italic tracking-wide uppercase">Ares Thinks:</p>
+                                <div className="flex-1 h-px bg-blue-400/60" />
+                              </div>
                               <p className="text-[12px] text-gray-100 leading-relaxed">
                                 {summaryText}
                               </p>
