@@ -781,33 +781,56 @@ function PicksPageInner() {
                           // show the special alt-line summary. For standard analyses, fall back to the
                           // original reasoning/fallback behavior below.
                           if (nba && nba.simulation && nba.stats) {
-                            const line = pick.picks?.line
-                            const originalLine = (analysis as any).analyzedLine as number | undefined
+                            // For alt-line runs, the analysis snapshot stores the line that
+                            // was actually analyzed. Treat that as the "alternate" line, and
+                            // the current saved pick line as the original reference.
+                            const savedLine = pick.picks?.line
+                            const analyzedLine = (analysis as any).analyzedLine as number | undefined
                             const simMedian = nba.simulation.median as number | undefined
                             const hitRate = nba.stats.hitRate as number | undefined
 
                             const isAltLine =
-                              typeof originalLine === 'number' &&
-                              typeof line === 'number' &&
-                              originalLine !== line
+                              typeof analyzedLine === 'number' &&
+                              typeof savedLine === 'number' &&
+                              analyzedLine !== savedLine
 
                             if (isAltLine) {
-                              let statsSentence = ''
-                              if (typeof line === 'number' && typeof simMedian === 'number') {
-                                const diff = +(simMedian - line).toFixed(1)
+                              let summary = ''
+
+                              if (typeof analyzedLine === 'number' && typeof simMedian === 'number') {
+                                const diff = +(simMedian - analyzedLine).toFixed(1)
                                 const direction = diff === 0 ? 'right on' : diff > 0 ? 'above' : 'below'
                                 const magnitude = Math.abs(diff).toFixed(1)
 
-                                const baseLineText = `this alternate line of ${line.toFixed(1)} (your saved line was ${originalLine!.toFixed(1)})`
+                                const baseLineText = `this alternate line of ${analyzedLine.toFixed(1)} (your saved line was ${savedLine!.toFixed(1)})`
 
-                                statsSentence = `I ran the numbers at your alternate line and the sims cluster around ${simMedian.toFixed(1)}, which sits ${direction} ${baseLineText} by about ${magnitude} points.`
+                                summary = `The numbers cluster around ${simMedian.toFixed(1)}, which sits ${direction} ${baseLineText} by about ${magnitude} points.`
+
+                                // Turn the stats into a simple clear lean
+                                const sel = (pick.picks?.selection || '').toLowerCase()
+                                const isOver = sel.includes('over')
+                                const isUnder = sel.includes('under')
+
+                                let directionalMargin = diff
+                                if (isUnder) directionalMargin = -diff
+
+                                if (isOver || isUnder) {
+                                  if (directionalMargin >= 2) {
+                                    summary += ' For this side, the analysis suggests this is a comfortably safer alt than your original line.'
+                                  } else if (directionalMargin >= 0.5) {
+                                    summary += ' The analysis leans your way, but only slightly — this looks more like a solid, fair alt than a smash spot.'
+                                  } else {
+                                    summary += ' Here the stats are mostly against this side, so this alt plays more like a sweat than a safety net.'
+                                  }
+                                }
                               }
 
-                              const hitSentence = typeof hitRate === 'number'
-                                ? `At this alt line, the model has this hitting roughly ${hitRate.toFixed(1)}% of the time — much more about comfort and correlation than pure price.`
-                                : ''
+                              if (warnings.includes('NO_USER_PRICE')) {
+                                summary += summary ? ' ' : ''
+                                summary += 'Without exact odds, EV/edge/confidence are placeholders — treat this as stats-only guidance and pair it with your real price.'
+                              }
 
-                              const base = statsSentence || hitSentence
+                              const base = summary.trim()
                               if (base) {
                                 return (
                                   <div className="text-sm text-gray-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 mb-3 border border-blue-500/30">
