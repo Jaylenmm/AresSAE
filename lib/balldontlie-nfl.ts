@@ -82,8 +82,34 @@ export interface NflStatRow {
 }
 
 export async function searchNflPlayer(query: string): Promise<NflPlayer[]> {
-  const data = await nflFetch<{ data: NflPlayer[] }>('/players', { search: query })
-  return data.data || []
+  const trimmed = query.trim()
+  if (!trimmed) return []
+
+  // First, try full query
+  let data = await nflFetch<{ data: NflPlayer[] }>('/players', { search: trimmed })
+  let players = data.data || []
+
+  if (players.length > 0) return players
+
+  // If that fails, try last name only
+  const parts = trimmed.split(/\s+/)
+  if (parts.length > 1) {
+    const last = parts[parts.length - 1]
+    data = await nflFetch<{ data: NflPlayer[] }>('/players', { search: last })
+    players = data.data || []
+    if (players.length > 0) {
+      return players
+    }
+  }
+
+  // Finally, try first name only
+  const first = parts[0]
+  if (first && first.toLowerCase() !== trimmed.toLowerCase()) {
+    data = await nflFetch<{ data: NflPlayer[] }>('/players', { search: first })
+    players = data.data || []
+  }
+
+  return players || []
 }
 
 export async function getNflPlayerStats(options: {

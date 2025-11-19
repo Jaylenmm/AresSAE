@@ -12,22 +12,45 @@ export const maxDuration = 10
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const playerName = searchParams.get('player') || ''
+  const playerIdParam = searchParams.get('playerId')
   const lastParam = searchParams.get('last')
   const last = lastParam ? parseInt(lastParam, 10) : 5
 
-  if (!playerName) {
-    return NextResponse.json({ error: 'Player name required' }, { status: 400 })
+  if (!playerName && !playerIdParam) {
+    return NextResponse.json({ error: 'Player name or playerId required' }, { status: 400 })
   }
 
   try {
-    const players = await searchNflPlayer(playerName)
-    if (!players.length) {
-      return NextResponse.json({ error: 'Player not found' }, { status: 404 })
+    let playerId: number | null = null
+    let displayName = playerName
+    let displayTeam = 'NFL'
+
+    if (playerIdParam) {
+      const parsed = parseInt(playerIdParam, 10)
+      if (!Number.isFinite(parsed)) {
+        return NextResponse.json({ error: 'Invalid playerId' }, { status: 400 })
+      }
+      playerId = parsed
     }
 
-    const player = players[0]
+    let statsRows: NflStatRow[] = []
 
-    const statsRows = await getNflPlayerStats({ playerId: player.id, limit: 50 })
+    if (playerId !== null) {
+      statsRows = await getNflPlayerStats({ playerId, limit: 50 })
+    } else {
+      const players = await searchNflPlayer(playerName)
+      if (!players.length) {
+        return NextResponse.json({ error: 'Player not found' }, { status: 404 })
+      }
+
+      const player = players[0]
+      playerId = player.id
+      displayName = `${player.first_name} ${player.last_name}`
+      displayTeam = player.team?.abbreviation || 'NFL'
+
+      statsRows = await getNflPlayerStats({ playerId: player.id, limit: 50 })
+    }
+
     if (!statsRows.length) {
       return NextResponse.json({ error: 'No stats' }, { status: 404 })
     }
@@ -70,8 +93,8 @@ export async function GET(request: NextRequest) {
     })
 
     return NextResponse.json({
-      playerName: `${player.first_name} ${player.last_name}`,
-      team: player.team?.abbreviation || 'NFL',
+      playerName: displayName,
+      team: displayTeam,
       recentGames,
     })
   } catch (error: any) {
