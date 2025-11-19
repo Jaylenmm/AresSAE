@@ -775,7 +775,7 @@ function PicksPageInner() {
                           <span className="text-white bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg text-sm font-semibold border border-white/20">
                             {getBookmakerDisplayName(pick.picks?.sportsbook || 'N/A')}
                           </span>
-                          {analysis.bestSportsbook && analysis.bestOdds && (
+                          {analysis && analysis.bestSportsbook && analysis.bestOdds && (
                             <div className="flex items-center gap-2 ml-1">
                               <label className="text-[11px] text-gray-400">Shop odds:</label>
                               <select
