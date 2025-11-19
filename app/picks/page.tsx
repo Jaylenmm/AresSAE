@@ -754,7 +754,7 @@ function PicksPageInner() {
                             : `${pick.picks?.team || pick.picks?.selection}`
                           }
                         </p>
-                        <p className="text-sm text-blue-300 font-semibold italic tracking-wide uppercase mb-3">
+                        <p className="text-sm text-blue-400 font-semibold italic tracking-wide uppercase mb-3">
                           {pick.picks?.player 
                             ? `${(pick.picks.selection || '').toUpperCase()} ${pick.picks.line} ${pick.picks.prop_type}`
                             : `${(pick.picks?.selection || '').toUpperCase()} ${pick.picks?.line || ''}`
@@ -824,7 +824,7 @@ function PicksPageInner() {
                             return (
                               <div className="text-sm text-gray-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 mb-3 border border-blue-500/30">
                                 <div className="flex items-center gap-2 mb-2">
-                                  <p className="text-[11px] font-semibold italic tracking-wide uppercase">Ares Thinks:</p>
+                                  <p className="text-[20px] text-blue-400 font-semibold italic tracking-wide uppercase">Ares Thinks:</p>
                                   <div className="flex-1 h-px bg-blue-400/60" />
                                 </div>
                                 <p className="text-[12px] text-gray-100 leading-relaxed">
@@ -874,7 +874,7 @@ function PicksPageInner() {
                           return (
                             <div className="text-sm text-gray-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 mb-3 border border-blue-500/30">
                               <div className="flex items-center gap-2 mb-2">
-                                <p className="text-[11px] font-semibold italic tracking-wide uppercase">Ares Thinks:</p>
+                                <p className="text-[20px] text-blue-400 font-semibold italic tracking-wide uppercase">Ares Thinks:</p>
                                 <div className="flex-1 h-px bg-blue-400/60" />
                               </div>
                               <p className="text-[12px] text-gray-100 leading-relaxed">
