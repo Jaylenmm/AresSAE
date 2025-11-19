@@ -73,7 +73,7 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
           }
         } else if (sport === 'football') {
           const response = await fetch(
-            `/api/espn-stats?player=${encodeURIComponent(playerName)}&sport=nfl`,
+            `/api/nfl-stats?player=${encodeURIComponent(playerName)}`,
             { signal: controller.signal }
           )
 
