@@ -423,7 +423,7 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
           <div className="overflow-x-auto -mx-4 px-4 touch-pan-x [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-blue-500 [&::-webkit-scrollbar-thumb]:rounded-full [scrollbar-color:rgb(59_130_246)_transparent]">
             {(() => {
               const firstGame = nflGameLogs[0]
-              const statKeys = Object.keys(firstGame.stats || {}).slice(0, 8)
+              const statKeys = Object.keys(firstGame.stats || {})
 
               return (
                 <table className="w-full text-xs sm:text-sm min-w-[600px]">

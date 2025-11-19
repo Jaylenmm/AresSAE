@@ -124,10 +124,12 @@ export async function getNflPlayerStats(options: {
     per_page: limit,
   }
 
-  if (seasons && seasons.length > 0) {
-    // Use the first season for now; can be extended later if needed.
-    params['seasons[]'] = seasons[0]
-  }
+  const effectiveSeasons = seasons && seasons.length > 0
+    ? seasons
+    : [new Date().getFullYear()]
+
+  // Use the first season for now; can be extended later if needed.
+  params['seasons[]'] = effectiveSeasons[0]
 
   const data = await nflFetch<{ data: NflStatRow[] }>('/stats', params)
   return data.data || []
