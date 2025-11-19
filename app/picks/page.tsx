@@ -804,34 +804,6 @@ function PicksPageInner() {
                           </div>
                         )}
 
-                        <div className="grid grid-cols-3 gap-2 mb-3">
-                          <div className="bg-white/5 backdrop-blur-sm rounded-lg p-3 text-center border border-white/10">
-                            <p className="text-xs text-gray-200">EV ($/1)</p>
-                            <p className={`font-bold ${((analysis.expectedValue ?? 0) / 100) > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {analysis.expectedValue !== undefined && analysis.expectedValue !== null 
-                                ? `${(((analysis.expectedValue) / 100) > 0 ? '+' : '')}$${((analysis.expectedValue) / 100).toFixed(2)}` 
-                                : '$0.00'}
-                            </p>
-                          </div>
-                          <div className="bg-white/5 backdrop-blur-sm rounded-lg p-3 text-center border border-white/10">
-                            <p className="text-xs text-gray-200">Edge</p>
-                            <p className={`font-bold ${(analysis.edge ?? 0) > 0 ? 'text-green-400' : 'text-gray-200'}`}>
-                              {analysis.edge !== undefined && analysis.edge !== null 
-                                ? `${analysis.edge > 0 ? '+' : ''}${analysis.edge}%` 
-                                : '0%'}
-                            </p>
-                          </div>
-                          <div className="bg-white/5 backdrop-blur-sm rounded-lg p-3 text-center border border-white/10">
-                            <p className="text-xs text-gray-200">Confidence</p>
-                            <p className="font-bold text-white">
-                              {analysis.confidence ?? 0}%
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* VALUE METER - REPLACES "NO EDGE" BADGE */}
-                        <ValueMeter edge={analysis.edge ?? 0} />
-
                         {analysis.bestSportsbook && analysis.bestOdds && (
                           <div className="text-xs text-gray-300 mb-3 flex flex-col gap-1">
                             <div className="flex items-center justify-between gap-3">
@@ -881,9 +853,9 @@ function PicksPageInner() {
 
                           if (statsWarning) {
                             return (
-                              <div className="text-xs text-gray-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 mb-2 border border-blue-500/30">
-                                <p className="font-semibold mb-1">Ares thinks:</p>
-                                <p className="text-[11px] text-gray-100">
+                              <div className="text-sm text-gray-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 mb-3 border border-blue-500/30">
+                                <p className="mb-1 text-[13px] font-semibold italic">Ares Thinks:</p>
+                                <p className="text-[12px] text-gray-100 leading-relaxed">
                                   <span className="mr-1">Hmm... We weren't able to get stats for some reason.</span>
                                   <button
                                     type="button"
@@ -928,9 +900,9 @@ function PicksPageInner() {
                           if (!summaryText) return null
 
                           return (
-                            <div className="text-xs text-gray-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 mb-2 border border-blue-500/30">
-                              <p className="font-semibold mb-1">Ares thinks:</p>
-                              <p className="text-[11px] text-gray-100">
+                            <div className="text-sm text-gray-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 mb-3 border border-blue-500/30">
+                              <p className="mb-1 text-[13px] font-semibold italic">Ares Thinks:</p>
+                              <p className="text-[12px] text-gray-100 leading-relaxed">
                                 {summaryText}
                               </p>
                             </div>
@@ -999,6 +971,37 @@ function PicksPageInner() {
                             </div>
                           )
                         })()}
+
+                        {/* Core value diagnostics (EV / Edge / Confidence + Value Meter) */}
+                        <div className="mt-3">
+                          <div className="grid grid-cols-3 gap-2 mb-3">
+                            <div className="bg-white/5 backdrop-blur-sm rounded-lg p-3 text-center border border-white/10">
+                              <p className="text-xs text-gray-200">EV ($/1)</p>
+                              <p className={`font-bold ${((analysis.expectedValue ?? 0) / 100) > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {analysis.expectedValue !== undefined && analysis.expectedValue !== null 
+                                  ? `${(((analysis.expectedValue) / 100) > 0 ? '+' : '')}$${((analysis.expectedValue) / 100).toFixed(2)}` 
+                                  : '$0.00'}
+                              </p>
+                            </div>
+                            <div className="bg-white/5 backdrop-blur-sm rounded-lg p-3 text-center border border-white/10">
+                              <p className="text-xs text-gray-200">Edge</p>
+                              <p className={`font-bold ${(analysis.edge ?? 0) > 0 ? 'text-green-400' : 'text-gray-200'}`}>
+                                {analysis.edge !== undefined && analysis.edge !== null 
+                                  ? `${analysis.edge > 0 ? '+' : ''}${analysis.edge}%` 
+                                  : '0%'}
+                              </p>
+                            </div>
+                            <div className="bg-white/5 backdrop-blur-sm rounded-lg p-3 text-center border border-white/10">
+                              <p className="text-xs text-gray-200">Confidence</p>
+                              <p className="font-bold text-white">
+                                {analysis.confidence ?? 0}%
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* VALUE METER - REPLACES "NO EDGE" BADGE */}
+                          <ValueMeter edge={analysis.edge ?? 0} />
+                        </div>
                       </div>
 
                       {expandedAnalyses[pick.id] && analysis.history && analysis.history.length > 1 && (
