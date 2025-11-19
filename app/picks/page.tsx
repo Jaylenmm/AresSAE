@@ -290,125 +290,40 @@ function PicksPageInner() {
 
   async function promptAlternateLineAnalysis(pick: UserPick) {
     setSelectedPickForAnalysis(pick)
-    
+
     const game = pick.picks?.game_id ? games[pick.picks.game_id] : null
-    
+
     if (!game) {
       alert('Cannot analyze - game data not found')
       return
     }
 
-    if (pick.picks.player && pick.picks.prop_type) {
-      const params = new URLSearchParams()
-      params.set('game_ids', game.id)
-      params.set('limit', '200')
-      params.set('strict', '1')
-      const resp = await fetch(`/api/featured-props?${params.toString()}`)
-      const json = await resp.json().catch(() => ({ props: [] }))
-      const allLines = Array.isArray(json?.props) ? (json.props as PlayerProp[]) : []
-      const filtered = allLines
-        .filter(l => l.player_name === pick.picks.player && l.prop_type === pick.picks.prop_type)
-        .sort((a, b) => a.line - b.line)
-
-      if (filtered.length > 1) {
-        const formattedLines: AlternateLine[] = filtered.map(line => ({
-          line: line.line,
-          over_odds: line.over_odds,
-          under_odds: line.under_odds,
-          sportsbook: line.sportsbook,
-          is_alternate: (line as any).is_alternate || false
-        }))
-        setAvailableLines(formattedLines)
-        setShowLineSelector(true)
-        return
-      } else {
-        alert('No alternate lines available for this prop')
-        return
-      }
-    } 
-    
-    const { data: oddsData } = await supabase
-      .from('odds_data_v2')
-      .select('*')
-      .eq('game_id', game.id)
-
-    if (!oddsData || oddsData.length === 0) {
-      alert('No odds data available')
-      return
-    }
-
     const selection = pick.picks.selection?.toLowerCase() || ''
-    const isSpread = pick.picks.team && pick.picks.line && !selection.includes('over') && !selection.includes('under')
-    const isTotal = selection.includes('over') || selection.includes('under')
     const isMoneyline = pick.picks.team && !pick.picks.line
-    
+
     if (isMoneyline) {
       alert('Moneyline bets do not have alternate lines')
       return
     }
-    
-    const uniqueLinesMap = new Map<string, AlternateLine>()
-    
-    if (isSpread) {
-      oddsData.forEach(odds => {
-        if (odds.spread_home !== null && odds.spread_away !== null) {
-          const isHome = pick.picks.team === game.home_team
-          const line = isHome ? odds.spread_home : odds.spread_away
-          const oddsValue = isHome ? odds.spread_home_odds : odds.spread_away_odds
-          
-          const absLine = Math.abs(line)
-          const key = `${absLine}-${oddsValue}-${odds.sportsbook}`
-          
-          if (!uniqueLinesMap.has(key)) {
-            uniqueLinesMap.set(key, {
-              line: absLine,
-              over_odds: line < 0 ? oddsValue : null,
-              under_odds: line > 0 ? oddsValue : null,
-              sportsbook: odds.sportsbook,
-              is_alternate: odds.is_alternate || false
-            })
-          }
-        }
-      })
-    } else if (isTotal) {
-      oddsData.forEach(odds => {
-        if (odds.total !== null && odds.over_odds !== null && odds.under_odds !== null) {
-          const key = `${odds.total}-${odds.over_odds}-${odds.under_odds}-${odds.sportsbook}`
-          
-          if (!uniqueLinesMap.has(key)) {
-            uniqueLinesMap.set(key, {
-              line: odds.total,
-              over_odds: odds.over_odds,
-              under_odds: odds.under_odds,
-              sportsbook: odds.sportsbook,
-              is_alternate: odds.is_alternate || false
-            })
-          }
-        }
-      })
-    }
 
-    const uniqueLines = Array.from(uniqueLinesMap.values())
-      .sort((a, b) => a.line - b.line)
-
-    if (uniqueLines.length > 1) {
-      setAvailableLines(uniqueLines)
-      setShowLineSelector(true)
-    } else {
-      alert('No alternate lines available')
-    }
+    // Open simple input modal for user-defined alternate line/odds
+    setShowLineSelector(true)
   }
 
   function handleLineSelected(selectedLine: number, selectedOdds: number) {
     setShowLineSelector(false)
     
     if (selectedPickForAnalysis) {
+      const useExistingOdds = Number.isNaN(selectedOdds)
+
       const updatedPick = {
         ...selectedPickForAnalysis,
         picks: {
           ...selectedPickForAnalysis.picks,
           line: selectedLine,
-          odds: selectedOdds
+          odds: useExistingOdds
+            ? selectedPickForAnalysis.picks.odds
+            : selectedOdds
         }
       }
       setSelectedPickForAnalysis(updatedPick)
@@ -1121,7 +1036,6 @@ function PicksPageInner() {
                   : 'spread' as const
           }
           currentLine={selectedPickForAnalysis.picks.line || 0}
-          availableLines={availableLines}
           onSelectLine={handleLineSelected}
           onClose={() => {
             setShowLineSelector(false)
