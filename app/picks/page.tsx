@@ -777,40 +777,53 @@ function PicksPageInner() {
                             )
                           }
 
-                          // When NBA stats are available, lead with a clear stats-based summary
+                          // When NBA stats are available AND this is a true alternate-line analysis,
+                          // show the special alt-line summary. For standard analyses, fall back to the
+                          // original reasoning/fallback behavior below.
                           if (nba && nba.simulation && nba.stats) {
                             const line = pick.picks?.line
+                            const originalLine = (analysis as any).analyzedLine as number | undefined
                             const simMedian = nba.simulation.median as number | undefined
                             const hitRate = nba.stats.hitRate as number | undefined
 
-                            let statsSentence = ''
-                            if (typeof line === 'number' && typeof simMedian === 'number') {
-                              const diff = +(simMedian - line).toFixed(1)
-                              const direction = diff === 0 ? 'right on' : diff > 0 ? 'above' : 'below'
-                              const magnitude = Math.abs(diff).toFixed(1)
-                              statsSentence = `Simulation median is ${simMedian.toFixed(1)}, which is ${direction} your line of ${line.toFixed(1)} by ${magnitude} points.`
-                            }
+                            const isAltLine =
+                              typeof originalLine === 'number' &&
+                              typeof line === 'number' &&
+                              originalLine !== line
 
-                            const hitSentence = typeof hitRate === 'number'
-                              ? `Our model sees this hitting about ${hitRate.toFixed(1)}% of the time at this line.`
-                              : ''
+                            if (isAltLine) {
+                              let statsSentence = ''
+                              if (typeof line === 'number' && typeof simMedian === 'number') {
+                                const diff = +(simMedian - line).toFixed(1)
+                                const direction = diff === 0 ? 'right on' : diff > 0 ? 'above' : 'below'
+                                const magnitude = Math.abs(diff).toFixed(1)
 
-                            const base = statsSentence || hitSentence
-                            if (base) {
-                              return (
-                                <div className="text-sm text-gray-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 mb-3 border border-blue-500/30">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <p className="text-[16px] text-blue-400 font-semibold italic tracking-wide uppercase">Ares Thinks:</p>
-                                    <div className="flex-1 h-px bg-blue-400/60" />
+                                const baseLineText = `this alternate line of ${line.toFixed(1)} (your saved line was ${originalLine!.toFixed(1)})`
+
+                                statsSentence = `I ran the numbers at your alternate line and the sims cluster around ${simMedian.toFixed(1)}, which sits ${direction} ${baseLineText} by about ${magnitude} points.`
+                              }
+
+                              const hitSentence = typeof hitRate === 'number'
+                                ? `At this alt line, the model has this hitting roughly ${hitRate.toFixed(1)}% of the time — much more about comfort and correlation than pure price.`
+                                : ''
+
+                              const base = statsSentence || hitSentence
+                              if (base) {
+                                return (
+                                  <div className="text-sm text-gray-300 bg-blue-500/20 backdrop-blur-sm rounded-lg p-3 mb-3 border border-blue-500/30">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <p className="text-[16px] text-blue-400 font-semibold italic tracking-wide uppercase">Ares Thinks:</p>
+                                      <div className="flex-1 h-px bg-blue-400/60" />
+                                    </div>
+                                    <p className="text-[12px] text-gray-100 leading-relaxed">
+                                      {base}{' '}
+                                      {!warnings.includes('NO_USER_PRICE') && analysis.edge !== 0 && (
+                                        <>Based on your price, this works out to {analysis.edge > 0 ? '+' : ''}{analysis.edge}% edge.</>
+                                      )}
+                                    </p>
                                   </div>
-                                  <p className="text-[12px] text-gray-100 leading-relaxed">
-                                    {base}{' '}
-                                    {!warnings.includes('NO_USER_PRICE') && analysis.edge !== 0 && (
-                                      <>Based on your price, this works out to {analysis.edge > 0 ? '+' : ''}{analysis.edge}% edge.</>
-                                    )}
-                                  </p>
-                                </div>
-                              )
+                                )
+                              }
                             }
                           }
 
