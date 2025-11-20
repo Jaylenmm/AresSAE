@@ -169,7 +169,8 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
     
     // Football keywords
     if (lowerProp.includes('pass') || lowerProp.includes('rush') || lowerProp.includes('reception') || 
-        lowerProp.includes('touchdown') || lowerProp.includes('yard') || lowerProp.includes('completion') ||
+        lowerProp.includes('touchdown') || lowerProp.includes('td') || lowerProp.includes('anytime') ||
+        lowerProp.includes('yard') || lowerProp.includes('completion') ||
         lowerProp.includes('interception') || lowerProp.includes('sack')) {
       return 'football'
     }
@@ -423,7 +424,24 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
           <div className="overflow-x-auto -mx-4 px-4 touch-pan-x [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-blue-500 [&::-webkit-scrollbar-thumb]:rounded-full [scrollbar-color:rgb(59_130_246)_transparent]">
             {(() => {
               const firstGame = nflGameLogs[0]
-              const statKeys = Object.keys(firstGame.stats || {})
+              const rawKeys = Object.keys(firstGame.stats || {})
+
+              const labelMap: Record<string, string> = {
+                passing_completions: 'COMP',
+                passing_attempts: 'ATT',
+                passing_yards: 'YDS',
+                yards_per_pass_attempt: 'AVG',
+                passing_touchdowns: 'TD',
+                passing_interceptions: 'INT',
+                qb_rating: 'RATE',
+                rushing_attempts: 'RUSH ATT',
+                rushing_yards: 'RUSH YDS',
+                yards_per_rush_attempt: 'RUSH AVG',
+                rushing_touchdowns: 'RUSH TD',
+                long_rushing: 'RUSH LONG',
+              }
+
+              const statKeys = rawKeys.filter(k => k.toLowerCase() !== 'qbr')
 
               return (
                 <table className="w-full text-xs sm:text-sm min-w-[600px]">
@@ -431,14 +449,18 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
                     <tr className="border-b border-white/10">
                       <th className="text-left py-2 px-2 text-gray-400 font-semibold sticky left-0 bg-black/30 backdrop-blur-sm z-20 min-w-[60px] shadow-[4px_0_8px_rgba(0,0,0,0.5)]">Date</th>
                       <th className="text-left py-2 px-2 text-blue-400 font-semibold sticky left-[60px] bg-black/30 backdrop-blur-sm z-20 min-w-[70px] shadow-[4px_0_8px_rgba(0,0,0,0.5)]">Opp</th>
-                      {statKeys.map(key => (
-                        <th
-                          key={key}
-                          className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap"
-                        >
-                          {key.toUpperCase()}
-                        </th>
-                      ))}
+                      {statKeys.map(key => {
+                        const lower = key.toLowerCase()
+                        const label = labelMap[lower] || key.toUpperCase()
+                        return (
+                          <th
+                            key={key}
+                            className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap"
+                          >
+                            {label}
+                          </th>
+                        )
+                      })}
                     </tr>
                   </thead>
                   <tbody>
