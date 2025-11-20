@@ -423,7 +423,56 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
           <div className="overflow-x-auto -mx-4 px-4 touch-pan-x [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-blue-500 [&::-webkit-scrollbar-thumb]:rounded-full [scrollbar-color:rgb(59_130_246)_transparent]">
             {(() => {
               const firstGame = nflGameLogs[0]
-              const statKeys = Object.keys(firstGame.stats || {}).slice(0, 8)
+              const allKeys = Object.keys(firstGame.stats || {})
+
+              const preferredOrder = [
+                'rushing_attempts',
+                'rushing_yards',
+                'rushing_touchdowns',
+                'receptions',
+                'receiving_yards',
+                'receiving_touchdowns',
+                'targets',
+                'passing_completions',
+                'passing_attempts',
+                'passing_yards',
+                'passing_touchdowns',
+                'interceptions',
+              ]
+
+              const isRelevantOffensiveKey = (key: string) => {
+                const lower = key.toLowerCase()
+                if (lower.includes('punt')) return false
+                if (lower.includes('field_goal') || lower.includes('fg')) return false
+                if (lower.includes('extra_point') || lower === 'xp' || lower.includes('pat')) return false
+                if (lower.includes('kickoff')) return false
+                if (lower.includes('return') && !lower.includes('touchdown')) return false
+                return (
+                  lower.includes('rush') ||
+                  lower.includes('receiv') ||
+                  lower.includes('reception') ||
+                  lower.includes('target') ||
+                  lower.includes('pass') ||
+                  lower.includes('touchdown') ||
+                  lower === 'interceptions' ||
+                  lower === 'fumbles_lost'
+                )
+              }
+
+              const relevantKeys = allKeys.filter(isRelevantOffensiveKey)
+
+              const statKeys = (
+                (relevantKeys.length ? relevantKeys : allKeys)
+                  .sort((a, b) => {
+                    const ia = preferredOrder.indexOf(a)
+                    const ib = preferredOrder.indexOf(b)
+                    if (ia === -1 && ib === -1) return a.localeCompare(b)
+                    if (ia === -1) return 1
+                    if (ib === -1) return -1
+                    return ia - ib
+                  })
+                  .slice(0, 8)
+              )
 
               return (
                 <table className="w-full text-xs sm:text-sm min-w-[600px]">

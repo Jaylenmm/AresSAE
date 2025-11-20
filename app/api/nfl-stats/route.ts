@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { searchNflPlayer, getNflPlayerStats, type NflStatRow } from '@/lib/balldontlie-nfl'
+import { searchNflPlayer, getNflPlayerStats, type NflStatRow, type NflPlayer } from '@/lib/balldontlie-nfl'
 
 interface NflRecentGame {
   gameDate: string
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Player not found' }, { status: 404 })
       }
 
-      const player = players[0]
+      const player = pickBestNflPlayerMatch(players)
       playerId = player.id
       displayName = `${player.first_name} ${player.last_name}`
       displayTeam = player.team?.abbreviation || 'NFL'
@@ -101,4 +101,26 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching NFL stats:', error)
     return NextResponse.json({ error: 'NFL_STATS_ERROR', message: error?.message }, { status: 500 })
   }
+}
+
+function pickBestNflPlayerMatch(players: NflPlayer[]): NflPlayer {
+  if (players.length === 1) return players[0]
+
+  const nonSpecialPositions = new Set(['QB', 'RB', 'FB', 'WR', 'TE', 'LB', 'CB', 'S', 'DL', 'DE', 'DT'])
+  const specialPositions = new Set(['K', 'P', 'PK'])
+
+  const scored = players.map((p) => {
+    const pos = (p.position_abbreviation || p.position || '').toUpperCase()
+    let score = 0
+
+    if (!pos) score += 5
+    if (nonSpecialPositions.has(pos)) score += 20
+    if (specialPositions.has(pos)) score -= 20
+    if (p.team?.abbreviation) score += 3
+
+    return { player: p, score }
+  })
+
+  scored.sort((a, b) => b.score - a.score)
+  return scored[0].player
 }
