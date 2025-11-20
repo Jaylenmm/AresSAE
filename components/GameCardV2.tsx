@@ -206,7 +206,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
 
       {/* Away Team Row */}
       <div className="flex justify-between items-center mb-4">
-        <span className="font-bold text-white text-lg sm:text-xl md:text-2xl flex-1 pr-2">{game.away_team}</span>
+        <span className="font-bold text-white text-sm sm:text-base md:text-lg flex-1 pr-2">{game.away_team}</span>
         <div className="flex gap-1.5 sm:gap-2">
           {/* Spread */}
           {(() => {
@@ -216,7 +216,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
                 onClick={(e) => handlePickClick('spread', game.away_team, bestSpread.spread_away_odds!, bestSpread.sportsbook, bestSpread.spread_away!, e)}
                 className={buttonClass}
               >
-                <span className="text-base sm:text-lg font-bold">{bestSpread.spread_away > 0 ? '+' : ''}{bestSpread.spread_away}</span>
+                <span className="text-sm sm:text-base font-bold">{bestSpread.spread_away > 0 ? '+' : ''}{bestSpread.spread_away}</span>
                 <span className="text-[10px] sm:text-xs text-gray-300 mt-0.5">({bestSpread.spread_away_odds > 0 ? '+' : ''}{bestSpread.spread_away_odds})</span>
               </button>
             )
@@ -231,7 +231,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
                 className={buttonClass}
               >
                 <span className="text-[10px] sm:text-xs text-gray-400 uppercase">ML</span>
-                <span className="text-base sm:text-lg font-bold">{bestML.moneyline_away > 0 ? '+' : ''}{bestML.moneyline_away}</span>
+                <span className="text-sm sm:text-base font-bold">{bestML.moneyline_away > 0 ? '+' : ''}{bestML.moneyline_away}</span>
               </button>
             )
           })()}
@@ -244,7 +244,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
                 onClick={(e) => handlePickClick('over', game.away_team, bestOver.over_odds!, bestOver.sportsbook, bestOver.total!, e)}
                 className={buttonClass}
               >
-                <span className="text-base sm:text-lg font-bold">O {bestOver.total}</span>
+                <span className="text-sm sm:text-base font-bold">O {bestOver.total}</span>
                 <span className="text-[10px] sm:text-xs text-gray-300 mt-0.5">({bestOver.over_odds > 0 ? '+' : ''}{bestOver.over_odds})</span>
               </button>
             )
@@ -254,7 +254,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
 
       {/* Home Team Row */}
       <div className="flex justify-between items-center mb-5">
-        <span className="font-bold text-white text-lg sm:text-xl md:text-2xl flex-1 pr-2">{game.home_team}</span>
+        <span className="font-bold text-white text-sm sm:text-base md:text-lg flex-1 pr-2">{game.home_team}</span>
         <div className="flex gap-1.5 sm:gap-2">
           {/* Spread */}
           {(() => {
@@ -264,7 +264,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
                 onClick={(e) => handlePickClick('spread', game.home_team, bestSpread.spread_home_odds!, bestSpread.sportsbook, bestSpread.spread_home!, e)}
                 className={buttonClass}
               >
-                <span className="text-base sm:text-lg font-bold">{bestSpread.spread_home > 0 ? '+' : ''}{bestSpread.spread_home}</span>
+                <span className="text-sm sm:text-base font-bold">{bestSpread.spread_home > 0 ? '+' : ''}{bestSpread.spread_home}</span>
                 <span className="text-[10px] sm:text-xs text-gray-300 mt-0.5">({bestSpread.spread_home_odds > 0 ? '+' : ''}{bestSpread.spread_home_odds})</span>
               </button>
             )
@@ -279,7 +279,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
                 className={buttonClass}
               >
                 <span className="text-[10px] sm:text-xs text-gray-400 uppercase">ML</span>
-                <span className="text-base sm:text-lg font-bold">{bestML.moneyline_home > 0 ? '+' : ''}{bestML.moneyline_home}</span>
+                <span className="text-sm sm:text-base font-bold">{bestML.moneyline_home > 0 ? '+' : ''}{bestML.moneyline_home}</span>
               </button>
             )
           })()}
@@ -292,7 +292,7 @@ export default function GameCardV2({ game, odds }: GameCardV2Props) {
                 onClick={(e) => handlePickClick('under', game.home_team, bestUnder.under_odds!, bestUnder.sportsbook, bestUnder.total!, e)}
                 className={buttonClass}
               >
-                <span className="text-base sm:text-lg font-bold">U {bestUnder.total}</span>
+                <span className="text-sm sm:text-base font-bold">U {bestUnder.total}</span>
                 <span className="text-[10px] sm:text-xs text-gray-300 mt-0.5">({bestUnder.under_odds > 0 ? '+' : ''}{bestUnder.under_odds})</span>
               </button>
             )

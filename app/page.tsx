@@ -127,7 +127,7 @@ export default function Home() {
                   key={sport.key}
                   onClick={() => setSelectedSport(sport.key)}
                   data-sport={sport.key}
-                  className="relative whitespace-nowrap text-2xl sm:text-3xl font-bold italic border-none focus:outline-none transition-colors duration-200"
+                  className="relative whitespace-nowrap text-xl sm:text-2xl font-bold italic border-none focus:outline-none transition-colors duration-200"
                   style={{ background: 'transparent', padding: '0.25rem 0', border: 'none' }}
                 >
                   <span className={`px-1 ${labelColorClass}`}>{sport.label}</span>
