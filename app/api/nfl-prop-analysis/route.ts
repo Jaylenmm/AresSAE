@@ -38,11 +38,7 @@ export async function GET(request: NextRequest) {
     const nflPlayer = pickBestNflPlayerMatch(players)
 
     const currentYear = new Date().getFullYear()
-    let statsRows = await getNflPlayerStats({ playerId: nflPlayer.id, seasons: [currentYear], limit: 50 })
-    if (!statsRows.length) {
-      // Fallback to previous season if current has no logs yet
-      statsRows = await getNflPlayerStats({ playerId: nflPlayer.id, seasons: [currentYear - 1], limit: 50 })
-    }
+    const statsRows = await getNflPlayerStats({ playerId: nflPlayer.id, seasons: [currentYear], limit: 50 })
 
     if (!statsRows.length) {
       return NextResponse.json({ error: 'No stats' }, { status: 404 })

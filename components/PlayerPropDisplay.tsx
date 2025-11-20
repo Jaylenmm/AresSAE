@@ -475,23 +475,37 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
               )
 
               return (
-                <table className="w-full text-xs sm:text-sm min-w-[600px]">
+                <table className="w-full text-xs sm:text-[11px] min-w-[520px]">
                   <thead>
                     <tr className="border-b border-white/10">
                       <th className="text-left py-2 px-2 text-gray-400 font-semibold sticky left-0 bg-black/30 backdrop-blur-sm z-20 min-w-[60px] shadow-[4px_0_8px_rgba(0,0,0,0.5)]">Date</th>
-                      <th className="text-left py-2 px-2 text-blue-400 font-semibold sticky left-[60px] bg-black/30 backdrop-blur-sm z-20 min-w-[70px] shadow-[4px_0_8px_rgba(0,0,0,0.5)]">Opp</th>
-                      {statKeys.map(key => (
-                        <th
-                          key={key}
-                          className="text-center py-1.5 sm:py-2 px-1 sm:px-2 text-gray-400 font-semibold whitespace-nowrap"
-                        >
-                          {key.toUpperCase()}
-                        </th>
-                      ))}
+                      <th className="text-left py-2 px-2 text-blue-400 font-semibold sticky left-[60px] bg-black/30 backdrop-blur-sm z-20 min-w-[56px] shadow-[4px_0_8px_rgba(0,0,0,0.5)]">Opp</th>
+                      {statKeys.map(key => {
+                        const upper = key.toUpperCase()
+                        let label = upper
+
+                        if (upper === 'RUSHING_ATTEMPTS') label = 'RUSH ATT'
+                        else if (upper === 'RUSHING_YARDS') label = 'RUSH YDS'
+                        else if (upper === 'RUSHING_TOUCHDOWNS') label = 'RUSH TD'
+                        else if (upper === 'RECEPTIONS') label = 'REC'
+                        else if (upper === 'RECEIVING_YARDS') label = 'REC YDS'
+                        else if (upper === 'RECEIVING_TOUCHDOWNS') label = 'REC TD'
+                        else if (upper === 'LONG_RECEPTION') label = 'REC LONG'
+                        else if (upper === 'LONG_RUSHING') label = 'RUSH LONG'
+
+                        return (
+                          <th
+                            key={key}
+                            className="text-center py-1.5 sm:py-1.5 px-1 sm:px-1.5 text-gray-400 font-semibold whitespace-nowrap min-w-[44px]"
+                          >
+                            {label}
+                          </th>
+                        )
+                      })}
                     </tr>
                   </thead>
                   <tbody>
-                    {nflGameLogs.map((game, index) => {
+                  {nflGameLogs.map((game, index) => {
                       const date = game.gameDate ? new Date(game.gameDate) : null
                       const formattedDate = date && !Number.isNaN(date.getTime())
                         ? `${date.getMonth() + 1}/${date.getDate()}`
@@ -504,7 +518,7 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
                           {statKeys.map(key => (
                             <td
                               key={key}
-                              className="py-1.5 sm:py-2 px-1 sm:px-2 text-center text-white whitespace-nowrap"
+                              className="py-1.5 sm:py-1.5 px-1 sm:px-1.5 text-center text-white whitespace-nowrap"
                             >
                               {game.stats[key] ?? 0}
                             </td>

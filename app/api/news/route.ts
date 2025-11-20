@@ -24,7 +24,8 @@ export async function GET(request: Request) {
     // Parse RSS XML to extract articles
     const articles = parseRSS(xmlData)
 
-    return NextResponse.json({ articles: articles.slice(0, 5) })
+    // Only return the three most recent articles
+    return NextResponse.json({ articles: articles.slice(0, 3) })
   } catch (error) {
     console.error('Error fetching ESPN news:', error)
     return NextResponse.json({ articles: [] })

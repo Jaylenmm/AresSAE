@@ -34,9 +34,10 @@ export async function GET(request: NextRequest) {
     }
 
     let statsRows: NflStatRow[] = []
+    const currentYear = new Date().getFullYear()
 
     if (playerId !== null) {
-      statsRows = await getNflPlayerStats({ playerId, limit: 50 })
+      statsRows = await getNflPlayerStats({ playerId, seasons: [currentYear], limit: 50 })
     } else {
       const players = await searchNflPlayer(playerName)
       if (!players.length) {
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
       displayName = `${player.first_name} ${player.last_name}`
       displayTeam = player.team?.abbreviation || 'NFL'
 
-      statsRows = await getNflPlayerStats({ playerId: player.id, limit: 50 })
+      statsRows = await getNflPlayerStats({ playerId: player.id, seasons: [currentYear], limit: 50 })
     }
 
     if (!statsRows.length) {
