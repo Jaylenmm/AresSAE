@@ -466,7 +466,7 @@ export async function analyzeBet(
     warnings.push('NO_USER_PRICE');
   }
   
-  // NBA Stats Analysis Integration
+  // NBA / NFL Stats Analysis Integration
   let nbaAnalysis: PropAnalysis | undefined;
   let nflAnalysis: NflPropAnalysis | undefined;
 
@@ -575,8 +575,6 @@ export async function analyzeBet(
 
   // NFL Stats Analysis Integration
   if (betOption.sport === 'NFL' && betOption.betType === 'player_prop' && betOption.playerName) {
-    console.log(`\n🏈 Fetching NFL stats for ${betOption.playerName}...`);
-    
     const parsedBet = {
       type: 'player_prop' as const,
       player: betOption.playerName,
@@ -587,20 +585,18 @@ export async function analyzeBet(
       sportsbook: betOption.sportsbook,
       sport: 'NFL',
       rawText: `${betOption.playerName} ${betOption.selection} ${betOption.line}`,
-      confidence: 0.9
+      confidence: 0.9,
     };
-    
+
     try {
       const result = await analyzeNflProp(parsedBet as any);
       nflAnalysis = result ?? undefined;
-      
+
       if (nflAnalysis) {
-        console.log(`✅ NFL analysis complete: ${nflAnalysis.recommendation} (${nflAnalysis.confidence}% confidence)`);
-        
         const statsEdge = nflAnalysis.edge;
         let combinedEdge = (statsEdge * 0.7) + (edge * 0.3);
         combinedEdge = Math.round(combinedEdge);
-        
+
         let combinedConfidence = confidence;
         let statsConfidenceAdjustment = 0;
         const nflRec = nflAnalysis.recommendation;
@@ -615,12 +611,12 @@ export async function analyzeBet(
         }
 
         combinedConfidence = Math.max(10, Math.min(95, combinedConfidence + statsConfidenceAdjustment));
-        
+
+        // Prepend NFL reasoning/warnings
         reasons.unshift(...nflAnalysis.reasoning);
         warnings.unshift(...nflAnalysis.warnings);
-        
+
         let finalRecommendation = recommendation;
-        
         if (nflRec === 'bet' && combinedEdge > 2) {
           finalRecommendation = 'strong_bet';
         } else if (nflRec === 'lean_bet' && combinedEdge > 1) {
@@ -628,7 +624,7 @@ export async function analyzeBet(
         } else if (nflRec === 'pass' || nflRec === 'lean_pass') {
           finalRecommendation = 'avoid';
         }
-        
+
         return {
           bestOdds: best.odds,
           bestSportsbook: getBookmakerDisplayName(best.sportsbook),
@@ -653,7 +649,7 @@ export async function analyzeBet(
           warnings,
           allOdds: relevantOdds,
           nbaAnalysis,
-          nflAnalysis
+          nflAnalysis,
         };
       }
     } catch (error: any) {
@@ -686,7 +682,8 @@ export async function analyzeBet(
     reasons,
     warnings,
     allOdds: relevantOdds,
-    nbaAnalysis
+    nbaAnalysis,
+    nflAnalysis,
   };
 }
 

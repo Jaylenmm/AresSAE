@@ -43,13 +43,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Player not found' }, { status: 404 })
       }
 
-      const preferred = players.filter(p => {
-        const pos = (p.position_abbreviation || p.position || '').toUpperCase()
-        // Deprioritize kickers and punters
-        return pos !== 'K' && pos !== 'P' && pos !== 'PK'
-      })
-
-      const player = (preferred[0] || players[0])
+      const player = players[0]
       playerId = player.id
       displayName = `${player.first_name} ${player.last_name}`
       displayTeam = player.team?.abbreviation || 'NFL'

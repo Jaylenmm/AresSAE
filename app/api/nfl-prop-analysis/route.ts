@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { searchNflPlayer, getNflPlayerGameLogs } from '@/lib/balldontlie-nfl'
+import { searchNflPlayer, getNflPlayerStats, type NflStatRow } from '@/lib/balldontlie-nfl'
 import type { NflPropAnalysis } from '@/lib/nfl-prop-analyzer'
 
 function median(values: number[]): number {
@@ -37,12 +37,60 @@ export async function GET(request: NextRequest) {
 
     const nflPlayer = players[0]
 
-    const logs = await getNflPlayerGameLogs({ playerId: nflPlayer.id, limit: 25 })
-    if (!logs.length) {
-      return NextResponse.json({ error: 'No game logs' }, { status: 404 })
+    const currentYear = new Date().getFullYear()
+    let statsRows = await getNflPlayerStats({ playerId: nflPlayer.id, seasons: [currentYear], limit: 50 })
+    if (!statsRows.length) {
+      // Fallback to previous season if current has no logs yet
+      statsRows = await getNflPlayerStats({ playerId: nflPlayer.id, seasons: [currentYear - 1], limit: 50 })
     }
 
-    const values = logs.map(l => l.value).filter(v => typeof v === 'number')
+    if (!statsRows.length) {
+      return NextResponse.json({ error: 'No stats' }, { status: 404 })
+    }
+
+    // Map our internal propType to one or more numeric fields on the stats row
+    const propTypeLower = propType.toLowerCase()
+
+    const statSelectors: Array<(row: NflStatRow) => number> = []
+
+    if (propTypeLower.includes('reception') && propTypeLower.includes('yd')) {
+      // Receiving yards
+      statSelectors.push((row) => Number(row.receiving_yards || 0))
+    } else if (propTypeLower.includes('reception')) {
+      // Receptions
+      statSelectors.push((row) => Number(row.receptions || 0))
+    } else if (propTypeLower.includes('rush') && propTypeLower.includes('yd')) {
+      statSelectors.push((row) => Number(row.rushing_yards || 0))
+    } else if (propTypeLower.includes('rush')) {
+      statSelectors.push((row) => Number(row.rushing_attempts || 0))
+    } else if (propTypeLower.includes('pass') && propTypeLower.includes('yd')) {
+      statSelectors.push((row) => Number(row.passing_yards || 0))
+    } else if (propTypeLower.includes('pass') && propTypeLower.includes('comp')) {
+      statSelectors.push((row) => Number(row.passing_completions || 0))
+    } else if (propTypeLower.includes('pass') && propTypeLower.includes('att')) {
+      statSelectors.push((row) => Number(row.passing_attempts || 0))
+    } else if (propTypeLower.includes('anytime') && propTypeLower.includes('td')) {
+      // Any-time TD: sum rushing + receiving + fumble TDs
+      statSelectors.push((row) => Number(row.rushing_touchdowns || 0) + Number(row.receiving_touchdowns || 0) + Number(row.fumbles_touchdowns || 0))
+    }
+
+    const values = statsRows
+      .map((row) => {
+        if (statSelectors.length === 0) {
+          // Fallback: try a generic yards-like field
+          const v =
+            row.passing_yards ??
+            row.rushing_yards ??
+            row.receiving_yards ??
+            null
+          return typeof v === 'number' ? v : null
+        }
+
+        const total = statSelectors.reduce((sum, sel) => sum + sel(row), 0)
+        return total
+      })
+      .filter((v): v is number => typeof v === 'number')
+
     if (!values.length) {
       return NextResponse.json({ error: 'No numeric values' }, { status: 404 })
     }
