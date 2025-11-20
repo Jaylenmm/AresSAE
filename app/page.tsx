@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 // import GameCard from '@/components/GameCard'
 import GameCard from '@/components/GameCardV2'
 // import PropCard from '@/components/PropCard'
@@ -24,8 +24,33 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [news, setNews] = useState<any[]>([])
 
+  const tabsContainerRef = useRef<HTMLDivElement | null>(null)
+  const [indicator, setIndicator] = useState<{ left: number; width: number }>({ left: 0, width: 0 })
+
   useEffect(() => {
     loadData()
+  }, [selectedSport])
+
+  useEffect(() => {
+    function updateIndicator() {
+      const container = tabsContainerRef.current
+      if (!container) return
+      const active = container.querySelector<HTMLButtonElement>(`button[data-sport="${selectedSport}"]`)
+      if (!active) return
+
+      const containerRect = container.getBoundingClientRect()
+      const activeRect = active.getBoundingClientRect()
+
+      setIndicator({
+        left: activeRect.left - containerRect.left,
+        width: activeRect.width,
+      })
+    }
+
+    updateIndicator()
+
+    window.addEventListener('resize', updateIndicator)
+    return () => window.removeEventListener('resize', updateIndicator)
   }, [selectedSport])
 
   async function loadData() {
@@ -79,27 +104,38 @@ export default function Home() {
   }
 
   return (
-    <main className="max-w-lg mx-auto p-4">
-      <div className="mb-6 flex items-center">
-        <img src="/ares-logo.svg" alt="Ares Logo" style={{ height: 40 }} className="mr-2" />
-        <span className="sr-only">Ares - Smart betting analysis</span>
-      </div>
+    <main className="w-full mx-auto p-4">
+      {/* Logo + Sport Selector */}
+      <div className="mb-8 flex items-baseline gap-3 relative">
+        <div className="flex-shrink-0 relative z-10">
+          <img src="/ares-logo.svg" alt="Ares Logo" style={{ height: 40 }} className="mr-1" />
+          <span className="sr-only">Ares - Smart betting analysis</span>
+        </div>
 
-      {/* Interactive Sport Tabs */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-        {SPORTS.map((sport) => (
-          <button
-            key={sport.key}
-            onClick={() => setSelectedSport(sport.key)}
-            className={`px-4 py-2 rounded-lg font-semibold whitespace-nowrap transition-all ${
-              selectedSport === sport.key
-                ? '!bg-gradient-to-r from-blue-600 to-blue-900 text-white shadow-lg scale-105'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            {sport.label}
-          </button>
-        ))}
+        {/* Horizontally scrollable sports list that can move under the logo area */}
+        <div className="flex-1 overflow-x-auto pb-1 -ml-4 pl-4 touch-pan-x">
+          <div className="relative flex gap-4 min-w-max" ref={tabsContainerRef}>
+            <div
+              className="absolute bottom-0 h-[4px] bg-blue-600 transition-all duration-200 origin-left"
+              style={{ transform: `translateX(${indicator.left}px) skewX(-20deg)`, width: indicator.width }}
+            />
+            {SPORTS.map((sport) => {
+              const isSelected = selectedSport === sport.key
+              const labelColorClass = isSelected ? 'text-blue-400' : 'text-white'
+              return (
+                <button
+                  key={sport.key}
+                  onClick={() => setSelectedSport(sport.key)}
+                  data-sport={sport.key}
+                  className="relative whitespace-nowrap text-2xl sm:text-3xl font-bold italic border-none focus:outline-none transition-colors duration-200"
+                  style={{ background: 'transparent', padding: '0.25rem 0', border: 'none' }}
+                >
+                  <span className={`px-1 ${labelColorClass}`}>{sport.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
       </div>
 
       {loading ? (
