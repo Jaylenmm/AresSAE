@@ -53,6 +53,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Utility: hide scrollbars but keep scroll behavior (for swipeable strips) */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
 /* VS Code-style scrollbar */
 ::-webkit-scrollbar {
   width: 10px;

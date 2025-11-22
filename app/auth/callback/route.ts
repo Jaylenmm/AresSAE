@@ -10,7 +10,23 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = createRouteHandlerClient({ cookies })
-    await supabase.auth.exchangeCodeForSession(code)
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+
+    if (!error && data?.session?.user) {
+      const user = data.session.user
+      const email = user.email || null
+      const now = new Date().toISOString()
+
+      await supabase.from('profiles').upsert(
+        {
+          id: user.id,
+          email,
+          joined_via: 'google',
+          last_login_at: now,
+        },
+        { onConflict: 'id' }
+      )
+    }
   }
 
   // Redirect to the original page they were on
