@@ -45,6 +45,7 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
   const [loadingStats, setLoadingStats] = useState(false)
   const [nbaGameLogs, setNbaGameLogs] = useState<PlayerGameLog[]>([])
   const [nflGameLogs, setNflGameLogs] = useState<NflGameLog[]>([])
+  const [nflPositionAbbr, setNflPositionAbbr] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -82,7 +83,10 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
           if (response.ok) {
             const stats = await response.json()
             setNflGameLogs((stats.recentGames || []).slice(0, 5))
-            console.log(`Loaded ${stats.recentGames?.length || 0} NFL games for ${playerName}`)
+            setNflPositionAbbr((stats.positionAbbreviation as string | undefined) || null)
+            console.log(
+              `Loaded ${stats.recentGames?.length || 0} NFL games for ${playerName} (${stats.positionAbbreviation || stats.position || 'UNK'})`
+            )
           } else {
             const error = await response.json()
             console.log(`${error.error || 'No NFL stats found'} for ${playerName}`)
@@ -424,21 +428,40 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
             {(() => {
               const firstGame = nflGameLogs[0]
               const allKeys = Object.keys(firstGame.stats || {})
+              const position = (nflPositionAbbr || '').toUpperCase()
 
-              const preferredOrder = [
-                'rushing_attempts',
-                'rushing_yards',
-                'rushing_touchdowns',
-                'receptions',
-                'receiving_yards',
-                'receiving_touchdowns',
-                'targets',
-                'passing_completions',
-                'passing_attempts',
-                'passing_yards',
-                'passing_touchdowns',
-                'interceptions',
-              ]
+              // For QBs, prioritize passing stats first; for others, keep
+              // rushing/receiving first and passing later.
+              const preferredOrder =
+                position === 'QB'
+                  ? [
+                      'passing_completions',
+                      'passing_attempts',
+                      'passing_yards',
+                      'passing_touchdowns',
+                      'interceptions',
+                      'rushing_attempts',
+                      'rushing_yards',
+                      'rushing_touchdowns',
+                      'receptions',
+                      'receiving_yards',
+                      'receiving_touchdowns',
+                      'targets',
+                    ]
+                  : [
+                      'rushing_attempts',
+                      'rushing_yards',
+                      'rushing_touchdowns',
+                      'receptions',
+                      'receiving_yards',
+                      'receiving_touchdowns',
+                      'targets',
+                      'passing_completions',
+                      'passing_attempts',
+                      'passing_yards',
+                      'passing_touchdowns',
+                      'interceptions',
+                    ]
 
               const isRelevantOffensiveKey = (key: string) => {
                 const lower = key.toLowerCase()
@@ -446,6 +469,9 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
                 if (lower.includes('field_goal') || lower.includes('fg')) return false
                 if (lower.includes('extra_point') || lower === 'xp' || lower.includes('pat')) return false
                 if (lower.includes('kickoff')) return false
+                // Explicitly drop kick/punt return stats even if they say touchdown;
+                // they are almost always irrelevant for prop markets we're showing.
+                if (lower.includes('kick_return') || lower.includes('punt_return')) return false
                 if (lower.includes('return') && !lower.includes('touchdown')) return false
                 return (
                   lower.includes('rush') ||

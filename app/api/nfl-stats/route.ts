@@ -24,6 +24,8 @@ export async function GET(request: NextRequest) {
     let playerId: number | null = null
     let displayName = playerName
     let displayTeam = 'NFL'
+    let displayPosition: string | null = null
+    let displayPositionAbbr: string | null = null
 
     if (playerIdParam) {
       const parsed = parseInt(playerIdParam, 10)
@@ -41,15 +43,49 @@ export async function GET(request: NextRequest) {
     } else {
       const players = await searchNflPlayer(playerName)
       if (!players.length) {
-        return NextResponse.json({ error: 'Player not found' }, { status: 404 })
+        return NextResponse.json({ error: 'PLAYER_NOT_FOUND' }, { status: 404 })
       }
 
-      const player = pickBestNflPlayerMatch(players)
+      // Resolve to an unambiguous player based on who actually has
+      // current-season stats. If multiple players with this name have
+      // current-season stats, fail explicitly instead of guessing.
+      const resolvedCandidates: { player: NflPlayer; statsRows: NflStatRow[] }[] = []
+      for (const p of players) {
+        const rows = await getNflPlayerStats({ playerId: p.id, seasons: [currentYear], limit: 50 })
+        if (rows && rows.length > 0) {
+          resolvedCandidates.push({ player: p, statsRows: rows })
+        }
+      }
+
+      if (resolvedCandidates.length === 0) {
+        return NextResponse.json(
+          { error: 'NO_CURRENT_SEASON_STATS', message: 'No current-season stats found for any matching player' },
+          { status: 404 }
+        )
+      }
+
+      if (resolvedCandidates.length > 1) {
+        const names = resolvedCandidates
+          .map((c) => `${c.player.first_name} ${c.player.last_name}${c.player.team?.abbreviation ? ` (${c.player.team.abbreviation})` : ''}`)
+          .join(', ')
+        return NextResponse.json(
+          {
+            error: 'AMBIGUOUS_PLAYER_MATCH',
+            message: `Multiple players share this name with current-season stats: ${names}. Please specify team/context.`,
+          },
+          { status: 400 }
+        )
+      }
+
+      const resolved = resolvedCandidates[0]
+      const player = resolved.player
+      statsRows = resolved.statsRows
+
       playerId = player.id
       displayName = `${player.first_name} ${player.last_name}`
       displayTeam = player.team?.abbreviation || 'NFL'
-
-      statsRows = await getNflPlayerStats({ playerId: player.id, seasons: [currentYear], limit: 50 })
+      displayPosition = player.position || null
+      displayPositionAbbr = (player.position_abbreviation as string | undefined) || null
     }
 
     if (!statsRows.length) {
@@ -96,32 +132,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       playerName: displayName,
       team: displayTeam,
+      position: displayPosition,
+      positionAbbreviation: displayPositionAbbr,
       recentGames,
     })
   } catch (error: any) {
     console.error('Error fetching NFL stats:', error)
     return NextResponse.json({ error: 'NFL_STATS_ERROR', message: error?.message }, { status: 500 })
   }
-}
-
-function pickBestNflPlayerMatch(players: NflPlayer[]): NflPlayer {
-  if (players.length === 1) return players[0]
-
-  const nonSpecialPositions = new Set(['QB', 'RB', 'FB', 'WR', 'TE', 'LB', 'CB', 'S', 'DL', 'DE', 'DT'])
-  const specialPositions = new Set(['K', 'P', 'PK'])
-
-  const scored = players.map((p) => {
-    const pos = (p.position_abbreviation || p.position || '').toUpperCase()
-    let score = 0
-
-    if (!pos) score += 5
-    if (nonSpecialPositions.has(pos)) score += 20
-    if (specialPositions.has(pos)) score -= 20
-    if (p.team?.abbreviation) score += 3
-
-    return { player: p, score }
-  })
-
-  scored.sort((a, b) => b.score - a.score)
-  return scored[0].player
 }

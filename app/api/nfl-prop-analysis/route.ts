@@ -32,13 +32,43 @@ export async function GET(request: NextRequest) {
   try {
     const players = await searchNflPlayer(player)
     if (!players.length) {
-      return NextResponse.json({ error: 'Player not found' }, { status: 404 })
+      return NextResponse.json({ error: 'PLAYER_NOT_FOUND' }, { status: 404 })
     }
 
-    const nflPlayer = pickBestNflPlayerMatch(players)
-
     const currentYear = new Date().getFullYear()
-    const statsRows = await getNflPlayerStats({ playerId: nflPlayer.id, seasons: [currentYear], limit: 50 })
+
+    // Resolve to a single, unambiguous player based on who actually has
+    // current-season stats. If multiple players share the same name and
+    // have current-season stats, we fail explicitly instead of guessing.
+    const resolvedCandidates: { player: NflPlayer; statsRows: NflStatRow[] }[] = []
+    for (const p of players) {
+      const rows = await getNflPlayerStats({ playerId: p.id, seasons: [currentYear], limit: 50 })
+      if (rows && rows.length > 0) {
+        resolvedCandidates.push({ player: p, statsRows: rows })
+      }
+    }
+
+    if (resolvedCandidates.length === 0) {
+      return NextResponse.json(
+        { error: 'NO_CURRENT_SEASON_STATS', message: 'No current-season stats found for any matching player' },
+        { status: 404 }
+      )
+    }
+
+    if (resolvedCandidates.length > 1) {
+      const names = resolvedCandidates
+        .map((c) => `${c.player.first_name} ${c.player.last_name}${c.player.team?.abbreviation ? ` (${c.player.team.abbreviation})` : ''}`)
+        .join(', ')
+      return NextResponse.json(
+        {
+          error: 'AMBIGUOUS_PLAYER_MATCH',
+          message: `Multiple players share this name with current-season stats: ${names}. Please specify team/context.`,
+        },
+        { status: 400 }
+      )
+    }
+
+    const { statsRows } = resolvedCandidates[0]
 
     if (!statsRows.length) {
       return NextResponse.json({ error: 'No stats' }, { status: 404 })
@@ -70,18 +100,15 @@ export async function GET(request: NextRequest) {
       statSelectors.push((row) => Number(row.rushing_touchdowns || 0) + Number(row.receiving_touchdowns || 0) + Number(row.fumbles_touchdowns || 0))
     }
 
+    if (statSelectors.length === 0) {
+      return NextResponse.json(
+        { error: 'UNSUPPORTED_PROP_TYPE', message: `No stat mapping implemented for propType='${propType}'` },
+        { status: 400 }
+      )
+    }
+
     const values = statsRows
       .map((row) => {
-        if (statSelectors.length === 0) {
-          // Fallback: try a generic yards-like field
-          const v =
-            row.passing_yards ??
-            row.rushing_yards ??
-            row.receiving_yards ??
-            null
-          return typeof v === 'number' ? v : null
-        }
-
         const total = statSelectors.reduce((sum, sel) => sum + sel(row), 0)
         return total
       })
@@ -156,26 +183,4 @@ export async function GET(request: NextRequest) {
     console.error('Error in NFL prop analysis API:', error)
     return NextResponse.json({ error: 'NFL_STATS_ERROR', message: error?.message }, { status: 500 })
   }
-}
-
-function pickBestNflPlayerMatch(players: NflPlayer[]): NflPlayer {
-  if (players.length === 1) return players[0]
-
-  const nonSpecialPositions = new Set(['QB', 'RB', 'FB', 'WR', 'TE', 'LB', 'CB', 'S', 'DL', 'DE', 'DT'])
-  const specialPositions = new Set(['K', 'P', 'PK'])
-
-  const scored = players.map((p) => {
-    const pos = (p.position_abbreviation || p.position || '').toUpperCase()
-    let score = 0
-
-    if (!pos) score += 5
-    if (nonSpecialPositions.has(pos)) score += 20
-    if (specialPositions.has(pos)) score -= 20
-    if (p.team?.abbreviation) score += 3
-
-    return { player: p, score }
-  })
-
-  scored.sort((a, b) => b.score - a.score)
-  return scored[0].player
 }
