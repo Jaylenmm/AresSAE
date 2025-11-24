@@ -253,6 +253,11 @@ function SlipReaderInterface() {
                          results.parsingMethod === 'fanduel-parser' ? 'FanDuel Parser' :
                          results.parsingMethod}
                       </span>
+                      {results.sportsbook && (
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-500/20 text-green-300 border border-green-500/40">
+                          {results.sportsbook.toUpperCase()}
+                        </span>
+                      )}
                       {results.parsingMethod !== 'gpt-vision' && (
                         <span className="text-xs text-gray-500">
                           (Add OPENAI_API_KEY for GPT-4 Vision)

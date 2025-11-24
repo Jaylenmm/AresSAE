@@ -120,6 +120,7 @@ export async function POST(request: NextRequest) {
       success: true,
       ocrText,
       parsingMethod,
+      sportsbook,
       betsFound: parsedBets.length,
       betsMatched: matchedBets.filter(b => b.matchConfidence >= 0.5).length,
       isParlay,

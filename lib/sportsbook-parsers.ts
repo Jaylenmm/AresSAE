@@ -458,39 +458,93 @@ export function detectSportsbook(text: string): string | undefined {
   
   console.log('🔍 Detecting sportsbook from text...')
   
-  // Underdog detection - check for "Higher/Lower" pattern (unique to Underdog)
-  if (lower.includes('underdog') || 
-      (lower.includes('higher') && lower.includes('lower') && lower.includes('pick'))) {
-    console.log('✅ Detected: Underdog (Higher/Lower pattern)')
-    return 'underdog'
+  // Simple keyword-based scoring so we can choose the strongest signal
+  const scores: Record<string, number> = {
+    prizepicks: 0,
+    underdog: 0,
+    fanduel: 0,
+    draftkings: 0,
+    betmgm: 0,
+    caesars: 0,
+    espnbet: 0,
+    sleeper: 0,
+    betr: 0,
+    parlayplay: 0,
   }
-  
-  // PrizePicks detection - check for "More/Less" pattern
-  if (lower.includes('prizepicks') || lower.includes('prize picks') || 
-      lower.includes('prizepi') || lower.includes('power play') ||
-      (lower.includes('more') && lower.includes('less') && lower.includes('pick'))) {
-    console.log('✅ Detected: PrizePicks (More/Less pattern)')
-    return 'prizepicks'
+
+  const addScore = (book: keyof typeof scores, amount: number) => {
+    scores[book] += amount
   }
-  
+
+  // Brand names are the strongest signals
+  if (lower.includes('prizepicks') || lower.includes('prize picks') || lower.includes('prizepi')) {
+    addScore('prizepicks', 5)
+  }
+  if (lower.includes('underdog')) {
+    addScore('underdog', 5)
+  }
   if (lower.includes('fanduel') || lower.includes('fan duel')) {
-    console.log('✅ Detected: FanDuel')
-    return 'fanduel'
+    addScore('fanduel', 5)
   }
   if (lower.includes('draftkings') || lower.includes('draft kings')) {
-    console.log('✅ Detected: DraftKings')
-    return 'draftkings'
+    addScore('draftkings', 5)
   }
   if (lower.includes('betmgm') || lower.includes('bet mgm')) {
-    console.log('✅ Detected: BetMGM')
-    return 'betmgm'
+    addScore('betmgm', 5)
   }
-  if (lower.includes('caesars')) return 'caesars'
-  if (lower.includes('espnbet') || lower.includes('espn bet')) return 'espnbet'
-  if (lower.includes('sleeper')) return 'sleeper'
-  if (lower.includes('betr')) return 'betr'
-  if (lower.includes('parlayplay') || lower.includes('parlay play')) return 'parlayplay'
-  
+  if (lower.includes('caesars')) {
+    addScore('caesars', 5)
+  }
+  if (lower.includes('espnbet') || lower.includes('espn bet')) {
+    addScore('espnbet', 5)
+  }
+  if (lower.includes('sleeper')) {
+    addScore('sleeper', 5)
+  }
+  if (lower.includes('betr')) {
+    addScore('betr', 5)
+  }
+  if (lower.includes('parlayplay') || lower.includes('parlay play')) {
+    addScore('parlayplay', 5)
+  }
+
+  // Pattern-based hints for DFS apps
+  const hasMore = lower.includes('more')
+  const hasLess = lower.includes('less')
+  const hasHigher = lower.includes('higher')
+  const hasLower = lower.includes('lower')
+  const hasPickWord = lower.includes('pick') || lower.includes('picks')
+
+  // Underdog uses Higher/Lower language heavily
+  if (hasHigher && hasLower && hasPickWord) {
+    addScore('underdog', 3)
+  }
+
+  // PrizePicks uses More/Less language heavily
+  if (hasMore && hasLess && hasPickWord) {
+    addScore('prizepicks', 3)
+  }
+
+  // Additional soft hints for PrizePicks
+  if (lower.includes('power play') || lower.includes('flex play')) {
+    addScore('prizepicks', 2)
+  }
+
+  // Choose the book with the highest score above a minimal threshold
+  let bestBook: string | undefined
+  let bestScore = 0
+  for (const [book, score] of Object.entries(scores)) {
+    if (score > bestScore) {
+      bestScore = score
+      bestBook = book
+    }
+  }
+
+  if (bestBook && bestScore >= 3) {
+    console.log(`✅ Detected sportsbook: ${bestBook} (score=${bestScore})`)
+    return bestBook
+  }
+
   console.log('⚠️ No sportsbook detected')
   return undefined
 }

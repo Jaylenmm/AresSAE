@@ -37,11 +37,21 @@ export async function GET(request: NextRequest) {
 
     const currentYear = new Date().getFullYear()
 
-    // Resolve to a single, unambiguous player based on who actually has
-    // current-season stats. If multiple players share the same name and
-    // have current-season stats, we fail explicitly instead of guessing.
+    const normalizedTarget = player.trim().toLowerCase()
+    const exactMatches = players.filter((p) => {
+      const full = `${p.first_name} ${p.last_name}`.trim().toLowerCase()
+      return full === normalizedTarget
+    })
+
+    if (!exactMatches.length) {
+      return NextResponse.json(
+        { error: 'NO_EXACT_NAME_MATCH', message: 'No exact-name NFL player match found for this query' },
+        { status: 404 }
+      )
+    }
+
     const resolvedCandidates: { player: NflPlayer; statsRows: NflStatRow[] }[] = []
-    for (const p of players) {
+    for (const p of exactMatches) {
       const rows = await getNflPlayerStats({ playerId: p.id, seasons: [currentYear], limit: 50 })
       if (rows && rows.length > 0) {
         resolvedCandidates.push({ player: p, statsRows: rows })
@@ -50,25 +60,15 @@ export async function GET(request: NextRequest) {
 
     if (resolvedCandidates.length === 0) {
       return NextResponse.json(
-        { error: 'NO_CURRENT_SEASON_STATS', message: 'No current-season stats found for any matching player' },
+        { error: 'NO_CURRENT_SEASON_STATS', message: 'No current-season stats found for the exact-name player match' },
         { status: 404 }
       )
     }
 
-    if (resolvedCandidates.length > 1) {
-      const names = resolvedCandidates
-        .map((c) => `${c.player.first_name} ${c.player.last_name}${c.player.team?.abbreviation ? ` (${c.player.team.abbreviation})` : ''}`)
-        .join(', ')
-      return NextResponse.json(
-        {
-          error: 'AMBIGUOUS_PLAYER_MATCH',
-          message: `Multiple players share this name with current-season stats: ${names}. Please specify team/context.`,
-        },
-        { status: 400 }
-      )
-    }
+    let { statsRows } = resolvedCandidates[0]
 
-    const { statsRows } = resolvedCandidates[0]
+    // Extra safety: only accept rows from the current season.
+    statsRows = statsRows.filter((row) => row.game?.season === currentYear)
 
     if (!statsRows.length) {
       return NextResponse.json({ error: 'No stats' }, { status: 404 })

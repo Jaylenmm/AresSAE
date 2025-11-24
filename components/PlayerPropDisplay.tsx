@@ -516,8 +516,15 @@ export default function PlayerPropDisplay({ playerName, props, onSelectBet }: Pl
                         else if (upper === 'RECEPTIONS') label = 'REC'
                         else if (upper === 'RECEIVING_YARDS') label = 'REC YDS'
                         else if (upper === 'RECEIVING_TOUCHDOWNS') label = 'REC TD'
+                        else if (upper === 'RECEIVING_TARGETS') label = 'TGTS'
                         else if (upper === 'LONG_RECEPTION') label = 'REC LONG'
                         else if (upper === 'LONG_RUSHING') label = 'RUSH LONG'
+                        else if (upper === 'YARDS_PER_RECEPTION') label = 'AVG'
+                        else if (upper === 'PASSING_COMPLETIONS') label = 'PASS COMP'
+                        else if (upper === 'PASSING_ATTEMPTS') label = 'PASS ATT'
+                        else if (upper === 'PASSING_YARDS') label = 'PASS YDS'
+                        else if (upper === 'PASSING_TOUCHDOWNS') label = 'PASS TD'
+                        else if (upper === 'INTERCEPTIONS') label = 'INT'
 
                         return (
                           <th
