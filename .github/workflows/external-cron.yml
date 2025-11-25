@@ -3,6 +3,7 @@ name: External Cron Scheduler
 on:
   schedule:
     - cron: "0 10 * * *"   # Runs daily at 10:00 UTC (4:00 AM CST / 5:00 AM CDT)
+    - cron: "0 17 * * *"   # Runs daily at 17:00 UTC (11:00 AM CST / 12:00 PM CDT)
   workflow_dispatch: {}
 
 jobs:

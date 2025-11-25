@@ -12,7 +12,6 @@ import { transformGameToAnalysisFormat, transformPlayerPropsToAnalysisFormat, cr
 import AnalyzeConfirmationModal from '@/components/AnalyzeConfirmationModal'
 import LineSelector from '@/components/LineSelector'
 import ValueMeter from '@/components/ValueMeter'
-import LegalFooter from '@/components/LegalFooter'
 
 interface AlternateLine {
   line: number
@@ -1130,8 +1129,6 @@ function PicksPageInner() {
           betDetails={selectedPickForAnalysis.picks}
         />
       )}
-      <LegalFooter />
-      </div>
     </main>
   )
 }

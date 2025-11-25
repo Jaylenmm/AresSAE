@@ -12,7 +12,6 @@ import { Game, OddsData, PlayerProp } from '@/lib/types'
 import { updateAnalysisState, type AnalysisItem, type AnalysisState } from '@/components/AnalysisStatusBar'
 import { Search } from 'lucide-react'
 import BetConfirmationModal from '@/components/BetConfirmationModal'
-import LegalFooter from '@/components/LegalFooter'
 import { getBookmakerDisplayName } from '@/lib/bookmakers'
 
 export default function BuildPageContent() {
@@ -595,7 +594,6 @@ export default function BuildPageContent() {
           betDetails={modalData.betDetails}
         />
       )}
-      <LegalFooter />
     </main>
   )
 }

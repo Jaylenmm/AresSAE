@@ -18,17 +18,19 @@ export async function GET(request: Request) {
 
   const today = new Date().toISOString().split('T')[0]
   
-  const { data: lastRun } = await supabase
+  // Allow up to two successful runs per calendar day. This lets you
+  // schedule, for example, a morning and evening data refresh while
+  // still protecting against runaway cron loops.
+  const { count: completedCount } = await supabase
     .from('cron_runs')
-    .select('run_date, completed_at')
+    .select('id', { count: 'exact', head: true })
     .eq('run_date', today)
     .eq('status', 'completed')
-    .single()
 
-  if (lastRun) {
+  if ((completedCount ?? 0) >= 2) {
     return NextResponse.json({ 
-      message: 'Already ran today',
-      lastRun: lastRun.completed_at,
+      message: 'Daily run limit reached',
+      completedRunsToday: completedCount,
       skipped: true
     })
   }
