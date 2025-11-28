@@ -12,7 +12,7 @@ export const SPORTS = [
   { key: "NHL", label: "NHL", comingSoon: true, path: "/nhl" },
   { key: "NCAAMB", label: "NCAAMB", comingSoon: true, path: "/ncaamb" },
   { key: "EPL", label: "EPL", comingSoon: true, path: "/epl" },
-  { key: "TENNIS", label: "Tennis", comingSoon: true, path: "/tennis" },
+  { key: "TENNIS", label: "TENNIS", comingSoon: true, path: "/tennis" },
 ] as const
 
 export type SportKey = (typeof SPORTS)[number]["key"]
