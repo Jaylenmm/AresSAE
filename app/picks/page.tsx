@@ -547,6 +547,19 @@ function PicksPageInner() {
     await runAnalysisForPick(pick)
   }
 
+  async function analyzeAtBookOdds(pick: UserPick, sportsbook: string, odds: number) {
+    const pickWithBook = {
+      ...pick,
+      picks: {
+        ...pick.picks,
+        odds,
+        sportsbook,
+      },
+    } as UserPick
+
+    await runAnalysisForPick(pickWithBook)
+  }
+
   function toggleAnalysisHistory(pickId: string) {
     setExpandedAnalyses(prev => ({
       ...prev,
@@ -688,29 +701,34 @@ function PicksPageInner() {
                           <span className="text-white bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg text-sm font-semibold border border-white/20">
                             {getBookmakerDisplayName(pick.picks?.sportsbook || 'N/A')}
                           </span>
-                          {analysis && analysis.bestSportsbook && analysis.bestOdds && (
+                          {analysis && Array.isArray(analysis.allOdds) && analysis.allOdds.length > 0 && (
                             <div className="flex items-center gap-2 ml-1">
                               <label className="text-[11px] text-gray-400">Shop odds:</label>
                               <select
                                 className="bg-gray-900 border border-white/15 rounded px-2 py-1 text-[11px] text-gray-100"
-                                value={pick.picks?.odds !== undefined ? 'user' : 'best'}
+                                value={pick.picks?.sportsbook || ''}
                                 onChange={async (e) => {
-                                  const choice = e.target.value
-                                  if (choice === 'user') {
+                                  const selectedBook = e.target.value
+                                  if (!selectedBook) return
+                                  if (selectedBook === '__user__') {
                                     await analyzeAtUserOdds(pick)
-                                  } else {
-                                    await analyzeAtBestOdds(pick)
+                                    return
                                   }
+                                  const match = analysis.allOdds.find(o => o.sportsbook === selectedBook)
+                                  if (!match) return
+                                  await analyzeAtBookOdds(pick, match.sportsbook, match.odds)
                                 }}
                               >
-                                {pick.picks?.odds !== undefined && (
-                                  <option value="user">
-                                    Your odds: {pick.picks.odds > 0 ? '+' : ''}{pick.picks.odds} @ {getBookmakerDisplayName(pick.picks?.sportsbook || 'Your book')}
+                                {pick.picks?.odds !== undefined && pick.picks?.sportsbook && (
+                                  <option value="__user__">
+                                    Your odds: {pick.picks.odds > 0 ? '+' : ''}{pick.picks.odds} @ {getBookmakerDisplayName(pick.picks.sportsbook)}
                                   </option>
                                 )}
-                                <option value="best">
-                                  Best in market: {analysis.bestOdds > 0 ? '+' : ''}{analysis.bestOdds} @ {getBookmakerDisplayName(analysis.bestSportsbook)}
-                                </option>
+                                {analysis.allOdds.map((o, idx) => (
+                                  <option key={`${o.sportsbook}-${idx}`} value={o.sportsbook}>
+                                    {o.odds > 0 ? '+' : ''}{o.odds} @ {getBookmakerDisplayName(o.sportsbook)}
+                                  </option>
+                                ))}
                               </select>
                             </div>
                           )}
