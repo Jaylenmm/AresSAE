@@ -724,7 +724,7 @@ function PicksPageInner() {
                                     Your odds: {pick.picks.odds > 0 ? '+' : ''}{pick.picks.odds} @ {getBookmakerDisplayName(pick.picks.sportsbook)}
                                   </option>
                                 )}
-                                {analysis.allOdds.map((o, idx) => (
+                                {analysis.allOdds.map((o: { sportsbook: string; odds: number; isSharp?: boolean }, idx: number) => (
                                   <option key={`${o.sportsbook}-${idx}`} value={o.sportsbook}>
                                     {o.odds > 0 ? '+' : ''}{o.odds} @ {getBookmakerDisplayName(o.sportsbook)}
                                   </option>
@@ -1113,6 +1113,7 @@ function PicksPageInner() {
           </div>
         </>
       )}
+      </div>
 
       {showLineSelector && selectedPickForAnalysis && (
         <LineSelector
